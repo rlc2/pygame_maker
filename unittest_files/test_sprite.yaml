@@ -1,0 +1,9 @@
+name: spr_yaml
+filename: unittest_files/Ball.png
+smooth_edges: true
+preload_texture: false
+transparency_pixel: true
+origin: [5,5]
+collision_type: disk
+bounding_box_type: manual
+manual_bounding_box_dim: {left: 5, right: 10, top: 5, bottom: 10}
