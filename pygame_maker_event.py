@@ -5,21 +5,80 @@
 import pygame
 import re
 
-class PyGameMakerEventError(Exception):
+class PyGameMakerEventException(Exception):
     pass
 
 class PyGameMakerEvent:
+    """Base class for events"""
+    HANDLED_EVENTS=[]
+
+    event_type_registry = []
+
+    @classmethod
+    def register_new_event_type(cls, eventtype):
+        """
+            Register a class (at init time) to make it possible to search
+            through them for a particular action name
+        """
+        cls.event_type_registry.append(eventtype)
+
+    @classmethod
+    def find_event_by_name(cls, event_name):
+        if event_name in cls.HANDLED_EVENTS:
+            return True
+        return False
+
+    @classmethod
+    def get_event_instance_by_event_name(cls, event_name, **kwargs):
+        if len(cls.event_type_registry) > 0:
+            for atype in cls.event_type_registry:
+                if atype.find_event_by_name(event_name):
+                    return atype(event_name, **kwargs)
+        # no event type handles the named event
+        raise PyGameMakerEventException("Event '{}' is unknown".format(event_name))
+
+    def __init__(self, event_name=""):
+        self.event_name = event_name
+
+    def __repr__(self):
+        return("<{} \"{}\">".format(self.__class__.__name__, self.event_name))
+
+class PyGameMakerObjectStateEvent(PyGameMakerEvent):
     OBJECT_STATE_EVENTS=[
         "create",
         "destroy"
     ]
+    HANDLED_EVENTS=OBJECT_STATE_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerObjectStateEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerAlarmEvent(PyGameMakerEvent):
     ALARM_COUNT=12
     ALARM_EVENTS=["alarm{}".format(n) for n in range(0,ALARM_COUNT)]
+    HANDLED_EVENTS=ALARM_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerAlarmEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerStepEvent(PyGameMakerEvent):
     STEP_EVENTS=[
         "normal_step",
         "begin_step",
         "end_step"
     ]
+    HANDLED_EVENTS=STEP_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerStepEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerMouseEvent(PyGameMakerEvent):
     MOUSE_EVENTS=[
         "button_left",
         "button_right",
@@ -39,6 +98,14 @@ class PyGameMakerEvent:
         "mousewheelup",
         "mousewheeldown"
     ]
+    HANDLED_EVENTS=MOUSE_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerMouseEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerOtherEvent(PyGameMakerEvent):
     OTHER_EVENTS=[
         "outside_room",
         "intersect_boundary",
@@ -62,11 +129,27 @@ class PyGameMakerEvent:
         "image_loaded",
         "sound_loaded"
     ]
+    HANDLED_EVENTS=OTHER_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerOtherEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerDrawEvent(PyGameMakerEvent):
     DRAW_EVENTS=[
         "draw",
         "gui",
         "resize"
     ]
+    HANDLED_EVENTS=DRAW_EVENTS
+
+    def __init__(self, event_name):
+        if not event_name in self.HANDLED_EVENTS:
+            raise PyGameMakerEventException("PyGameMakerDrawEvent: Unknown event '{}'".format(event_name))
+        PyGameMakerEvent.__init__(self, event_name)
+
+class PyGameMakerKeyEvent(PyGameMakerEvent):
     ARROW_KEYS=[
         "left",
         "right",
@@ -144,7 +227,7 @@ class PyGameMakerEvent:
         "other":    OTHER_KEYS
     }
     KEY_EVENTS=(ARROW_KEYS + META_KEYS + KEYPAD_KEYS + DIGIT_KEYS +
-        LETTER_KEYS + FUNCTION_KEYS + OTHER_KEYS)
+        LETTER_KEYS + PUNCTUATION_KEYS + FUNCTION_KEYS + OTHER_KEYS)
 
     KEY_EVENT_TO_PYGAME_KEY_MAP={
         ",":        pygame.K_COMMA,
@@ -248,87 +331,101 @@ class PyGameMakerEvent:
         "F11":      pygame.K_F11,
         "F12":      pygame.K_F12
     }
-    EVENT_NAMES=(OBJECT_STATE_EVENTS + ALARM_EVENTS + STEP_EVENTS +
-        MOUSE_EVENTS + OTHER_EVENTS + DRAW_EVENTS + KEY_EVENTS)
-
-    EVENT_CATEGORIES={
-        "object_state": OBJECT_STATE_EVENTS,
-        "alarm":        ALARM_EVENTS,
-        "step":         STEP_EVENTS,
-        "collision":    ["collision"],
-        "keyboard":     KEY_EVENTS,
-        "mouse":        MOUSE_EVENTS,
-        "other":        OTHER_EVENTS,
-        "draw":         DRAW_EVENTS,
-    }
     KEYBOARD_UP_SUFFIX = re.compile("(.*)(_keyup)$")
     KEYBOARD_DOWN_SUFFIX = re.compile("(.*)(_keydn)$")
-
-    event_registry = None
-
-    @staticmethod
-    def is_equal(a, b):
-        return ((a.event_name == b.event_name) and
-            (a.event_category == b.event_category) and
-            (a.key_event_type == b.key_event_type) and
-            (a.collision_object_name == b.collision_object_name))
+    HANDLED_EVENTS=KEY_EVENTS
 
     @classmethod
-    def get_category_by_event_name(cls, event_name):
-        for cat in cls.EVENT_CATEGORIES:
-            if event_name in cls.EVENT_CATEGORIES[cat]:
-                return cat
-        raise (PyGameMakerEventError("Unknown event name '{}'".format(event_name)))
-
-    def __init__(self, event_name, collision_event=False):
-        """
-            Create a new event. The event name must be one defined in one of
-            PyGameMakerEvent's event lists, or the name of an object that will
-            be checked for collision events. Key event names can optionally
-            have a suffix, _keyup or _keydn, to match a press or release key
-            event. collision_event must be True for collision events.
-        """
-        self.event_name = ""
-        self.event_category = ""
-        self.collision_object_name = None
-        self.defunct = False
-        # check for a suffix (implies keyboard event)
-        self.key_event_type = None
-        up_minfo = self.KEYBOARD_UP_SUFFIX.search(event_name)
-        dn_minfo = self.KEYBOARD_DOWN_SUFFIX.search(event_name)
+    def find_key_event(cls, event_name):
+        # check for a suffix
+        key_event_type = None
+        base_event_name = ""
+        up_minfo = cls.KEYBOARD_UP_SUFFIX.search(event_name)
+        dn_minfo = cls.KEYBOARD_DOWN_SUFFIX.search(event_name)
         if up_minfo:
-            self.event_name = up_minfo.group(1)
-            self.key_event_type = "up"
-            if not (self.event_name in self.KEY_EVENTS):
-                raise (PyGameMakerEventError("Event {}: key named '{}' unknown".format(self, self.event_name)))
+            base_event_name = up_minfo.group(1)
+            key_event_type = "up"
+            if not (base_event_name in cls.HANDLED_EVENTS):
+                raise (PyGameMakerEventException("PyGameMakerKeyEvent: key named '{}' unknown".format(base_event_name)))
         elif dn_minfo:
-            self.event_name = dn_minfo.group(1)
-            self.key_event_type = "down"
-            if not (self.event_name in self.KEY_EVENTS):
-                raise (PyGameMakerEventError("Event {}: key named '{}' unknown".format(self, self.event_name)))
+            base_event_name = dn_minfo.group(1)
+            key_event_type = "down"
+            if not (base_event_name in cls.HANDLED_EVENTS):
+                raise (PyGameMakerEventException("PyGameMakerKeyEvent: key named '{}' unknown".format(base_event_name)))
+        if len(base_event_name) == 0:
+            raise PyGameMakerEventException("PyGameMakerKeyEvent: '{}' is invalid".format(event_name))
         else:
-            if not (event_name in self.EVENT_NAMES):
-                # check whether the event is named after an object: implies a
-                #  collision event
-                if collision_event:
-                    self.event_name = "collision"
-                    self.collision_object_name = event_name
-            else:
-                self.event_name = event_name
-        self.event_category = PyGameMakerEvent.get_category_by_event_name(self.event_name)
+            event_info = (base_event_name, key_event_type)
+        return event_info
+
+    @classmethod
+    def find_event_by_name(cls, event_name):
+        try:
+            ev_info = cls.find_key_event(event_name)
+        except PyGameMakerEventException:
+            return False
+        return True
+
+    def __init__(self, event_name):
+        self.key_event_type = "up"
+        PyGameMakerEvent.__init__(self, event_name)
+        ev_info = self.find_key_event(event_name)
+        self.event_name = ev_info[0]
+        self.key_event_type = ev_info[1]
 
     def __repr__(self):
-        repr_string = "<PyGameMakerEvent "
-        if self.collision_object_name:
-            repr_string += "'{}:{}'>".format(self.event_category,
-                self.collision_object_name)
-        elif self.key_event_type:
-            repr_string += "'{}:{}:{}'>".format(self.event_category,
-                self.event_name, self.key_event_type)
+        return("<{} '{}' when {}>".format(self.__class__.__name__,
+            self.event_name, self.key_event_type))
+
+class PyGameMakerCollisionEvent(PyGameMakerEvent):
+    HANDLED_EVENTS=["collision"]
+
+    COLLISION_RE=re.compile("collision_(.+)")
+
+    @classmethod
+    def find_collision_event(cls, event_name):
+        ev_name = "collision"
+        obj_name = ""
+        minfo = cls.COLLISION_RE.search(event_name)
+        if minfo:
+            obj_name = minfo.group(1)
         else:
-            repr_string += "'{}:{}'>".format(self.event_category,
-            self.event_name)
-        return repr_string
+            raise PyGameMakerEventException("PyGameMakerCollisionEvent: Invalid event '{}'".format(event_name))
+        ev_info = (ev_name, obj_name)
+        return ev_info
+
+    @classmethod
+    def find_event_by_name(cls, event_name):
+        try:
+            ev_info = cls.find_collision_event(event_name)
+        except PyGameMakerEventException:
+            return False
+        return True
+
+    def __init__(self, event_name):
+        """
+            PyGameMakerCollisionEvent name must match the pattern:
+            "collision_<objname>". The presence of an object objname is not
+            checked.
+        """
+        PyGameMakerEvent.__init__(self, event_name)
+        print("search for {}".format(event_name))
+        ev_info = PyGameMakerCollisionEvent.find_collision_event(event_name)
+        self.event_name = ev_info[0]
+        self.collision_object_name = ev_info[1]
+
+    def __repr__(self):
+        return("<{} vs \"{}\">".format(self.__class__.__name__,
+            self.collision_object_name))
+
+PyGameMakerEvent.register_new_event_type(PyGameMakerObjectStateEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerAlarmEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerStepEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerMouseEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerOtherEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerDrawEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerKeyEvent)
+PyGameMakerEvent.register_new_event_type(PyGameMakerCollisionEvent)
 
 if __name__ == "__main__":
     import unittest
@@ -340,89 +437,67 @@ if __name__ == "__main__":
     class TestPyGameMakerEvent(unittest.TestCase):
 
         def setUp(self):
-            self.object_list = [TestObj("obj1"), TestObj("obj2"), TestObj("obj3")]
+            pass
+ 
+        def test_002find_event_by_name(self):
+            new_event = PyGameMakerEvent.get_event_instance_by_event_name("destroy")
+            print(new_event)
+            self.assertIs(new_event.__class__, PyGameMakerObjectStateEvent)
 
         def test_005valid_object_state_events(self):
-            good_event1 = PyGameMakerEvent("create")
+            good_event1 = PyGameMakerObjectStateEvent("create")
             print(good_event1)
             self.assertEqual(good_event1.event_name, "create")
-            self.assertFalse(good_event1.collision_object_name)
-            self.assertFalse(good_event1.key_event_type)
-            self.assertEqual(good_event1.event_category, "object_state")
 
         def test_010valid_key_events(self):
-            good_event2 = PyGameMakerEvent("F1_keyup")
+            good_event2 = PyGameMakerKeyEvent("F1_keyup")
             print(good_event2)
             self.assertEqual(good_event2.event_name, "F1")
-            self.assertFalse(good_event2.collision_object_name)
             self.assertEqual(good_event2.key_event_type, "up")
-            self.assertEqual(good_event2.event_category, "keyboard")
-            good_event3 = PyGameMakerEvent("npenter_keydn")
+            good_event3 = PyGameMakerKeyEvent("npenter_keydn")
             print(good_event3)
             self.assertEqual(good_event3.event_name, "npenter")
-            self.assertFalse(good_event3.collision_object_name)
             self.assertEqual(good_event3.key_event_type, "down")
-            self.assertEqual(good_event3.event_category, "keyboard")
-            good_event4 = PyGameMakerEvent("home")
+            good_event4 = PyGameMakerEvent.get_event_instance_by_event_name("/_keydn")
             print(good_event4)
-            self.assertEqual(good_event4.event_name, "home")
-            self.assertFalse(good_event4.collision_object_name)
-            self.assertFalse(good_event4.key_event_type)
-            self.assertEqual(good_event4.event_category, "keyboard")
+            self.assertIs(good_event4.__class__, PyGameMakerKeyEvent)
 
         def test_012valid_collision_events(self):
-            good_event5 = PyGameMakerEvent("obj1", self.object_list)
+            good_event5 = PyGameMakerCollisionEvent("collision_obj1")
             print(good_event5)
             self.assertEqual(good_event5.event_name, "collision")
             self.assertEqual(good_event5.collision_object_name, "obj1")
-            self.assertFalse(good_event5.key_event_type)
-            self.assertEqual(good_event5.event_category, "collision")
 
         def test_015valid_mouse_events(self):
-            good_event6 = PyGameMakerEvent("button_middle")
+            good_event6 = PyGameMakerMouseEvent("button_middle")
             print(good_event6)
             self.assertEqual(good_event6.event_name, "button_middle")
-            self.assertFalse(good_event6.collision_object_name)
-            self.assertFalse(good_event6.key_event_type)
-            self.assertEqual(good_event6.event_category, "mouse")
 
         def test_020valid_alarm_events(self):
-            good_event7 = PyGameMakerEvent("alarm0")
+            good_event7 = PyGameMakerAlarmEvent("alarm0")
             print(good_event7)
             self.assertEqual(good_event7.event_name, "alarm0")
-            self.assertFalse(good_event7.collision_object_name)
-            self.assertFalse(good_event7.key_event_type)
-            self.assertEqual(good_event7.event_category, "alarm")
 
         def test_025valid_step_events(self):
-            good_event8 = PyGameMakerEvent("begin_step")
+            good_event8 = PyGameMakerStepEvent("begin_step")
             print(good_event8)
             self.assertEqual(good_event8.event_name, "begin_step")
-            self.assertFalse(good_event8.collision_object_name)
-            self.assertFalse(good_event8.key_event_type)
-            self.assertEqual(good_event8.event_category, "step")
 
         def test_030valid_other_events(self):
-            good_event9 = PyGameMakerEvent("user_defined_0")
+            good_event9 = PyGameMakerOtherEvent("user_defined_0")
             print(good_event9)
             self.assertEqual(good_event9.event_name, "user_defined_0")
-            self.assertFalse(good_event9.collision_object_name)
-            self.assertFalse(good_event9.key_event_type)
-            self.assertEqual(good_event9.event_category, "other")
 
         def test_035valid_draw_events(self):
-            good_event10 = PyGameMakerEvent("gui")
+            good_event10 = PyGameMakerDrawEvent("gui")
             print(good_event10)
             self.assertEqual(good_event10.event_name, "gui")
-            self.assertFalse(good_event10.collision_object_name)
-            self.assertFalse(good_event10.key_event_type)
-            self.assertEqual(good_event10.event_category, "draw")
 
         def test_040invalid_events(self):
-            with self.assertRaises(PyGameMakerEventError):
-                bad_event1 = PyGameMakerEvent("bad_event1")
-            with self.assertRaises(PyGameMakerEventError):
-                bad_event2 = PyGameMakerEvent("bogus_keyup")
+            with self.assertRaises(PyGameMakerEventException):
+                bad_event1 = PyGameMakerKeyEvent("bad_event1")
+            with self.assertRaises(PyGameMakerEventException):
+                bad_event2 = PyGameMakerEvent.get_event_instance_by_event_name("bogus_keyup")
 
     unittest.main()
 
