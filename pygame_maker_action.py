@@ -7,7 +7,7 @@ class PyGameMakerActionException(Exception):
 
 class PyGameMakerAction:
     """Base class for actions"""
-    action_type_table = []
+    action_type_registry = []
 
     @classmethod
     def register_new_action_type(cls, actiontype):
@@ -15,12 +15,12 @@ class PyGameMakerAction:
             Register a class (at init time) to make it possible to search
             through them for a particular action name
         """
-        cls.action_type_table.append(actiontype)
+        cls.action_type_registry.append(actiontype)
 
     @classmethod
     def get_action_instance_by_action_name(cls, action_name, **kwargs):
-        if len(cls.action_type_table) > 0:
-            for atype in cls.action_type_table:
+        if len(cls.action_type_registry) > 0:
+            for atype in cls.action_type_registry:
                 if action_name in atype.HANDLED_ACTIONS:
                     return atype(action_name, **kwargs)
         # no action type handles the named action
