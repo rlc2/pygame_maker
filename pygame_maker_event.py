@@ -4,7 +4,6 @@
 
 import pygame
 import re
-import weakref
 
 class PyGameMakerEventError(Exception):
     pass
@@ -281,14 +280,13 @@ class PyGameMakerEvent:
                 return cat
         raise (PyGameMakerEventError("Unknown event name '{}'".format(event_name)))
 
-    def __init__(self, event_name, object_table=None):
+    def __init__(self, event_name, collision_event=False):
         """
             Create a new event. The event name must be one defined in one of
             PyGameMakerEvent's event lists, or the name of an object that will
             be checked for collision events. Key event names can optionally
             have a suffix, _keyup or _keydn, to match a press or release key
-            event. object_table must be supplied for collision events, and it
-            should contain a list of all PyGameMakerObject instances.
+            event. collision_event must be True for collision events.
         """
         self.event_name = ""
         self.event_category = ""
@@ -312,13 +310,9 @@ class PyGameMakerEvent:
             if not (event_name in self.EVENT_NAMES):
                 # check whether the event is named after an object: implies a
                 #  collision event
-                if object_table:
-                    for obj in object_table:
-                        if event_name == obj.name:
-                            self.event_name = "collision"
-                            self.collision_object_name = event_name
-                if not self.collision_object_name:
-                    raise (PyGameMakerEventError("Event {}: event named '{}' unknown".format(self, self.event_name)))
+                if collision_event:
+                    self.event_name = "collision"
+                    self.collision_object_name = event_name
             else:
                 self.event_name = event_name
         self.event_category = PyGameMakerEvent.get_category_by_event_name(self.event_name)
@@ -428,9 +422,7 @@ if __name__ == "__main__":
             with self.assertRaises(PyGameMakerEventError):
                 bad_event1 = PyGameMakerEvent("bad_event1")
             with self.assertRaises(PyGameMakerEventError):
-                bad_event2 = PyGameMakerEvent("obj_invalid", self.object_list)
-            with self.assertRaises(PyGameMakerEventError):
-                bad_event3 = PyGameMakerEvent("bogus_keyup")
+                bad_event2 = PyGameMakerEvent("bogus_keyup")
 
     unittest.main()
 
