@@ -8,7 +8,7 @@ import re
 class PyGameMakerEventException(Exception):
     pass
 
-class PyGameMakerEvent:
+class PyGameMakerEvent(object):
     """Base class for events"""
     HANDLED_EVENTS=[]
 
@@ -409,7 +409,6 @@ class PyGameMakerCollisionEvent(PyGameMakerEvent):
             checked.
         """
         PyGameMakerEvent.__init__(self, event_name)
-        print("search for {}".format(event_name))
         ev_info = PyGameMakerCollisionEvent.find_collision_event(event_name)
         self.event_name = ev_info[0]
         self.collision_object_name = ev_info[1]
