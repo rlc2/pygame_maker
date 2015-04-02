@@ -9,7 +9,7 @@ import yaml
 class PyGameMakerSpriteError(Exception):
     pass
 
-class PyGameMakerSprite:
+class PyGameMakerSprite(object):
     COLLISION_TYPES = [
         "precise",
         "rectangle",
