@@ -194,6 +194,8 @@ class PyGameMakerSprite:
         self.transparency_pixel = False
         self.origin = (0,0)
         self.collision_type = "rectangle"
+        self.sprite_image = None
+        self.image_size = (0,0)
         self.bounding_box_type = "automatic"
         self.manual_bounding_box_rect = pygame.Rect(0, 0, 0, 0)
 
