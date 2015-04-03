@@ -85,5 +85,14 @@ if __name__ == "__main__":
             self.assertFalse(sound_with_file.is_sound_playing())
             self.assertEqual(sound_with_file.sound_file, self.sound_test_file)
 
+        def test_015missing_sound_file(self):
+            with self.assertRaises(PyGameMakerSoundException):
+                missing_music1 = PyGameMakerSound("missing1",
+                    sound_type="music", sound_file="unittest/missing1.wav")
+            missing_sound1 = PyGameMakerSound("missing2",
+                preload=False, sound_file="unittest/missing2.wav")
+            with self.assertRaises(PyGameMakerSoundException):
+                missing_sound1.play_sound()
+
     unittest.main()
 
