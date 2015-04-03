@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+# Author: Ron Lockwood-Childs
+
+# Licensed under LGPL v2.1 (see file COPYING for details)
+
 import pygame
 
 class PygameTemplate:

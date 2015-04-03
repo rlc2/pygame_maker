@@ -1,5 +1,9 @@
 #!/usr/bin/python -Wall
 
+# Author: Ron Lockwood-Childs
+
+# Licensed under LGPL v2.1 (see file COPYING for details)
+
 # implement a "game maker" app using pygame
 
 import pg_template
