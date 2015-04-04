@@ -23,6 +23,12 @@ class PyGameMakerSound(object):
         "music",
         "voice"
     ]
+    DEFAULT_SOUND_PREFIX="snd_"
+
+    @staticmethod
+    def is_equal(a, b):
+        return((a != None) and (b != None) and (a.sound_name == b.sound_name) and (a.sound_file == b.sound_file) and (a.sound_type == b.sound_type) and (a.preload == b.preload))
+
     @classmethod
     def load_sound(cls, sound_yaml_file):
         """
@@ -34,9 +40,31 @@ class PyGameMakerSound(object):
                 o None, if the yaml-formatted sound is invalid
                 o a new sound, if the YAML fields pass basic checks
         """
+        yaml_info = None
+        sound_name = cls.DEFAULT_SOUND_PREFIX
+        sound_args = {}
+        new_sound = None
+        if os.path.exists(sound_yaml_file):
+            with open(sound_yaml_file, "r") as yaml_f:
+                yaml_info = yaml.load(yaml_f)
+            if yaml_info:
+                if 'sound_name' in yaml_info:
+                    sound_name = yaml_info['sound_name']
+                if 'sound_file' in yaml_info:
+                    sound_args['sound_file'] = yaml_info['sound_file']
+                if 'sound_type' in yaml_info:
+                    sound_args['sound_type'] = yaml_info['sound_type']
+                if 'preload' in yaml_info:
+                    sound_args['preload'] = yaml_info['preload']
+                new_sound = PyGameMakerSound(sound_name, **sound_args)
+                new_sound.check()
+        return new_sound
 
     def __init__(self, sound_name=None, **kwargs):
-        self.sound_name = sound_name
+        if sound_name:
+            self.sound_name = sound_name
+        else:
+            self.sound_name = self.DEFAULT_SOUND_PREFIX
         self.sound_file = None
         self.sound_type = "effect"
         self.preload = True
@@ -83,6 +111,14 @@ class PyGameMakerSound(object):
         ystr += "preload: {}\n".format(self.preload)
         return(ystr)
 
+    def check_type(self):
+        if not self.sound_type in self.SOUND_TYPES:
+            raise PyGameMakerSoundException("PyGameMakerSound: Unknown sound type '{}'".format(self.sound_type))
+        return True
+
+    def check(self):
+        return self.check_type()
+
 if __name__ == "__main__":
     import unittest
     import tempfile
@@ -126,6 +162,25 @@ if __name__ == "__main__":
         def test_020sound_to_yaml(self):
             self.assertEqual(self.valid_sound_object.to_yaml(),
                 self.valid_sound_yaml)
+
+        def test_025yaml_to_sound(self):
+            tmpf_info = tempfile.mkstemp(dir="/tmp")
+            tmp_file = os.fdopen(tmpf_info[0], 'w')
+            tmp_file.write(self.valid_sound_yaml)
+            tmp_file.close()
+            loaded_sound1 = PyGameMakerSound.load_sound(tmpf_info[1])
+            os.unlink(tmpf_info[1])
+            self.assertTrue(PyGameMakerSound.is_equal(self.valid_sound_object, loaded_sound1))
+
+        def test_030to_and_from_yaml(self):
+            generated_sound_yaml = self.valid_sound_object.to_yaml()
+            tmpf_info = tempfile.mkstemp(dir="/tmp")
+            tmp_file = os.fdopen(tmpf_info[0], 'w')
+            tmp_file.write(generated_sound_yaml)
+            tmp_file.close()
+            loaded_sound1 = PyGameMakerSound.load_sound(tmpf_info[1])
+            os.unlink(tmpf_info[1])
+            self.assertTrue(PyGameMakerSound.is_equal(self.valid_sound_object, loaded_sound1))
 
     unittest.main()
 
