@@ -69,6 +69,7 @@ class PyGameMakerAction(object):
     ACTION_BLOCK_NEST_LEVEL_ADJUSTMENTS=[
         "nest_next_action",
         "nest_until_block_end",
+        "block_end"
     ]
     NESTED_STATEMENT_RE=re.compile("^if_")
 
@@ -396,9 +397,11 @@ class PyGameMakerOtherAction(PyGameMakerAction):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerOtherAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name)
+        # handle blocks
         if action_name == "start_of_block":
-            # handle blocks
             self.nest_adjustment = "nest_until_block_end"
+        elif action_name == "end_of_block":
+            self.nest_adjustment = "block_end"
 
 class PyGameMakerCodeAction(PyGameMakerAction):
     CODE_ACTIONS=[
