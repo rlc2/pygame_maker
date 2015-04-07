@@ -43,32 +43,44 @@ class PyGameMakerEventActionSequence(object):
             Add a new action to the end of the list
         """
         action_ref = weakref.ref(action)
-        self.actions.append( (action_ref, self.nest_level,
-            self.current_code_block_list) )
+        previous_action = None
+        if len(self.actions) > 0:
+            previous_action = self.actions[-1][self.ACTION_IDX]()
         if action.nest_adjustment:
-            self.nest_level += 1
             if action.nest_adjustment == "nest_until_block_end":
                 self.current_code_block_id += 1
                 self.current_code_block_list.append(self.current_code_block_id)
+                self.actions.append( (action_ref, self.nest_level,
+                    list(self.current_code_block_list)) )
             elif action.nest_adjustment == "block_end":
+                self.actions.append( (action_ref, self.nest_level,
+                    list(self.current_code_block_list)) )
                 if len(self.current_code_block_list) > 0:
                     # remove the last code block ID from the list moving forward
                     del(self.current_code_block_list[-1])
                 if self.nest_level > 0:
                     # reduce the nest level
                     self.nest_level -= 1
-        elif self.nest_level > 0:
+            else:
+                self.actions.append( (action_ref, self.nest_level,
+                    list(self.current_code_block_list)) )
+                self.nest_level += 1
+        else:
+            self.actions.append( (action_ref, self.nest_level,
+                list(self.current_code_block_list)) )
             # this command doesn't start or continue nesting
-            self.nest_level -= 1
+            if self.nest_level > 0:
+                if previous_action and (previous_action.nest_adjustment == "nest_next_action"):
+                    self.nest_level -= 1
 
     def __repr__(self):
         rep_str = "PyGameMakerEventActionSequence:\n"
         if len(self.actions) == 0:
             rep_str += "\t(empty)\n"
         for action in self.actions:
-            rep_str += "\taction: {}\n".format(action[self.ACTION_IDX])
+            rep_str += "\taction: {}\n".format(action[self.ACTION_IDX]())
             rep_str += "\tnest_level: {}\n".format(action[self.NEST_IDX])
-            rep_str += "\tcode block list{}\n".format(action[self.BLOCK_IDX])
+            rep_str += "\tcode block list {}\n\n".format(action[self.BLOCK_IDX])
         return rep_str
 
 class PyGameMakerObject(object):
@@ -117,11 +129,21 @@ if __name__ == "__main__":
         def setUp(self):
             pass
 
-        def test_005build_action_sequence(self):
+        def test_005build_single_nested_action_sequence(self):
+            actions=[
+                pygma.PyGameMakerMotionAction("set_velocity_compass"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing"),
+                pygma.PyGameMakerSoundAction("stop_sound"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing", invert=True),
+                pygma.PyGameMakerOtherAction("start_of_block"),
+                pygma.PyGameMakerSoundAction("play_sound"),
+                pygma.PyGameMakerMotionAction("set_velocity_compass"),
+                pygma.PyGameMakerOtherAction("end_of_block"),
+                pygma.PyGameMakerObjectAction("create_object")
+            ]
             action_sequence = PyGameMakerEventActionSequence()
-            action_sequence.append_action(pygma.PyGameMakerMotionAction("set_velocity_compass"))
-            action_sequence.append_action(pygma.PyGameMakerSoundAction("if_sound_is_playing"))
-            action_sequence.append_action(pygma.PyGameMakerSoundAction("stop_sound"))
+            for act in actions:
+                action_sequence.append_action(act)
             print(action_sequence)
 
     unittest.main()
