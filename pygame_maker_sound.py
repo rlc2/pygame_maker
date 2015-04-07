@@ -85,7 +85,7 @@ class PyGameMakerSound(object):
         if not os.path.exists(self.sound_file):
             raise PyGameMakerSoundException("PyGameMakerSoundException: Sound file '{}' not found.".format(self.sound_file))
         if not self.loaded:
-            self.audio = pygame.mixer.Sound(file=self.sound_file)
+            self.audio = pygame.mixer.Sound(self.sound_file)
             self.loaded = True
 
     def play_sound(self, loop=False):
