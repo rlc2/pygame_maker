@@ -277,7 +277,7 @@ class PyGameMakerSoundAction(PyGameMakerAction):
     SOUND_ACTION_DATA_MAP={
         "play_sound": {"sound": None, "loop": False},
         "stop_sound": {"sound": None},
-        "if_sound_is_playing": {"sound": None, "not": False}
+        "if_sound_is_playing": {"sound": None, "invert": False}
     }
 
     def __init__(self, action_name, **kwargs):
@@ -392,11 +392,19 @@ class PyGameMakerOtherAction(PyGameMakerAction):
         "repeat_next_action"
     ]
     HANDLED_ACTIONS=OTHER_ACTIONS
+    OTHER_ACTION_DATA_MAP={
+        "start_of_block": {},
+        "else": {},
+        "exit_event": {},
+        "end_of_block": {},
+        "repeat_next_action": {} 
+    }
 
-    def __init__(self):
+    def __init__(self, action_name, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerOtherAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+		self.OTHER_ACTION_DATA_MAP[action_name], **kwargs)
         # handle blocks
         if action_name == "start_of_block":
             self.nest_adjustment = "nest_until_block_end"
@@ -466,7 +474,7 @@ class PyGameMakerAccountingAction(PyGameMakerAction):
 
     ACCOUNTING_ACTION_DATA_MAP={
         "set_score_value": {"score": 0, "relative": False},
-        "if_score_value": {"score": 0, "operation": "is_equal", "not": False},
+        "if_score_value": {"score": 0, "operation": "is_equal", "invert": False},
         "draw_score_value": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
             "caption": "Score:", "relative": False},
         "show_highscore_table": {"background": None, "border": True,
@@ -474,13 +482,13 @@ class PyGameMakerAccountingAction(PyGameMakerAction):
             "font": None},
         "clear_highscore_table": {},
         "set_lives_value": {"lives": 0, "relative": False},
-        "if_lives_value": {"lives": 0, "operation": "is_equal", "not": False},
+        "if_lives_value": {"lives": 0, "operation": "is_equal", "invert": False},
         "draw_lives_value": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
             "caption": "Lives:", "relative": False},
         "draw_lives_image": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
             "sprite": None, "relative": False},
         "set_health_value": {"value": 0, "relative": False},
-        "if_health_value": {"value": 0, "operation": "is_equal", "not": False},
+        "if_health_value": {"value": 0, "operation": "is_equal", "invert": False},
         "draw_health_bar": {"rectangle": pygame.Rect(0,0,0,0),
             "background_color": "clear",
             "bar_color_gradient": ("#00ff00", "#ff0000")},
