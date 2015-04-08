@@ -97,7 +97,8 @@ class PyGameMakerAction(object):
             Supply the basic properties for all actions
         """
         self.name = action_name
-        self.action_data = action_data
+        self.action_data = {}
+        self.action_data.update(action_data)
         # default: don't nest subsequent action(s)
         minfo = self.NESTED_STATEMENT_RE.search(action_name)
         if minfo:
@@ -616,6 +617,14 @@ if __name__ == "__main__":
             self.assertEqual(accounting_action["score"], 1)
             self.assertTrue(accounting_action["relative"])
             print("action {}".format(accounting_action))
+
+        def test_030invert(self):
+            if_sound_action = PyGameMakerSoundAction("if_sound_is_playing")
+            if_sound_action2 = PyGameMakerSoundAction("if_sound_is_playing",
+                invert=True)
+            self.assertEqual(if_sound_action.name, "if_sound_is_playing")
+            self.assertFalse(if_sound_action["invert"])
+            self.assertTrue(if_sound_action2["invert"])
 
     unittest.main()
 
