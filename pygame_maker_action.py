@@ -75,6 +75,12 @@ class PyGameMakerAction(object):
 
     action_type_registry = []
 
+    @staticmethod
+    def is_equal(a, b):
+        return(isinstance(a, PyGameMakerAction) and
+            isinstance(b, PyGameMakerAction) and
+            (a.name == b.name) and (a.action_data == b.action_data))
+
     @classmethod
     def register_new_action_type(cls, actiontype):
         """
