@@ -71,7 +71,7 @@ class PyGameMakerEventActionSequence(object):
             # this command doesn't start or continue nesting
             if self.nest_level > 0:
                 if previous_action and (previous_action.nest_adjustment == "nest_next_action"):
-                    self.nest_level -= 1
+                    self.nest_level = len(self.current_code_block_list)
 
     def __repr__(self):
         rep_str = "PyGameMakerEventActionSequence:\n"
@@ -157,5 +157,40 @@ if __name__ == "__main__":
                     act_info[PyGameMakerEventActionSequence.BLOCK_IDX])
             #print(action_sequence)
 
+        def test_010build_multiple_nested_action_sequence(self):
+            actions=[
+                pygma.PyGameMakerMotionAction("set_velocity_compass"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing", invert=True),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing"),
+                pygma.PyGameMakerSoundAction("stop_sound"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing", invert=True),
+                pygma.PyGameMakerOtherAction("start_of_block"),
+                pygma.PyGameMakerSoundAction("play_sound"),
+                pygma.PyGameMakerSoundAction("if_sound_is_playing"),
+                pygma.PyGameMakerOtherAction("start_of_block"),
+                pygma.PyGameMakerMotionAction("set_velocity_compass"),
+                pygma.PyGameMakerMotionAction("apply_gravity"),
+                pygma.PyGameMakerOtherAction("end_of_block"),
+                pygma.PyGameMakerOtherAction("end_of_block"),
+                pygma.PyGameMakerObjectAction("create_object")
+            ]
+            nest_levels=[0, 0, 1, 2, 3, 0, 1, 1, 1, 2, 2, 2, 2, 1, 0]
+            block_lists=[[], [], [], [], [], [], [1], [1], [1], [1,2],
+                [1,2], [1,2], [1,2], [1], []]
+            action_sequence = PyGameMakerEventActionSequence()
+            for act in actions:
+                action_sequence.append_action(act)
+            #print(action_sequence)
+            for idx, act_info in enumerate(action_sequence.actions):
+                orig_action = actions[idx]
+                seq_action = act_info[PyGameMakerEventActionSequence.ACTION_IDX]()
+                self.assertTrue(pygma.PyGameMakerAction.is_equal(orig_action,
+                    seq_action))
+                self.assertEqual(nest_levels[idx],
+                    act_info[PyGameMakerEventActionSequence.NEST_IDX])
+                self.assertEqual(block_lists[idx],
+                    act_info[PyGameMakerEventActionSequence.BLOCK_IDX])
+            
     unittest.main()
 
