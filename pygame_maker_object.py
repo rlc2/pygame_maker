@@ -141,10 +141,21 @@ if __name__ == "__main__":
                 pygma.PyGameMakerOtherAction("end_of_block"),
                 pygma.PyGameMakerObjectAction("create_object")
             ]
+            nest_levels=[0, 0, 1, 0, 1, 1, 1, 1, 0]
+            block_lists=[[], [], [], [], [1], [1], [1], [1], []]
             action_sequence = PyGameMakerEventActionSequence()
             for act in actions:
                 action_sequence.append_action(act)
-            print(action_sequence)
+            for idx, act_info in enumerate(action_sequence.actions):
+                orig_action = actions[idx]
+                seq_action = act_info[PyGameMakerEventActionSequence.ACTION_IDX]()
+                self.assertTrue(pygma.PyGameMakerAction.is_equal(orig_action,
+                    seq_action))
+                self.assertEqual(nest_levels[idx],
+                    act_info[PyGameMakerEventActionSequence.NEST_IDX])
+                self.assertEqual(block_lists[idx],
+                    act_info[PyGameMakerEventActionSequence.BLOCK_IDX])
+            #print(action_sequence)
 
     unittest.main()
 
