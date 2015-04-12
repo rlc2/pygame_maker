@@ -377,6 +377,9 @@ class PyGameMakerEventActionSequence(object):
         statement = PyGameMakerEventActionSequenceStatement.get_sequence_item_from_action(action)
         self.main_block.add_statement(statement)
 
+    def pretty_print(self):
+        self.main_block.pretty_print()
+
     def __repr__(self):
         return("{}".format(self.main_block))
 
@@ -413,7 +416,7 @@ if __name__ == "__main__":
             #print(action_sequence)
             self.assertEqual(actions,
                 action_sequence.main_block.get_action_list())
-            action_sequence.main_block.pretty_print()
+            action_sequence.pretty_print()
 
         def test_010build_multiple_nested_action_sequence(self):
             actions=[
@@ -439,10 +442,11 @@ if __name__ == "__main__":
 #            print(action_sequence)
             self.assertEqual(actions,
                 action_sequence.main_block.get_action_list())
-            action_sequence.main_block.pretty_print()
+            action_sequence.pretty_print()
             
         def test_015broken_sequences(self):
             action_sequence = PyGameMakerEventActionSequence()
+            action_sequence.pretty_print()
             with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
                 action_sequence.append_action(
                     pygm_action.PyGameMakerOtherAction("else"))
