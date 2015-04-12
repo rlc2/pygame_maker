@@ -71,7 +71,7 @@ class PyGameMakerAction(object):
         "nest_until_block_end",
         "block_end"
     ]
-    NESTED_STATEMENT_RE=re.compile("^if_")
+    IF_STATEMENT_RE=re.compile("^if_")
 
     action_type_registry = []
 
@@ -106,8 +106,8 @@ class PyGameMakerAction(object):
         self.action_data = {}
         self.action_data.update(action_data)
         # default: don't nest subsequent action(s)
-        minfo = self.NESTED_STATEMENT_RE.search(action_name)
-        if minfo:
+        minfo = self.IF_STATEMENT_RE.search(action_name)
+        if minfo or (action_name == "else"):
             # automatically nest after question tasks
             self.nest_adjustment = "nest_next_action"
         else:
