@@ -15,17 +15,42 @@ class PyGameMakerEventActionSequenceStatementException(Exception):
     pass
 
 class PyGameMakerEventActionSequenceStatement(object):
+    """
+        PyGameMakerEventActionSequenceStatement class:
+        The basis for all action sequence statements. A "statement" wraps
+        an action and provides structure to represent if/else conditionals
+        and blocks along with normal executable statements.
+    """
     @staticmethod
-    def get_sequence_item_from_action(action):
-        if (action.nest_adjustment):
-            if action.name == "else":
-                return PyGameMakerEventActionSequenceConditionalElse(action)
-            minfo = pygm_action.PyGameMakerAction.IF_STATEMENT_RE.search(action.name)
+    def get_sequence_item_from_action(action, **kwargs):
+        """
+            get_sequence_item_from_action():
+            Provides a simple static method to retrieve the right statement
+            representing the given action: if/else condition, block, or
+            executable statement. Can also accept a string containing the name
+            of the action, in which case a new action will be retrieved with
+            its parameters filled in with supplied kwargs.
+        """
+        # if given a string, see if it names a known action
+        new_action = None
+        if isinstance(action, str):
+            try:
+                new_action = pygm_action.PyGameMakerAction.get_action_instance_by_action_name(action, **kwargs)
+            except pygm_action.PyGameMakerActionException:
+                raise PyGameMakerEventActionSequenceStatementException("'{}' is not a known action".format(action))
+        else:
+            new_action = action
+        if not isinstance(new_action, pygm_action.PyGameMakerAction):
+            raise PyGameMakerEventActionSequenceStatementException("'{}' is not a recognized action")
+        if (new_action.nest_adjustment):
+            if new_action.name == "else":
+                return PyGameMakerEventActionSequenceConditionalElse(new_action)
+            minfo = pygm_action.PyGameMakerAction.IF_STATEMENT_RE.search(new_action.name)
             if minfo:
-                return PyGameMakerEventActionSequenceConditionalIf(action)
-            if action.nest_adjustment != "block_end":
-                return PyGameMakerEventActionSequenceBlock(action)
-        return PyGameMakerEventActionSequenceStatement(action)
+                return PyGameMakerEventActionSequenceConditionalIf(new_action)
+            if new_action.nest_adjustment != "block_end":
+                return PyGameMakerEventActionSequenceBlock(new_action)
+        return PyGameMakerEventActionSequenceStatement(new_action)
 
     def __init__(self, action):
         self.is_block = False
@@ -33,9 +58,21 @@ class PyGameMakerEventActionSequenceStatement(object):
         self.action = action
 
     def get_action_list(self):
+        """
+            get_action_list():
+            This method places the action inside a list of length 1.
+            For now, this aids with unit testing. Later, it will allow an
+            action sequence to be serialized to storage.  The deserialized
+            simple list can be expanded into an action sequence when the
+            application starts up.
+        """
         return [self.action]
 
     def pretty_print(self, indent=0):
+        """
+            pretty_print():
+            Display the name of the wrapped action as indented code
+        """
         indent_string = "\t" * indent
         print("{}{}".format(indent_string, self.action.name))
 
@@ -43,6 +80,10 @@ class PyGameMakerEventActionSequenceStatement(object):
         return "<{}: {}>".format(type(self).__name__, self.action)
 
 class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceStatement):
+    """
+        PyGameMakerEventActionSequenceConditional class:
+        Represent a simple conditional ('else' is the only kind this fits).
+    """
     def __init__(self, action):
         PyGameMakerEventActionSequenceStatement.__init__(self, action)
         self.is_conditional = True
@@ -50,20 +91,22 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
 
     def add_statement(self, statement):
         """
-            Given a statement, try to add it to the current if block. If the
-            if clause is empty, set its statement. If the if clause holds an
-            open block, add it to the block. Otherwise, try the same steps with
-            the else clause.
+            Given a statement, try to add it to the current conditional. If the
+            clause is empty, set its statement. If the clause holds an open
+            block or conditional, pass it on.
             Returns True if there was a place for the new statement, otherwise
             returns False.
         """
         found_place = True
+        # basic type check
         if not isinstance(statement, PyGameMakerEventActionSequenceStatement):
             raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceStatement".format(statement)))
         if not self.contained_statement:
+            # the statement is now the conditional clause
             self.contained_statement = statement
         elif (self.contained_statement.is_block and
             not self.contained_statement.is_block_closed):
+            # the statement fits within the conditional clause's block
             self.contained_statement.add_statement(statement)
         elif (self.contained_statement.is_conditional and
             self.contained_statement.add_statement(statement)):
@@ -74,6 +117,13 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
         return found_place
 
     def set_statement(self, statement):
+        """
+            set_statement()
+            Currently unused. Places the given statement into the conditional
+            clause if there isn't one already. Does not attempt to pass on
+            the statement to an open conditional or block in an existing
+            conditional clause.
+        """
         if not isinstance(statement, PyGameMakerEventActionSequenceStatement):
             raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceStatement".format(statement)))
         if self.contained_statement:
@@ -81,12 +131,24 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
         self.contained_statement = statement
 
     def get_action_list(self):
+        """
+            get_action_list():
+            This method retrieves all the collected statements inside a simple
+            conditional into a simple list. For now, this aids with unit
+            testing. Later, it will allow an action sequence to be serialized
+            to storage.  The deserialized simple list can be expanded into an
+            action sequence when the application starts up.
+        """
         contained_list = []
         if self.contained_statement:
             contained_list = self.contained_statement.get_action_list()
         return [self.action] + contained_list
 
     def pretty_print(self, indent=0):
+        """
+            pretty_print():
+            Display an action sequence simple conditional as indented code
+        """
         PyGameMakerEventActionSequenceStatement.pretty_print(self, indent)
         if self.contained_statement:
             self.contained_statement.pretty_print(indent+1)
@@ -97,11 +159,22 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
         return repr
 
 class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequenceConditional):
+    """
+        PyGameMakerEventActionSequenceConditionalIf class:
+        This represents an entire if/else conditional. The 'else' clause is
+        also placed here, to avoid having to search earlier statements to see
+        if there is a free 'if' conditional that matches the 'else'.
+    """
     def __init__(self, action):
         PyGameMakerEventActionSequenceConditional.__init__(self, action)
         self.else_condition = None
 
     def add_else(self, else_statement):
+        """
+            add_else():
+            Currently unused. Places an 'else' action in the else slot for
+            the 'if' conditional.
+        """
         if not isinstance(else_statement, PyGameMakerEventActionSequenceConditionalElse):
             raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceConditionalElse".format(else_statement)))
         if self.else_condition:
@@ -109,6 +182,17 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
         self.else_condition = else_statement
 
     def add_statement(self, statement):
+        """
+            add_statement():
+            Attempt to place the given statement into the clause for the 'if'.
+            If there is already a block or another conditional, see if the new
+            statement will be accepted there. If not, check whether the new
+            statement is an 'else' condition, and no 'else' condition already
+            exists. If there is an 'else' condition that hasn't received a
+            statement yet, add it there. If the 'else' statement exists and
+            contains another conditional or block, see if the new statement
+            will be accepted there.
+        """
         found_place = True
         if not PyGameMakerEventActionSequenceConditional.add_statement(self,
             statement):
@@ -128,11 +212,23 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
         return found_place
 
     def pretty_print(self, indent=0):
+        """
+            pretty_print():
+            Display an action sequence if/else conditional as indented code
+        """
         PyGameMakerEventActionSequenceConditional.pretty_print(self, indent)
         if self.else_condition:
             self.else_condition.pretty_print(indent)
 
     def get_action_list(self):
+        """
+            get_action_list():
+            This method retrieves all the collected statements inside a
+            conditional into a simple list. For now, this aids with unit
+            testing. Later, it will allow an action sequence to be serialized
+            to storage. The deserialized simple list can be expanded into an
+            action sequence when the application starts up.
+        """
         contained_list = PyGameMakerEventActionSequenceConditional.get_action_list(self)
         else_list = []
         if self.else_condition:
@@ -147,10 +243,22 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
         return repr
 
 class PyGameMakerEventActionSequenceConditionalElse(PyGameMakerEventActionSequenceConditional):
+    """
+        PyGameMakerEventActionSequenceConditionalElse class:
+        Currently identical to the PyGameMakerEventActionSequenceConditional
+        class, but named for convenience to be used in a
+        PyGameMakerEventActionSequenceConditionalIf.
+    """
     def __init__(self, action):
         PyGameMakerEventActionSequenceConditional.__init__(self, action)
 
 class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatement):
+    """
+        PyGameMakerEventActionSequenceBlock class:
+        Represent a block of action statements. All statements are placed into
+        a block (even if just the 'main' block) or into conditionals within
+        a block.
+    """
     def __init__(self, action, main_block=False):
         # main block doesn't start with an explicit action, so action==None
         #  is ok. Remember this when trying to use self.action in any
@@ -162,6 +270,10 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         self.main_block = main_block
 
     def append_statement(self, statement):
+        """
+            append_statement():
+            called by add_statement() when an action is meant for this block.
+        """
         # the main block is never explicitly "closed"
         if statement.action and statement.action.nest_adjustment == "block_end":
             if not self.main_block:
@@ -169,10 +281,21 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
                 self.contained_statements.append(statement)
             else:
                 raise(PyGameMakerEventActionSequenceStatementException("block_end cannot be added to a main block"))
+        elif isinstance(statement, PyGameMakerEventActionSequenceConditionalElse):
+            raise(PyGameMakerEventActionSequenceStatementException("Cannot add an 'else' statement without an 'if' statement."))
         else:
             self.contained_statements.append(statement)
 
     def add_statement(self, statement):
+        """
+            add_statement():
+            The action sequence "magic" happens here. Normal statements, "if"
+            conditionals and blocks can be added to the current block. Open
+            conditionals (no clause yet) or blocks (no "block_end" action) can
+            receive new statements. An "else" action can be attached to an "if"
+            conditional. All statements exist either inside a block (there is
+            always a "main" block) or a conditional.
+        """
         #print("Adding statement: {} .. ".format(statement))
         if not isinstance(statement, PyGameMakerEventActionSequenceStatement):
             raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceStatement".format(statement)))
@@ -196,6 +319,14 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         self.append_statement(statement)
 
     def get_action_list(self):
+        """
+            get_action_list():
+            This method retrieves all the collected statements inside a block
+            into a simple list. For now, this aids with unit testing. Later,
+            it will allow an action sequence to be serialized to storage.
+            The deserialized simple list can be expanded into an action
+            sequence when the application starts up.
+        """
         this_action = []
         if not self.main_block:
             this_action = [self.action]
@@ -206,6 +337,10 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         return this_action + contained_list
 
     def pretty_print(self, indent=0):
+        """
+            pretty_print():
+            Display the action sequence block as indented code
+        """
         new_indent = indent
         if not self.main_block:
             PyGameMakerEventActionSequenceStatement.pretty_print(self,indent)
@@ -228,10 +363,6 @@ class PyGameMakerEventActionSequence(object):
     """
         Store a list of the actions that are triggered by an event
     """
-    # tuple indices
-    ACTION_IDX=0
-    NEST_IDX=1
-    BLOCK_IDX=2
 
     def __init__(self):
         """
@@ -310,5 +441,17 @@ if __name__ == "__main__":
                 action_sequence.main_block.get_action_list())
             action_sequence.main_block.pretty_print()
             
+        def test_015broken_sequences(self):
+            action_sequence = PyGameMakerEventActionSequence()
+            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
+                action_sequence.append_action(
+                    pygm_action.PyGameMakerOtherAction("else"))
+            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
+                action_sequence.append_action(
+                    pygm_action.PyGameMakerOtherAction("end_of_block"))
+            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
+                action_sequence.append_action("this is not an action!")
+
+
     unittest.main()
 
