@@ -4,7 +4,8 @@
 
 # Licensed under LGPL v2.1 (see file COPYING for details)
 
-# implement pygame_maker sprites
+# implement pygame_maker sprite resource (not the same as a pygame Sprite;
+#  this is closer to a pygame.image)
 
 import pygame
 import os.path
@@ -158,7 +159,7 @@ class PyGameMakerSprite(object):
             self.manual_bounding_box_rect.width = width
             self.manual_bounding_box_rect.height = height
 
-        self.sprite_image = None
+        self.image = None
         self.image_size = (0,0)
         self.bounding_box_rect = None
 
@@ -171,12 +172,12 @@ class PyGameMakerSprite(object):
         if not len(self.filename) > 0:
             raise PyGameMakerSpriteException("Sprite error ({}): Attempt to load image from empty filename".format(self))
         if self.check_filename():
-            self.sprite_image = pygame.image.load(self.filename).convert_alpha()
-            self.image_size = self.sprite_image.get_size()
+            self.image = pygame.image.load(self.filename).convert_alpha()
+            self.image_size = self.image.get_size()
             if self.bounding_box_type == "automatic":
-                self.bounding_box_rect = self.sprite_image.get_bounding_rect()
+                self.bounding_box_rect = self.image.get_bounding_rect()
             elif self.bounding_box_type == "full_image":
-                self.bounding_box_rect = self.sprite_image.get_rect()
+                self.bounding_box_rect = self.image.get_rect()
             else:
                 self.bounding_box_rect = self.manual_bounding_box_rect
 
@@ -198,7 +199,7 @@ class PyGameMakerSprite(object):
         self.transparency_pixel = False
         self.origin = (0,0)
         self.collision_type = "rectangle"
-        self.sprite_image = None
+        self.image = None
         self.image_size = (0,0)
         self.bounding_box_type = "automatic"
         self.manual_bounding_box_rect = pygame.Rect(0, 0, 0, 0)
