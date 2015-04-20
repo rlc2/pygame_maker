@@ -25,10 +25,6 @@ class PyGameMakerSound(object):
     ]
     DEFAULT_SOUND_PREFIX="snd_"
 
-    @staticmethod
-    def is_equal(a, b):
-        return((a != None) and (b != None) and (a.sound_name == b.sound_name) and (a.sound_file == b.sound_file) and (a.sound_type == b.sound_type) and (a.preload == b.preload))
-
     @classmethod
     def load_sound(cls, sound_yaml_file):
         """
@@ -119,6 +115,13 @@ class PyGameMakerSound(object):
     def check(self):
         return self.check_type()
 
+    def __eq__(self, other):
+        return(isinstance(other, PyGameMakerSound) and
+            (self.sound_name == other.sound_name) and
+            (self.sound_file == other.sound_file) and
+            (self.sound_type == other.sound_type) and
+            (self.preload == other.preload))
+
 if __name__ == "__main__":
     import unittest
     import tempfile
@@ -170,7 +173,7 @@ if __name__ == "__main__":
             tmp_file.close()
             loaded_sound1 = PyGameMakerSound.load_sound(tmpf_info[1])
             os.unlink(tmpf_info[1])
-            self.assertTrue(PyGameMakerSound.is_equal(self.valid_sound_object, loaded_sound1))
+            self.assertEqual(self.valid_sound_object, loaded_sound1)
 
         def test_030to_and_from_yaml(self):
             generated_sound_yaml = self.valid_sound_object.to_yaml()
@@ -180,7 +183,7 @@ if __name__ == "__main__":
             tmp_file.close()
             loaded_sound1 = PyGameMakerSound.load_sound(tmpf_info[1])
             os.unlink(tmpf_info[1])
-            self.assertTrue(PyGameMakerSound.is_equal(self.valid_sound_object, loaded_sound1))
+            self.assertEqual(self.valid_sound_object, loaded_sound1)
 
     unittest.main()
 

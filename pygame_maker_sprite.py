@@ -30,14 +30,6 @@ class PyGameMakerSprite(object):
 
     DEFAULT_SPRITE_PREFIX="spr_"
 
-    @staticmethod
-    def is_equal(a, b):
-        return((a != None) and (b != None) and (a.name == b.name) and (a.filename == b.filename) and
-            (a.smooth_edges == b.smooth_edges) and (a.preload_texture == b.preload_texture) and
-            (a.transparency_pixel == b.transparency_pixel) and (list(a.origin) == list(b.origin)) and
-            (a.collision_type == b.collision_type) and (a.bounding_box_type == b.bounding_box_type) and
-            (a.manual_bounding_box_rect == b.manual_bounding_box_rect))
-
     @classmethod
     def load_sprite(cls, sprite_yaml_file):
         """Create a new sprite from a YAML-formatted file
@@ -275,6 +267,18 @@ class PyGameMakerSprite(object):
         ystr += "manual_bounding_box_rect: {}".format(bounding_dict)
         return(ystr)
 
+    def __eq__(self, other):
+        return(isinstance(other, PyGameMakerSprite) and
+            (self.name == other.name) and
+            (self.filename == other.filename) and
+            (self.smooth_edges == other.smooth_edges) and
+            (self.preload_texture == other.preload_texture) and
+            (self.transparency_pixel == other.transparency_pixel) and
+            (list(self.origin) == list(other.origin)) and
+            (self.collision_type == other.collision_type) and
+            (self.bounding_box_type == other.bounding_box_type) and
+            (self.manual_bounding_box_rect == other.manual_bounding_box_rect))
+
 if __name__ == "__main__":
     import unittest
     import tempfile
@@ -327,7 +331,7 @@ if __name__ == "__main__":
         def test_010predefined_sprite(self):
             new_sprite = PyGameMakerSprite("spr_good", **self.base_good_sprite_info)
             new_sprite.check()
-            self.assertTrue(PyGameMakerSprite.is_equal(self.good_sprite, new_sprite))
+            self.assertEqual(self.good_sprite, new_sprite)
 
         def test_015bad_filename(self):
             bad_filename_hash = dict(self.base_good_sprite_info)
@@ -361,7 +365,7 @@ if __name__ == "__main__":
             tmp_file.close()
             new_sprite = PyGameMakerSprite.load_sprite(tmpf_info[1])
             os.unlink(tmpf_info[1])
-            self.assertTrue(PyGameMakerSprite.is_equal(self.yaml_sprite, new_sprite))
+            self.assertEqual(self.yaml_sprite, new_sprite)
 
         def test_026load_bad_yaml(self):
             bad_yaml = """
@@ -383,7 +387,7 @@ if __name__ == "__main__":
             tmp_file.close()
             new_sprite = PyGameMakerSprite.load_sprite(tmpf_info[1])
             os.unlink(tmpf_info[1])
-            self.assertTrue(PyGameMakerSprite.is_equal(self.good_sprite, new_sprite))
+            self.assertEqual(self.good_sprite, new_sprite)
 
     unittest.main()
 

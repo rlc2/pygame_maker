@@ -75,12 +75,6 @@ class PyGameMakerAction(object):
 
     action_type_registry = []
 
-    @staticmethod
-    def is_equal(a, b):
-        return(isinstance(a, PyGameMakerAction) and
-            isinstance(b, PyGameMakerAction) and
-            (a.name == b.name) and (a.action_data == b.action_data))
-
     @classmethod
     def register_new_action_type(cls, actiontype):
         """
@@ -128,6 +122,11 @@ class PyGameMakerAction(object):
     def __repr__(self):
         return "<{} '{}': {}>".format(type(self).__name__, self.name,
             self.action_data)
+
+    def __eq__(self, other):
+        return(isinstance(other, PyGameMakerAction) and
+            (self.name == other.name) and
+            (self.action_data == other.action_data))
 
 class PyGameMakerMotionAction(PyGameMakerAction):
     MOVE_ACTIONS=[
