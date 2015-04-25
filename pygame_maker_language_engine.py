@@ -19,37 +19,6 @@ class PyGameMakerLanguageEngineException(Exception):
 class PyGameMakerCodeBlockException(Exception):
     pass
 
-class PyGameMakerCodeOperation(object):
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        return ("{}".format(self.stack))
-
-class PyGameMakerCodeConditionalSet(PyGameMakerCodeOperation):
-    def __init__(self, ifblock, elsestack=None, elseifstack_list=[]):
-        self.ifstack = ifstack
-        self.elseifstack_list = elseifstack_list
-        self.elsestack = elsestack
-
-    def __repr__(self):
-        repr = "conditional set:\n"
-        repr += "if {} {{\n{}\n}}".format(self.ifstack[0:-2], self.ifstack[-1])
-        if len(elseifstack_list) > 0:
-            for elseifstack in self.elseifstack_list:
-                repr += "elseif {} {{\n{}\n}}\n".format(elseifstack)
-        if self.elsestack:
-            repr += "else {{\n{}\n}}\n".format(elsestack)
-        return repr
-
-class PyGameMakerCodeAssignment(PyGameMakerCodeOperation):
-    def __init__(self, operation_stack):
-        self.stack = operation_stack
-
-    def __repr__(self):
-        repr = "assignment: {} = {}\n".format(self.stack[0], self.stack[1:])
-        return repr
-
 class PyGameMakerCodeBlock(object):
     OPERATOR_REPLACEMENTS={
         "+": "operator.add",
@@ -57,12 +26,16 @@ class PyGameMakerCodeBlock(object):
         "*": "operator.mul",
         "/": "operator.truediv",
         "%": "operator.mod",
+        "<": "operator.lt",
+        "<=": "operator.lte",
+        ">": "operator.gt",
+        ">=": "operator.gte",
+        "==": "operator.eq",
+        "!=": "operator.neq",
         "^": "math.pow"
     }
-    ASSIGNMENT_MATCHED=0
-    CONDITIONAL_SET_MATCHED=1
 
-    def __init__(self, ast=None):
+    def __init__(self, funclist=[], ast=None):
         self.outer_block = []
         self.inner_blocks = []
         self.stack = self.outer_block
@@ -71,11 +44,15 @@ class PyGameMakerCodeBlock(object):
         self.block_stack = []
         self.last_candidate_match = None
         self.inner_block_count = 0
+        self.functionlist = list(funclist)
         self.ast = ast
 
-    def flagAssignment(self, parsestr, loc, toks):
-        print("Assignment flagged: {}".format(toks.asList()))
-        self.last_candidate_match = self.ASSIGNMENT_MATCHED
+    def add_to_func_list(self, func_list):
+        if isinstance(func_list, str):
+            self.functionlist.append(func_list)
+        else:
+            for func in func_list:
+                self.functionlist.append(func)
 
     def pushAssignment(self, parsestr, loc, toks):
         assign_list = []
@@ -137,13 +114,25 @@ class PyGameMakerCodeBlock(object):
             self.stack.append(args)
 
     def pushAtom(self, parsestr, loc, toks):
-        self.scratch += infix_to_postfix.convert_infix_to_postfix(toks,
-            self.OPERATOR_REPLACEMENTS)
+        func_call = False
+        for tok in toks:
+            if tok in self.functionlist:
+                func_call = True
+            break
+        print("atom: {}".format(toks.asList()))
+        if func_call:
+            self.scratch += infix_to_postfix.convert_infix_to_postfix([toks[0]],
+                self.OPERATOR_REPLACEMENTS)
+        else:
+            self.scratch += infix_to_postfix.convert_infix_to_postfix(toks,
+                self.OPERATOR_REPLACEMENTS)
         print("scratch is now: {}".format(self.scratch))
 
     def pushFirst(self, parsestr, loc, toks):
-        self.scratch.append(toks[0])
-        print("scratch is now: {}".format(self.scratch))
+        print("pre-op: {}".format(toks.asList()))
+        self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
+            self.OPERATOR_REPLACEMENTS)
+        print("op + scratch is now: {}".format(self.scratch))
 
     def pushBoolNot(self, parsestr, loc, toks):
         for t in toks:
@@ -175,7 +164,9 @@ class PyGameMakerCodeBlockGenerator(object):
     bnf = None
     code_block = PyGameMakerCodeBlock()
     @classmethod
-    def wrap_code_block(cls, source_code_str):
+    def wrap_code_block(cls, source_code_str, funclist=[]):
+        if len(funclist) > 0:
+            cls.code_block.add_to_func_list(funclist)
         cls.bnf = BNF(cls.code_block)
         ast = cls.bnf.parseString(source_code_str)
         new_block = PyGameMakerCodeBlock(ast)
@@ -279,7 +270,7 @@ def BNF(code_block_obj):
         
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( pi | e | fnumber | ident + lpar + ZeroOrMore( combinatorial + ZeroOrMore( ',' + combinatorial ) ) + rpar | ident ).setParseAction(code_block_obj.pushAtom) | 
+        atom = ((0,None)*minus + ( pi | e | ident + lpar + ZeroOrMore( combinatorial + ZeroOrMore( ',' + combinatorial ) ) + rpar | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
                 Group( lpar + combinatorial + rpar )).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
@@ -335,9 +326,11 @@ def BNF(code_block_obj):
 
 if __name__ == "__main__":
     pgm = ""
+    function_list = ['randint']
     with open("testpgm", "r") as pf:
         pgm = pf.read()
-    code_block = PyGameMakerCodeBlockGenerator.wrap_code_block(pgm)
+    code_block = PyGameMakerCodeBlockGenerator.wrap_code_block(pgm,
+        function_list)
     print("Program:\n{}".format(pgm))
     print("=======")
     print("parsed:\n{}".format(code_block.ast))
