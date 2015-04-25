@@ -110,9 +110,6 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
                             op_stack = []
                     else:
                         break
-                opname = str(val)
-                if replacement_ops and (val in replacement_ops):
-                    opname = replacement_ops[val]
                 op_stack.insert(0, val)
             else:
                 stack.append(val)
@@ -128,6 +125,10 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
             op_stack = []
     if len(op_stack) > 0:
         raise ExpressionException("Stack underflow in token list '{}'".format(tok_list))
+    if replacement_ops:
+        for idx in range(len(stack)):
+            if stack[idx] in replacement_ops:
+                stack[idx] = replacement_ops[stack[idx]]
     return stack
 
 def precedence_check(a, b):
@@ -152,7 +153,6 @@ if __name__ == "__main__":
             self.replacement_table = {
                 "+": "operator.add",
                 "-": "operator.sub",
-                "+": "operator.add",
                 "*": "operator.mul",
                 "/": "operator.truediv",
                 "%": "operator.mod",
