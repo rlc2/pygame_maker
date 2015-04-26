@@ -8,7 +8,7 @@
 
 from pyparsing import Literal,CaselessLiteral,Word,Group,Optional,\
     ZeroOrMore,OneOrMore,Forward,nums,alphas,Regex,ParseException,Keyword,\
-    Dict,stringEnd
+    delimitedList,Dict,stringEnd,ParseFatalException
 import math
 import operator
 import infix_to_postfix
@@ -35,24 +35,18 @@ class PyGameMakerCodeBlock(object):
         "^": "math.pow"
     }
 
-    def __init__(self, funclist=[], ast=None):
+    def __init__(self, funcmap={}, ast=None):
         self.outer_block = []
         self.inner_blocks = []
         self.stack = self.outer_block
         self.scratch = []
         self.comparison_list = []
-        self.block_stack = []
-        self.last_candidate_match = None
         self.inner_block_count = 0
-        self.functionlist = list(funclist)
+        self.functionmap = dict(funcmap)
         self.ast = ast
 
-    def add_to_func_list(self, func_list):
-        if isinstance(func_list, str):
-            self.functionlist.append(func_list)
-        else:
-            for func in func_list:
-                self.functionlist.append(func)
+    def add_to_func_map(self, func_map):
+        self.functionmap.update(func_map)
 
     def pushAssignment(self, parsestr, loc, toks):
         assign_list = []
@@ -62,9 +56,9 @@ class PyGameMakerCodeBlock(object):
                     break
                 assign_list.append(inner_item)
             break
-        print("assignment scratch: {}".format(self.scratch))
+        #print("assignment scratch: {}".format(self.scratch))
         self.stack.append(assign_list + list(self.scratch) + ['='])
-        print("assignment: {}".format(self.stack[-1]))
+        #print("assignment: {}".format(self.stack[-1]))
         self.scratch = []
 
     def pushBlock(self, parsestr, loc, toks):
@@ -79,6 +73,7 @@ class PyGameMakerCodeBlock(object):
         else:
             #print("inner block #0\n{}".format(self.stack))
             self.inner_block_count = 0
+            self.inner_blocks[0] = []
             self.outer_block.append(list(self.stack))
             self.stack = self.outer_block
             #print("stack now points to outer block")
@@ -108,38 +103,71 @@ class PyGameMakerCodeBlock(object):
         self.stack.append(list(self.scratch))
         self.scratch = []
 
-    def pushFunctionCall(self, parsestr, loc, toks):
-        self.stack.append(toks[0])
-        for args in toks[1:]:
-            self.stack.append(args)
+    def countFunctionArgs(self, parsestr, loc, toks):
+        print("function w/ args: {}".format(toks))
+        # assume embedded function calls have been validated, just skip
+        #  them to count the args in the outer function call
+        func_call = False
+        func_call_known = False
+        func_name = ""
+        skip_count = 0
+        arg_count = 0
+        for tok in toks:
+            if tok in self.functionmap:
+                func_call = True
+                func_name = str(tok)
+                if not func_call_known:
+                    func_call_known = True
+                    continue
+            if func_call:
+                if arg_count == 0:
+                    arg_count = 1
+                # if this function takes no arguments, we shouldn't be here..
+                print("check {} call vs map {}".format(func_name, self.functionmap))
+                if len(self.functionmap[func_name]) == 0:
+                    raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
+                # check whether an embedded function call should be skipped
+                print("checking {}..".format(tok))
+                if tok in self.functionmap:
+                    skips = len(self.functionmap[func_name])
+                    if skips > 1:
+                        skips -= 1 # future commas imply > 1 arg to skip
+                    skip_count += skips
+                    print("skip call to {} with {} args".format(tok, len(self.functionmap[func_name])))
+                    print("skip count now is: {}".format(skip_count))
+                if tok == ',':
+                    if skip_count > 0:
+                        skip_count -= 1
+                        print("Found ',' and decrease skip count to {}".format(skip_count))
+                    else:
+                        arg_count += 1
+                        print("Found ',' and increase arg count to {}".format(arg_count))
+        if func_call:
+            if arg_count < len(self.functionmap[func_name]):
+                raise(ParseFatalException(parsestr, loc=loc, msg="Too few arguments to function \"{}\"".format(func_name)))
+            elif arg_count > len(self.functionmap[func_name]):
+                raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
 
     def pushAtom(self, parsestr, loc, toks):
         func_call = False
         for tok in toks:
-            if tok in self.functionlist:
+            if tok in self.functionmap:
                 func_call = True
             break
-        print("atom: {}".format(toks.asList()))
+        #print("atom: {}".format(toks.asList()))
         if func_call:
             self.scratch += infix_to_postfix.convert_infix_to_postfix([toks[0]],
                 self.OPERATOR_REPLACEMENTS)
         else:
             self.scratch += infix_to_postfix.convert_infix_to_postfix(toks,
                 self.OPERATOR_REPLACEMENTS)
-        print("scratch is now: {}".format(self.scratch))
+        #print("scratch is now: {}".format(self.scratch))
 
     def pushFirst(self, parsestr, loc, toks):
-        print("pre-op: {}".format(toks.asList()))
+        #print("pre-op: {}".format(toks.asList()))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
             self.OPERATOR_REPLACEMENTS)
-        print("op + scratch is now: {}".format(self.scratch))
-
-    def pushBoolNot(self, parsestr, loc, toks):
-        for t in toks:
-            if t == 'not':
-                self.stack.append( 'not')
-            else:
-                break
+        #print("op + scratch is now: {}".format(self.scratch))
 
     def pushUMinus(self, parsestr, loc, toks):
         for t in toks:
@@ -159,17 +187,24 @@ class PyGameMakerCodeBlock(object):
 
     def clear(self):
         self.stack = []
+        self.scratch = []
+        self.comparison_list = []
+        self.inner_blocks = []
+        self.inner_block_count = 0
+        self.outer_block = []
+        self.functionmap = {}
+        self.ast = None
 
 class PyGameMakerCodeBlockGenerator(object):
     bnf = None
     code_block = PyGameMakerCodeBlock()
     @classmethod
-    def wrap_code_block(cls, source_code_str, funclist=[]):
-        if len(funclist) > 0:
-            cls.code_block.add_to_func_list(funclist)
+    def wrap_code_block(cls, source_code_str, funcmap=[]):
+        if len(funcmap) > 0:
+            cls.code_block.add_to_func_map(funcmap)
         cls.bnf = BNF(cls.code_block)
         ast = cls.bnf.parseString(source_code_str)
-        new_block = PyGameMakerCodeBlock(ast)
+        new_block = PyGameMakerCodeBlock(funcmap, ast)
         cls.code_block.copy(new_block)
         cls.code_block.clear()
         return new_block
@@ -270,7 +305,7 @@ def BNF(code_block_obj):
         
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( pi | e | ident + lpar + ZeroOrMore( combinatorial + ZeroOrMore( ',' + combinatorial ) ) + rpar | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
+        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + delimitedList( combinatorial ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
                 Group( lpar + combinatorial + rpar )).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
@@ -326,11 +361,11 @@ def BNF(code_block_obj):
 
 if __name__ == "__main__":
     pgm = ""
-    function_list = ['randint']
+    functionmap = {'distance': ["number","number"], 'randint': ["number"], 'time': []}
     with open("testpgm", "r") as pf:
         pgm = pf.read()
     code_block = PyGameMakerCodeBlockGenerator.wrap_code_block(pgm,
-        function_list)
+        functionmap)
     print("Program:\n{}".format(pgm))
     print("=======")
     print("parsed:\n{}".format(code_block.ast))
