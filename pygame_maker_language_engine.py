@@ -9,6 +9,7 @@
 from pyparsing import Literal,CaselessLiteral,Word,Group,Optional,\
     ZeroOrMore,OneOrMore,Forward,nums,alphas,Regex,ParseException,Keyword,\
     delimitedList,Dict,stringEnd,ParseFatalException
+import numbers
 import math
 import operator
 import infix_to_postfix
@@ -20,6 +21,34 @@ class PyGameMakerCodeBlockException(Exception):
     pass
 
 class PyGameMakerCodeBlock(object):
+    """
+        PyGameMakerCodeBlock class:
+        Helper class that is created by the PyGameMakerCodeBlockGenerator
+        class method, that collects the parsed infix form of source code
+        in the C-like language supported by the language engine and converts
+        it to a more readily executable postfix form. Because of the generator's
+        constraints (pyparsing), this class supports deep (as opposed to
+        default shallow) copying. Optionally, the abstract syntax tree (AST)
+        can be stored within the object.
+    """
+    OPERATOR_FUNCTIONS={
+        "operator.add": ["number", "number"],
+        "operator.sub": ["number", "number"],
+        "operator.mul": ["number", "number"],
+        "operator.truediv": ["number", "number"],
+        "operator.mod": ["number", "number"],
+        "operator.lt": ["number", "number"],
+        "operator.lte": ["number", "number"],
+        "operator.gt": ["number", "number"],
+        "operator.gte": ["number", "number"],
+        "operator.eq": ["number", "number"],
+        "operator.neq": ["number", "number"],
+        "math.pow": ["number", "number"]
+    }
+    KNOWN_CONSTANTS={
+        "PI":   math.pi,
+        "E":    math.e
+    }
     OPERATOR_REPLACEMENTS={
         "+": "operator.add",
         "-": "operator.sub",
@@ -36,19 +65,43 @@ class PyGameMakerCodeBlock(object):
     }
 
     def __init__(self, funcmap={}, ast=None):
+        """
+            __init__():
+            optional args:
+             funcmap: A dict with <function_name>: [arg_type1, .., arg_typeN]
+              entries, representing the external function table made available
+              to the code block. Void argument lists can be represented with an
+              empty list. The number and type of arguments supplied assist with
+              syntax checking.
+             ast: the abstract syntax tree produced by pyparsing
+        """
         self.outer_block = []
         self.inner_blocks = []
         self.stack = self.outer_block
         self.scratch = []
-        self.comparison_list = []
         self.inner_block_count = 0
         self.functionmap = dict(funcmap)
         self.ast = ast
 
     def add_to_func_map(self, func_map):
+        """
+            add_to_func_map()
+            Supply a dict for <function_name>: [arg_type1, .., arg_typeN]
+             entries. This helps the syntax check phase know how many args
+             to expect. Later, the arg type list can be checked to make sure
+             that supplied argument types match the function call signature.
+        """
         self.functionmap.update(func_map)
 
     def pushAssignment(self, parsestr, loc, toks):
+        """
+            pushAssignment():
+            When the parser finds a assignment match, the assignee and '='
+             operator need to be added here, since the parser won't add these
+             itself. Push these and the right-hand side of the assignment
+             (which were already collected in self.scratch) onto the current
+             stack. '=' will always go at the end.
+        """
         assign_list = []
         for assign_tok in toks.asList():
             for inner_item in assign_tok:
@@ -62,6 +115,15 @@ class PyGameMakerCodeBlock(object):
         self.scratch = []
 
     def pushBlock(self, parsestr, loc, toks):
+        """
+            pushBlock():
+            When the parser matches a block, it's time to close it (the
+             instructions were already collected on the current stack).
+             Keep track here of the block level decrement, either from a
+             child inner-node up to its parent, or the top-most inner block
+             up to the outer block. Push a copy of the child inner node onto
+             its parent's stack. This method changes the stack reference.
+        """
         #print("push block")
         if (self.inner_block_count > 1):
             #print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
@@ -79,6 +141,17 @@ class PyGameMakerCodeBlock(object):
             #print("stack now points to outer block")
 
     def pushIfCond(self, parsestr, loc, toks):
+        """
+            pushIfCond():
+            When the parser matches if/elseif/else keywords, anticipate that
+             a new block will be added. Increment the block level -- either
+             outer block to topmost inner block, or parent inner block to
+             child inner block. This is optimistic, since the parser might
+             not recognize the pattern following the keyword, but that signals
+             a syntax error, at which point the stack level will be moot.
+             Collect the keyword name and push it onto the parent's stack.
+             This method changes the stack reference.
+        """
         if_statement = ""
         for tok in toks:
             if_statement = str(tok)
@@ -98,50 +171,77 @@ class PyGameMakerCodeBlock(object):
         self.stack = self.inner_blocks[-1]
 
     def pushComparison(self, parsestr, loc, toks):
-        self.comparison_list.append(list(self.scratch))
-        #print("comparisons: {}".format(self.comparison_list))
+        """
+            pushComparison():
+            When the parser matches a comparison, push it onto the current
+             stack.
+        """
         self.stack.append(list(self.scratch))
         self.scratch = []
 
     def countFunctionArgs(self, parsestr, loc, toks):
-        print("function w/ args: {}".format(toks))
+        """
+            countFunctionArgs():
+            This is where the parser needs help, since it has no idea how many
+             args a function expects. The external function table in
+             functionmap is checked against the supplied function name to
+             determine its argument count. Unfortunately, in the case where
+             function results are placed directly into function args, the
+             whole mess appears in the toks list. The saving grace is that
+             functions are checked from inner -> outer, so it's possible to
+             skip over later toks containing function names, assuming that
+             their argument lists will be checked separately. This still
+             implies that the other functions in the list need to be checked
+             to find out how many args will be skipped (and even then, it's
+             only important for functions that have more than 1 arg, since
+             the arg count is based on how many ','s are found).
+             TODO: Argument type-checking. Assume this is as simple as number
+              vs. string, and strings aren't supported yet.
+        """
+        #print("function w/ args: {}".format(toks))
         # assume embedded function calls have been validated, just skip
         #  them to count the args in the outer function call
         func_call = False
-        func_call_known = False
         func_name = ""
         skip_count = 0
         arg_count = 0
+        tok_idx = 0
         for tok in toks:
-            if tok in self.functionmap:
-                func_call = True
-                func_name = str(tok)
-                if not func_call_known:
-                    func_call_known = True
+            if (tok_idx == 0):
+                if tok in self.functionmap:
+                    func_call = True
+                    func_name = str(tok)
+                    tok_idx += 1
                     continue
+                else:
+                    # unknown function encountered
+                    raise(ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok)))
+                    break
             if func_call:
                 if arg_count == 0:
                     arg_count = 1
                 # if this function takes no arguments, we shouldn't be here..
-                print("check {} call vs map {}".format(func_name, self.functionmap))
+                #print("check {} call vs map {}".format(tok, self.functionmap))
                 if len(self.functionmap[func_name]) == 0:
                     raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
                 # check whether an embedded function call should be skipped
-                print("checking {}..".format(tok))
+                #print("checking {}..".format(tok))
                 if tok in self.functionmap:
-                    skips = len(self.functionmap[func_name])
-                    if skips > 1:
+                    skips = len(self.functionmap[tok])
+                    if skips > 0:
                         skips -= 1 # future commas imply > 1 arg to skip
                     skip_count += skips
-                    print("skip call to {} with {} args".format(tok, len(self.functionmap[func_name])))
-                    print("skip count now is: {}".format(skip_count))
+                    #print("skip call to {} with {} args".format(tok, len(self.functionmap[tok])))
+                    #print("skip count now is: {}".format(skip_count))
                 if tok == ',':
                     if skip_count > 0:
                         skip_count -= 1
-                        print("Found ',' and decrease skip count to {}".format(skip_count))
+                        #print("Found ',' and decrease skip count to {}".format(skip_count))
                     else:
                         arg_count += 1
-                        print("Found ',' and increase arg count to {}".format(arg_count))
+                        #print("Found ',' and increase arg count to {}".format(arg_count))
+            tok_idx += 1
+
         if func_call:
             if arg_count < len(self.functionmap[func_name]):
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too few arguments to function \"{}\"".format(func_name)))
@@ -149,6 +249,14 @@ class PyGameMakerCodeBlock(object):
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
 
     def pushAtom(self, parsestr, loc, toks):
+        """
+            pushAtom():
+            When the parser finds an "atom": PI, e, a number, a function call,
+            a '(' ')' delimited expression, or bare identifier, it will be
+            pushed onto scratch. A copy of the scratch list is later pushed
+            onto the current stack reference when a grouping is found
+            (an assignment or conditional block).
+        """
         func_call = False
         for tok in toks:
             if tok in self.functionmap:
@@ -164,31 +272,134 @@ class PyGameMakerCodeBlock(object):
         #print("scratch is now: {}".format(self.scratch))
 
     def pushFirst(self, parsestr, loc, toks):
+        """
+            pushFirst():
+            When the parser finds an operator ('^', '*', "/", "%", "+", "-",
+            "<", "<=", ">", ">=", "==", "!="), this is called to place it onto
+            scratch, using the converter to rename it to an actual python
+            method.
+        """
         #print("pre-op: {}".format(toks.asList()))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
             self.OPERATOR_REPLACEMENTS)
         #print("op + scratch is now: {}".format(self.scratch))
 
     def pushUMinus(self, parsestr, loc, toks):
+        """
+            pushUMinus():
+            From the original fourFn.py demo. Push 'unary -' to keep track
+             of any terms that have been negated.
+        """
         for t in toks:
             if t == '-': 
                 self.scratch.append( 'unary -' )
             else:
                 break
 
+    def reduceLine(self, code_line):
+        """
+            reduceLine():
+            Iterate over a list containing an expression, pre-calculating
+             simple numeric operations and replacing the operands and operator
+             with the result. Repeat until no more changes are made.
+        """
+        line_idx = 0
+        marker_list = []
+        changed_line = True
+        while (changed_line):
+            changed_line = False
+            result_type = int
+            while line_idx < len(code_line):
+                check_op = "{}".format(code_line[line_idx])
+                #print("check op: {}".format(check_op))
+                if check_op in self.KNOWN_CONSTANTS:
+                    code_line[line_idx] = self.KNOWN_CONSTANTS[check_op]
+                    line_idx += 1
+                    continue
+                if check_op in self.OPERATOR_FUNCTIONS:
+                    op_len = len(self.OPERATOR_FUNCTIONS[check_op])
+                    if line_idx >= op_len:
+                        all_numbers = True
+                        for rev in range(line_idx-op_len, line_idx):
+                            rev_item = code_line[rev]
+                            #print("check if num: {}".format(rev_item))
+                            if not isinstance(rev_item, numbers.Number):
+                                all_numbers = False
+                                break
+                            if not isinstance(rev_item, int):
+                                result_type = type(rev_item)
+                        if all_numbers:
+                            operation = "{}(".format(check_op)
+                            operand_strs = [str(n) for n in code_line[line_idx-op_len:line_idx]]
+                            operation += "{})".format(",".join(operand_strs))
+                            #print("Perform calc: {}".format(operation))
+                            op_result = eval(operation)
+                            # true/false become ints
+                            if isinstance(op_result, bool):
+                                if op_result:
+                                    op_result = 1
+                                else:
+                                    op_result = 0
+                            else:
+                                op_result = result_type(op_result)
+                            code_line[line_idx-op_len] = op_result
+                            for dead_idx in range(op_len):
+                                del code_line[line_idx-op_len+1]
+                            changed_line = True
+                            break
+                elif check_op == "unary -":
+                    # the special case
+                    if (line_idx > 0):
+                        if (isinstance(code_line[line_idx-1], numbers.Number)):
+                            code_line[line_idx-1] = -1 * code_line[line_idx-1]
+                            del code_line[line_idx]
+                            changed_line = True
+                            break
+                line_idx += 1
+
+    def reduceBlock(self, block):
+        block_idx = 0
+        while block_idx < len(block):
+            code_line = block[block_idx]
+            if (isinstance(code_line, str) and
+                code_line in ['if', 'elseif', 'else']):
+                # handle the conditional block here, it's a list inside a list
+                self.reduceBlock(block[block_idx+1])
+                block_idx += 2
+                continue
+            if isinstance(code_line, list):
+                print("Reduce line: {}".format(code_line))
+                self.reduceLine(code_line)
+            block_idx += 1
+
+    def reduce(self):
+        """
+            reduce():
+            Perform as much argument reduction as possible. Operators that
+            are preceded only by numeric values can be replaced with the
+            results.
+        """
+        self.reduceBlock(self.outer_block)
+
     def copy(self, other):
+        """
+            copy():
+            Perform a deep copy to another code block object.
+        """
         other.stack = list(self.stack)
         other.scratch = list(self.scratch)
-        other.comparison_list = list(self.comparison_list)
         other.inner_blocks = list(self.inner_blocks)
         other.outer_block = list(self.outer_block)
         if self.ast:
             other.ast = list(self.ast)
 
     def clear(self):
+        """
+            clear():
+            Clear out all lists in preparation for a new parsing operation.
+        """
         self.stack = []
         self.scratch = []
-        self.comparison_list = []
         self.inner_blocks = []
         self.inner_block_count = 0
         self.outer_block = []
@@ -196,6 +407,19 @@ class PyGameMakerCodeBlock(object):
         self.ast = None
 
 class PyGameMakerCodeBlockGenerator(object):
+    """
+        PyGameMakerCodeBlockGenerator class:
+        Generate a PyGameMakerCodeBlock using the wrap_code_block() class
+         method upon a supplied source code string. A class member holds
+         a code block object that is copied to a new code object, which is
+         returned to the caller.
+        args:
+         source_code_str: A string containing the C-like source code
+         funcmap: A dict containing <function_name>: [arg_type1, .., arg_typeN]
+          mappings, which will be supplied to the code block's external
+          function table so it knows type and number of args for function call
+          prototypes.
+    """
     bnf = None
     code_block = PyGameMakerCodeBlock()
     @classmethod
@@ -245,9 +469,10 @@ def BNF(code_block_obj):
     decimal_digit :: '0' .. '9'
     lower_case    :: 'a' .. 'z'
     upper_case    :: 'A' .. 'Z'
-    boolean_op    :: 'or' | 'and' | 'not'
+    boolean_op    :: 'or' | 'and'
+    boolnot       :: 'not'
     conditional_keyword   :: 'if' | 'elseif' | 'else'
-    identifier    :: lower_case | upper_case [ lower_case | upper_case | decimal_digit | '_' ]*
+    identifier    :: lower_case | upper_case [ lower_case | upper_case | decimal_digit | '_' | '.' ]*
     equalop :: '='
     compareop :: '==' | '!=' | '<' | '>' | '>=' | '<='
     expop   :: '^'
@@ -258,12 +483,12 @@ def BNF(code_block_obj):
     factor  :: atom [ expop factor ]*
     term    :: factor [ multop factor ]*
     expr    :: term [ addop term ]*
-    combinatorial :: expr [ boolean_op expr ]*
+    combinatorial :: [boolnot] expr [ boolean_op [boolnot] expr ]*
     function_def  :: 'def' identifier '('[ identifier ] [',' identifier]* ')' block
     assignment    :: identifier equalop combinatorial
     comparison    :: combinatorial compareop combinatorial
     conditional   :: conditional_keyword '(' comparison ')' block
-    block         :: '{' assignment | comparison | conditional '}'
+    block         :: '{' assignment | conditional '}'
     """
     global bnf
     if not bnf:
@@ -305,16 +530,16 @@ def BNF(code_block_obj):
         
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + delimitedList( combinatorial ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
+        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + Optional( combinatorial + Optional( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
                 Group( lpar + combinatorial + rpar )).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
         factor = Forward()
-        factor << ( atom + ZeroOrMore( ( expop + factor ).setParseAction(code_block_obj.pushFirst) ) )
+        factor <<= ( atom + ZeroOrMore( ( expop + factor ).setParseAction(code_block_obj.pushFirst) ) )
         term = ( factor + ZeroOrMore( ( multop + factor ).setParseAction(code_block_obj.pushFirst) ) )
-        expr << ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
-        combinatorial << ( Optional( boolnot ) + expr + ZeroOrMore( ( boolop + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
+        expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
+        combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( boolop + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
         assignment = Group( ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
         comparison = Group( combinatorial + Optional( compareop + combinatorial ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
         block = Forward()
@@ -322,7 +547,7 @@ def BNF(code_block_obj):
         conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + comparison + rpar ) + block )
         conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block )
         conditional_set = Group( conditional_start + ZeroOrMore( conditional_continue ) + Optional( conditional_else ) )
-        block << Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack ).setParseAction(code_block_obj.pushBlock)
+        block <<= Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack ).setParseAction(code_block_obj.pushBlock)
         bnf = OneOrMore( assignment | conditional_set ) + stringEnd
     return bnf
 
@@ -374,9 +599,10 @@ if __name__ == "__main__":
     print("=======")
     print("stack:\n{}".format(code_block.stack))
     print("=======")
-    print("comparisons:\n{}".format(code_block.comparison_list))
-    print("=======")
     print("inner blocks:\n{}".format(code_block.inner_blocks))
     print("=======")
     print("outer block:\n{}".format(code_block.outer_block))
+    print("=======")
+    code_block.reduce()
+    print("reduced:\n{}".format(code_block.outer_block))
 
