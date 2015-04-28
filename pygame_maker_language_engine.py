@@ -107,7 +107,7 @@ class PyGameMakerCodeBlock(object):
             for inner_item in assign_tok:
                 if inner_item == '=':
                     break
-                assign_list.append(inner_item)
+                assign_list.append("_{}".format(inner_item))
             break
         #print("assignment scratch: {}".format(self.scratch))
         self.stack.append(assign_list + list(self.scratch) + ['='])
@@ -128,15 +128,18 @@ class PyGameMakerCodeBlock(object):
         if (self.inner_block_count > 1):
             #print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
             self.inner_block_count -= 1
+            #print("append to {}".format(self.inner_blocks[self.inner_block_count-1]))
             self.inner_blocks[self.inner_block_count-1].append(list(self.stack))
             #print("stack now points to inner block #{}".format(self.inner_block_count-1))
             self.stack = self.inner_blocks[self.inner_block_count-1]
-            self.inner_blocks[self.inner_block_count] = []
+            #print("clear inner_blocks[{}]".format(self.inner_block_count))
+            del(self.inner_blocks[self.inner_block_count])
         else:
             #print("inner block #0\n{}".format(self.stack))
-            self.inner_block_count = 0
-            self.inner_blocks[0] = []
             self.outer_block.append(list(self.stack))
+            #print("clear inner_blocks[0]")
+            self.inner_block_count = 0
+            del(self.inner_blocks[0])
             self.stack = self.outer_block
             #print("stack now points to outer block")
 
@@ -152,18 +155,19 @@ class PyGameMakerCodeBlock(object):
              Collect the keyword name and push it onto the parent's stack.
              This method changes the stack reference.
         """
+        #print("push {}".format(toks.asList()))
         if_statement = ""
         for tok in toks:
-            if_statement = str(tok)
+            if_statement = "_{}".format(tok)
             #print("push if statement: {}".format(if_statement))
             break
         container_block = self.outer_block
         if (self.inner_block_count > 0):
             container_block = self.inner_blocks[-1]
-            #print("container: inner block {}".format(self.inner_block_count-1))
+            #print("container: inner block {}\n{}".format(self.inner_block_count-1,self.inner_blocks[self.inner_block_count-1]))
         else:
-            pass
             #print("container: outer block")
+            pass
         container_block.append(if_statement)
         self.inner_block_count += 1
         self.inner_blocks.append([])
@@ -176,6 +180,7 @@ class PyGameMakerCodeBlock(object):
             When the parser matches a comparison, push it onto the current
              stack.
         """
+        #print("append {} to stack".format(comparison_list))
         self.stack.append(list(self.scratch))
         self.scratch = []
 
@@ -267,7 +272,7 @@ class PyGameMakerCodeBlock(object):
             self.scratch += infix_to_postfix.convert_infix_to_postfix([toks[0]],
                 self.OPERATOR_REPLACEMENTS)
         else:
-            self.scratch += infix_to_postfix.convert_infix_to_postfix(toks,
+            self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
                 self.OPERATOR_REPLACEMENTS)
         #print("scratch is now: {}".format(self.scratch))
 
@@ -303,10 +308,10 @@ class PyGameMakerCodeBlock(object):
              simple numeric operations and replacing the operands and operator
              with the result. Repeat until no more changes are made.
         """
-        line_idx = 0
         marker_list = []
         changed_line = True
         while (changed_line):
+            line_idx = 0
             changed_line = False
             result_type = int
             while line_idx < len(code_line):
@@ -317,6 +322,7 @@ class PyGameMakerCodeBlock(object):
                     line_idx += 1
                     continue
                 if check_op in self.OPERATOR_FUNCTIONS:
+                    #print("found op: {}".format(check_op))
                     op_len = len(self.OPERATOR_FUNCTIONS[check_op])
                     if line_idx >= op_len:
                         all_numbers = True
@@ -358,26 +364,31 @@ class PyGameMakerCodeBlock(object):
                 line_idx += 1
 
     def reduceBlock(self, block):
+        """
+            reduceBlock():
+            Iterate through each line within the given block of postfix
+            expressions and recursively through sub-blocks, reducing numeric
+            operations when found.
+        """
         block_idx = 0
         while block_idx < len(block):
             code_line = block[block_idx]
             if (isinstance(code_line, str) and
-                code_line in ['if', 'elseif', 'else']):
+                code_line in ['_if', '_elseif', '_else']):
                 # handle the conditional block here, it's a list inside a list
                 self.reduceBlock(block[block_idx+1])
                 block_idx += 2
                 continue
             if isinstance(code_line, list):
-                print("Reduce line: {}".format(code_line))
+                #print("Reduce line: {}".format(code_line))
                 self.reduceLine(code_line)
             block_idx += 1
 
     def reduce(self):
         """
             reduce():
-            Perform as much argument reduction as possible. Operators that
-            are preceded only by numeric values can be replaced with the
-            results.
+            Perform as much argument reduction as possible. Operations on
+            numeric values can be replaced with the results.
         """
         self.reduceBlock(self.outer_block)
 
@@ -414,7 +425,7 @@ class PyGameMakerCodeBlockGenerator(object):
          a code block object that is copied to a new code object, which is
          returned to the caller.
         args:
-         source_code_str: A string containing the C-like source code
+         source_code_str: A string containing C-like source code
          funcmap: A dict containing <function_name>: [arg_type1, .., arg_typeN]
           mappings, which will be supplied to the code block's external
           function table so it knows type and number of args for function call
@@ -514,13 +525,13 @@ def BNF(code_block_obj):
         ifcond = Keyword( "if" )
         elseifcond = Keyword( "elseif" )
         elsecond = Keyword( "else" )
-        is_equal = Literal( "==" )
-        is_nequal = Literal( "!=" )
-        is_lt = Literal( "<" )
-        is_lte = Literal( "<=" )
-        is_gt = Literal( ">" )
-        is_gte = Literal( ">=" )
-        assignop = Literal( "=" )
+        is_equal = Keyword( "==" )
+        is_nequal = Keyword( "!=" )
+        is_lt = Keyword( "<" )
+        is_lte = Keyword( "<=" )
+        is_gt = Keyword( ">" )
+        is_gte = Keyword( ">=" )
+        assignop = Keyword( "=" )
         compareop = is_equal | is_nequal | is_lt | is_lte | is_gt | is_gte
         boolop = boolor | booland
         addop  = plus | minus
@@ -539,12 +550,13 @@ def BNF(code_block_obj):
         factor <<= ( atom + ZeroOrMore( ( expop + factor ).setParseAction(code_block_obj.pushFirst) ) )
         term = ( factor + ZeroOrMore( ( multop + factor ).setParseAction(code_block_obj.pushFirst) ) )
         expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
-        combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( boolop + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
+        combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( ( boolop | compareop ) + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
         assignment = Group( ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
-        comparison = Group( combinatorial + Optional( compareop + combinatorial ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
+#        comparison = Forward()
+#        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
         block = Forward()
-        conditional_start = ( ifcond.setParseAction(code_block_obj.pushIfCond) + lpar + comparison + rpar + block )
-        conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + comparison + rpar ) + block )
+        conditional_start = ( ifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block )
+        conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block )
         conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block )
         conditional_set = Group( conditional_start + ZeroOrMore( conditional_continue ) + Optional( conditional_else ) )
         block <<= Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack ).setParseAction(code_block_obj.pushBlock)
