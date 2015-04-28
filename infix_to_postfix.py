@@ -84,7 +84,10 @@ class ExpressionException(Exception):
 def convert_infix_to_postfix(tok_list, replacement_ops=None):
     stack = []
     op_stack = []
-    for tok in tok_list:
+    item_list = tok_list
+    if isinstance(tok_list, str):
+        item_list = [tok_list]
+    for tok in item_list:
         val = None
         if (isinstance(tok, str)):
             minfo = FLOAT_RE.search(tok)
@@ -111,6 +114,10 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
                     else:
                         break
                 op_stack.insert(0, val)
+            elif isinstance(val, str):
+                # make sure no identifier aliases to python operators
+                val = "_" + val
+                stack.append(val)
             else:
                 stack.append(val)
         elif len(tok) > 0:
