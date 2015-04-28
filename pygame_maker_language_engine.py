@@ -114,15 +114,15 @@ class PyGameMakerCodeBlock(object):
         #print("assignment: {}".format(self.stack[-1]))
         self.scratch = []
 
-    def pushBlock(self, parsestr, loc, toks):
+    def pushConditionalBlock(self, parsestr, loc, toks):
         """
-            pushBlock():
-            When the parser matches a block, it's time to close it (the
-             instructions were already collected on the current stack).
-             Keep track here of the block level decrement, either from a
-             child inner-node up to its parent, or the top-most inner block
-             up to the outer block. Push a copy of the child inner node onto
-             its parent's stack. This method changes the stack reference.
+            pushConditionalBlock():
+            When the parser matches a conditional's block, it's time to close
+             it (the instructions were already collected on the current stack).
+             Keep track here of the block level decrement, either from a child
+             inner-node up to its parent, or the top-most inner block up to the
+             outer block. Push a copy of the child inner node onto its parent's
+             stack. This method changes the stack reference.
         """
         #print("push block")
         if (self.inner_block_count > 1):
@@ -555,11 +555,11 @@ def BNF(code_block_obj):
 #        comparison = Forward()
 #        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
         block = Forward()
-        conditional_start = ( ifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block )
-        conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block )
-        conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block )
+        conditional_start = ( ifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block.setParseAction(code_block_obj.pushConditionalBlock) )
+        conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block.setParseAction(code_block_obj.pushConditionalBlock) )
+        conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block.setParseAction(code_block_obj.pushConditionalBlock) )
         conditional_set = Group( conditional_start + ZeroOrMore( conditional_continue ) + Optional( conditional_else ) )
-        block <<= Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack ).setParseAction(code_block_obj.pushBlock)
+        block <<= Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack )
         bnf = OneOrMore( assignment | conditional_set ) + stringEnd
     return bnf
 
