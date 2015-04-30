@@ -8,11 +8,14 @@
 
 from pyparsing import Literal,CaselessLiteral,Word,Group,Optional,\
     ZeroOrMore,OneOrMore,Forward,nums,alphas,Regex,ParseException,Keyword,\
-    delimitedList,Dict,stringEnd,ParseFatalException
+    Dict,stringEnd,ParseFatalException
 import numbers
 import math
+import random
+import time
 import operator
 import infix_to_postfix
+import os
 
 class PyGameMakerLanguageEngineException(Exception):
     pass
@@ -24,12 +27,12 @@ class PyGameMakerCodeBlock(object):
     """
         PyGameMakerCodeBlock class:
         Helper class that is created by the PyGameMakerCodeBlockGenerator
-        class method, that collects the parsed infix form of source code
-        in the C-like language supported by the language engine and converts
-        it to a more readily executable postfix form. Because of the generator's
-        constraints (pyparsing), this class supports deep (as opposed to
-        default shallow) copying. Optionally, the abstract syntax tree (AST)
-        can be stored within the object.
+        class method, that collects the infix form of source code in the C-like
+        language supported by the language engine and converts it to a more
+        readily executable postfix form. Because of the generator's constraints
+        (the pyparsing function re-uses the same object for every parsing run),
+        this class supports deep copying. Optionally, the abstract syntax tree
+        (AST) can be stored within the object.
     """
     OPERATOR_FUNCTIONS={
         "operator.add": ["number", "number"],
@@ -78,14 +81,15 @@ class PyGameMakerCodeBlock(object):
         self.outer_block = []
         self.inner_blocks = []
         self.stack = self.outer_block
+        self.frame = self.outer_block
         self.scratch = []
         self.inner_block_count = 0
         self.functionmap = dict(funcmap)
         self.ast = ast
 
-    def add_to_func_map(self, func_map):
+    def addToFuncMap(self, func_map):
         """
-            add_to_func_map()
+            addToFuncMap()
             Supply a dict for <function_name>: [arg_type1, .., arg_typeN]
              entries. This helps the syntax check phase know how many args
              to expect. Later, the arg type list can be checked to make sure
@@ -136,11 +140,11 @@ class PyGameMakerCodeBlock(object):
             del(self.inner_blocks[self.inner_block_count])
         else:
             #print("inner block #0\n{}".format(self.stack))
-            self.outer_block.append(list(self.stack))
+            self.frame.append(list(self.stack))
             #print("clear inner_blocks[0]")
             self.inner_block_count = 0
             del(self.inner_blocks[0])
-            self.stack = self.outer_block
+            self.stack = self.frame
             #print("stack now points to outer block")
 
     def pushIfCond(self, parsestr, loc, toks):
@@ -161,7 +165,7 @@ class PyGameMakerCodeBlock(object):
             if_statement = "_{}".format(tok)
             #print("push if statement: {}".format(if_statement))
             break
-        container_block = self.outer_block
+        container_block = self.frame
         if (self.inner_block_count > 0):
             container_block = self.inner_blocks[-1]
             #print("container: inner block {}\n{}".format(self.inner_block_count-1,self.inner_blocks[self.inner_block_count-1]))
@@ -227,12 +231,12 @@ class PyGameMakerCodeBlock(object):
                     arg_count = 1
                 # if this function takes no arguments, we shouldn't be here..
                 #print("check {} call vs map {}".format(tok, self.functionmap))
-                if len(self.functionmap[func_name]) == 0:
+                if len(self.functionmap[func_name]["arglist"]) == 0:
                     raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
                 # check whether an embedded function call should be skipped
                 #print("checking {}..".format(tok))
                 if tok in self.functionmap:
-                    skips = len(self.functionmap[tok])
+                    skips = len(self.functionmap[tok]["arglist"])
                     if skips > 0:
                         skips -= 1 # future commas imply > 1 arg to skip
                     skip_count += skips
@@ -248,10 +252,66 @@ class PyGameMakerCodeBlock(object):
             tok_idx += 1
 
         if func_call:
-            if arg_count < len(self.functionmap[func_name]):
+            if arg_count < len(self.functionmap[func_name]["arglist"]):
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too few arguments to function \"{}\"".format(func_name)))
-            elif arg_count > len(self.functionmap[func_name]):
+            elif arg_count > len(self.functionmap[func_name]["arglist"]):
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
+
+    def pushFuncArgs(self, parsestr, loc, toks):
+        """
+            pushFuncArgs():
+            Collect the function name and arguments from a function definition.
+            Validate the argument types. Create a new block within the
+            functionmap and point the frame at it, so future constructs will be
+            placed in the function.
+        """
+        func_name = None
+        arg_with_type = None
+        arg_list = []
+        for tok in toks:
+            for item in tok:
+                if item == ',':
+                    continue
+                if not func_name:
+                    func_name = str(item)
+                    #print("New function: {}".format(func_name))
+                    if func_name in self.functionmap:
+                        raise(ParseFatalException(parsestr, loc=loc, msg="Redefinition of existing function '{}'".format(func_name)))
+                    continue
+                if func_name:
+                    if not arg_with_type:
+                        typename = str(item)
+                        if not typename in ["void", "number", "string"]:
+                            raise(ParseFatalException(parsestr, loc=loc, msg="Missing type name in declaration of function '{}'".format(func_name)))
+                        arg_with_type = {"type": typename }
+                        if typename == "void":
+                            arg_list.append(dict(arg_with_type))
+                    else:
+                        if arg_with_type["type"] == "void":
+                            raise(ParseFatalException(parsestr, loc=loc, msg="Extraneous token following void in declaration of function '{}'".format(func_name)))
+                        arg_with_type["name"] = str(item)
+                        arg_list.append(dict(arg_with_type))
+                        arg_with_type = None
+        #print("Function w/ args: {} {}".format(func_name, arg_list))
+        if arg_list[0]["type"] != "void":
+            self.functionmap[func_name] = { "arglist": arg_list }
+        else:
+            self.functionmap[func_name] = { "arglist":[] }
+        self.functionmap[func_name]["block"] = []
+        #print("New functionmap: {}".format(self.functionmap))
+        self.stack = self.functionmap[func_name]["block"]
+        self.frame = self.functionmap[func_name]["block"]
+
+    def pushFuncBlock(self, parsestr, loc, toks):
+        """
+            Take the current function block frame and reduce it, before
+            switching the frame back to the outer_block.
+        """
+        # reduce the function source
+        self.reduceBlock(self.frame)
+        # reset the stack and frame
+        self.stack = self.outer_block
+        self.frame = self.outer_block
 
     def pushAtom(self, parsestr, loc, toks):
         """
@@ -300,6 +360,15 @@ class PyGameMakerCodeBlock(object):
                 self.scratch.append( 'unary -' )
             else:
                 break
+
+    def pushReturn(self, parsestr, loc, toks):
+        """
+            pushReturn()
+            Push the stack containing the arguments for a return keyword,
+            followed by "_return"
+        """
+        self.stack.append(list(self.scratch) + ["_return"])
+        self.scratch = []
 
     def reduceLine(self, code_line):
         """
@@ -392,17 +461,22 @@ class PyGameMakerCodeBlock(object):
         """
         self.reduceBlock(self.outer_block)
 
-    def copy(self, other):
+    def execute(self):
+        pass
+
+    def copyTo(self, other):
         """
-            copy():
+            copyTo():
             Perform a deep copy to another code block object.
         """
-        other.stack = list(self.stack)
-        other.scratch = list(self.scratch)
-        other.inner_blocks = list(self.inner_blocks)
+        #other.stack = list(self.stack)
+        #other.frame = list(self.frame)
+        #other.scratch = list(self.scratch)
+        #other.inner_blocks = list(self.inner_blocks)
         other.outer_block = list(self.outer_block)
         if self.ast:
             other.ast = list(self.ast)
+        other.addToFuncMap(self.functionmap)
 
     def clear(self):
         """
@@ -414,6 +488,7 @@ class PyGameMakerCodeBlock(object):
         self.inner_blocks = []
         self.inner_block_count = 0
         self.outer_block = []
+        self.frame = []
         self.functionmap = {}
         self.ast = None
 
@@ -436,11 +511,12 @@ class PyGameMakerCodeBlockGenerator(object):
     @classmethod
     def wrap_code_block(cls, source_code_str, funcmap=[]):
         if len(funcmap) > 0:
-            cls.code_block.add_to_func_map(funcmap)
+            cls.code_block.addToFuncMap(funcmap)
         cls.bnf = BNF(cls.code_block)
         ast = cls.bnf.parseString(source_code_str)
+        cls.code_block.reduce()
         new_block = PyGameMakerCodeBlock(funcmap, ast)
-        cls.code_block.copy(new_block)
+        cls.code_block.copyTo(new_block)
         cls.code_block.clear()
         return new_block
 
@@ -495,7 +571,7 @@ def BNF(code_block_obj):
     term    :: factor [ multop factor ]*
     expr    :: term [ addop term ]*
     combinatorial :: [boolnot] expr [ boolean_op [boolnot] expr ]*
-    function_def  :: 'def' identifier '('[ identifier ] [',' identifier]* ')' block
+    function_def  :: 'function' identifier '('[ identifier ] [',' identifier]* ')' block
     assignment    :: identifier equalop combinatorial
     comparison    :: combinatorial compareop combinatorial
     conditional   :: conditional_keyword '(' comparison ')' block
@@ -511,6 +587,8 @@ def BNF(code_block_obj):
         fnumber = Regex(r"[+-]?\d+(:?\.\d*)?(:?[eE][+-]?\d+)?")
         ident = Word(alphas, alphas+nums+"._$")
      
+        uptolineend = Regex(r".*{}".format(os.linesep))
+        comment_sym = Literal( "#" )
         plus  = Literal( "+" )
         minus = Literal( "-" )
         mult  = Literal( "*" )
@@ -525,6 +603,11 @@ def BNF(code_block_obj):
         ifcond = Keyword( "if" )
         elseifcond = Keyword( "elseif" )
         elsecond = Keyword( "else" )
+        func = Keyword( "function" )
+        num = Keyword( "number" )
+        strn = Keyword( "string" )
+        void = Keyword( "void" )
+        ret = Keyword( "return" )
         is_equal = Keyword( "==" )
         is_nequal = Keyword( "!=" )
         is_lt = Keyword( "<" )
@@ -536,12 +619,14 @@ def BNF(code_block_obj):
         boolop = boolor | booland
         addop  = plus | minus
         multop = mult | div
+        typestring = num | strn
         expop = Literal( "^" )
         pi    = CaselessLiteral( "PI" )
-        
+
+        comments = comment_sym + uptolineend
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + Optional( combinatorial + Optional( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
+        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
                 Group( lpar + combinatorial + rpar )).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
@@ -551,6 +636,7 @@ def BNF(code_block_obj):
         term = ( factor + ZeroOrMore( ( multop + factor ).setParseAction(code_block_obj.pushFirst) ) )
         expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
         combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( ( boolop | compareop ) + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
+        returnline = Group( ret + combinatorial ).setParseAction(code_block_obj.pushReturn)
         assignment = Group( ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
 #        comparison = Forward()
 #        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
@@ -559,8 +645,11 @@ def BNF(code_block_obj):
         conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block.setParseAction(code_block_obj.pushConditionalBlock) )
         conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block.setParseAction(code_block_obj.pushConditionalBlock) )
         conditional_set = Group( conditional_start + ZeroOrMore( conditional_continue ) + Optional( conditional_else ) )
-        block <<= Group( lbrack + ZeroOrMore( assignment | conditional_set ) + rbrack )
-        bnf = OneOrMore( assignment | conditional_set ) + stringEnd
+        block <<= Group( lbrack + ZeroOrMore( comments.suppress() | assignment | conditional_set ) + rbrack )
+        func_def_args = Group( ident + lpar + ( ( typestring + ident + ZeroOrMore( "," + typestring + ident ) ) | void ) + rpar ).setParseAction(code_block_obj.pushFuncArgs)
+        function_block = Group( lbrack + ZeroOrMore( comments.suppress() | assignment | conditional_set | returnline ) + rbrack ).setParseAction(code_block_obj.pushFuncBlock)
+        func_def = Group( func + func_def_args + function_block )
+        bnf = OneOrMore( comments.suppress() | func_def | assignment | conditional_set ) + stringEnd
     return bnf
 
 # map operator symbols to corresponding arithmetic operations
@@ -598,7 +687,19 @@ def BNF(code_block_obj):
 
 if __name__ == "__main__":
     pgm = ""
-    functionmap = {'distance': ["number","number"], 'randint': ["number"], 'time': []}
+    functionmap = {
+        'distance': { "arglist":
+        [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
+        'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
+        },
+        'randint': { "arglist":
+        [{"type":"number", "name":"max"}],
+        'block': [0, "_max", "random.randint", "_return"]
+        },
+        'time': { "arglist": [],
+        'block': ["time.time", "_return"]
+        }
+    }
     with open("testpgm", "r") as pf:
         pgm = pf.read()
     code_block = PyGameMakerCodeBlockGenerator.wrap_code_block(pgm,
@@ -606,15 +707,14 @@ if __name__ == "__main__":
     print("Program:\n{}".format(pgm))
     print("=======")
     print("parsed:\n{}".format(code_block.ast))
+    #print("=======")
+    #print("scratch:\n{}".format(code_block.scratch))
     print("=======")
-    print("scratch:\n{}".format(code_block.scratch))
-    print("=======")
-    print("stack:\n{}".format(code_block.stack))
-    print("=======")
-    print("inner blocks:\n{}".format(code_block.inner_blocks))
+    print("function map:\n{}".format(code_block.functionmap))
+    #print("=======")
+    #print("stack:\n{}".format(code_block.stack))
+    #print("=======")
+    #print("inner blocks:\n{}".format(code_block.inner_blocks))
     print("=======")
     print("outer block:\n{}".format(code_block.outer_block))
-    print("=======")
-    code_block.reduce()
-    print("reduced:\n{}".format(code_block.outer_block))
 
