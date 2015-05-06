@@ -4,7 +4,9 @@
 # original code copyright 2003-2009 by Paul McGuire
 
 # handles math operations, predefined functions, keywords, boolean comparisons,
-#  function definitions, setting and using any supplied global variables
+#  function definitions, setting and using any supplied global variables,
+#  if/elseif/else conditionals, comments
+# represent toy language source code with python classes
 
 from pyparsing import Literal,CaselessLiteral,Word,Group,Optional,\
     ZeroOrMore,OneOrMore,Forward,nums,alphas,Regex,ParseException,Keyword,\
@@ -16,12 +18,40 @@ import time
 import operator
 import infix_to_postfix
 import os
+import re
+import ast
+import imp
+import sys
 
 class PyGameMakerLanguageEngineException(Exception):
     pass
 
 class PyGameMakerCodeBlockException(Exception):
     pass
+
+class PyGameMakerSymbolTable(object):
+    DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
+
+    def __init__(self, initial_symbols={}):
+        self._vars = {}
+        self._vars.update(initial_symbols)
+
+    def dumpVars(self):
+        varlist = list(self._vars.keys())
+        varlist.sort()
+        for var in varlist:
+            print("{} = {}".format(var, self._vars[var]))
+
+    def __setitem__(self, item, val):
+        #print("Setting {} to {}".format(item, val))
+        self._vars[item] = val
+
+    def __getitem__(self, item):
+        new_val = self.DEFAULT_UNINITIALIZED_VALUE
+        if item in self._vars:
+            new_val = self._vars[item]
+        #print("Retrieve item {}: {}".format(item, new_val))
+        return new_val
 
 class PyGameMakerCodeBlock(object):
     """
@@ -40,6 +70,7 @@ class PyGameMakerCodeBlock(object):
         "operator.mul": ["number", "number"],
         "operator.truediv": ["number", "number"],
         "operator.mod": ["number", "number"],
+        "operator.not_": ["bool"],
         "operator.lt": ["number", "number"],
         "operator.lte": ["number", "number"],
         "operator.gt": ["number", "number"],
@@ -59,6 +90,7 @@ class PyGameMakerCodeBlock(object):
         "/": "operator.truediv",
         "%": "operator.mod",
         "<": "operator.lt",
+        "not": "operator.not_",
         "<=": "operator.lte",
         ">": "operator.gt",
         ">=": "operator.gte",
@@ -66,8 +98,31 @@ class PyGameMakerCodeBlock(object):
         "!=": "operator.neq",
         "^": "math.pow"
     }
+    CONDITIONALS=[
+        "operator.lt",
+        "operator.lte",
+        "operator.gt",
+        "operator.gte",
+        "operator.eq",
+        "operator.neq"
+    ]
+    REVERSE_OPERATORS={
+        "operator.add":     "+",
+        "operator.sub":     "-",
+        "operator.mul":     "*",
+        "operator.truediv": "/",
+        "operator.mod":     "%",
+        "operator.lt":      "<",
+        "operator.lte":     "<=",
+        "operator.gt":      ">",
+        "operator.gte":     ">=",
+        "operator.eq":      "==",
+        "operator.neq":     "!=",
+        "math.pow":         "**"
+    }
+    SYMBOL_RE=re.compile("_[a-zA-Z][a-zA-Z0-9._]*$")
 
-    def __init__(self, funcmap={}, ast=None):
+    def __init__(self, name, module_context, funcmap={}, astree=None):
         """
             __init__():
             optional args:
@@ -76,16 +131,19 @@ class PyGameMakerCodeBlock(object):
               to the code block. Void argument lists can be represented with an
               empty list. The number and type of arguments supplied assist with
               syntax checking.
-             ast: the abstract syntax tree produced by pyparsing
+             astree: the abstract syntax tree produced by pyparsing
         """
+        self.name = name
+        self.module_context = module_context
         self.outer_block = []
         self.inner_blocks = []
         self.stack = self.outer_block
         self.frame = self.outer_block
         self.scratch = []
         self.inner_block_count = 0
+        self.func_name = None
         self.functionmap = dict(funcmap)
-        self.ast = ast
+        self.astree = astree
 
     def addToFuncMap(self, func_map):
         """
@@ -297,10 +355,12 @@ class PyGameMakerCodeBlock(object):
             self.functionmap[func_name] = { "arglist": arg_list }
         else:
             self.functionmap[func_name] = { "arglist":[] }
+        self.functionmap[func_name]["recursive"] = False
         self.functionmap[func_name]["block"] = []
         #print("New functionmap: {}".format(self.functionmap))
         self.stack = self.functionmap[func_name]["block"]
         self.frame = self.functionmap[func_name]["block"]
+        self.function_name = func_name
 
     def pushFuncBlock(self, parsestr, loc, toks):
         """
@@ -309,6 +369,23 @@ class PyGameMakerCodeBlock(object):
         """
         # reduce the function source
         self.reduceBlock(self.frame)
+        func_loc = [0,0]
+        param_list = [ fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
+        function_body = self.toPythonBlock(self.frame, func_loc,
+            self.function_name)
+        func_lines = ["def userfunc_{}(_symbols, {}, count=0):".format(self.function_name, ",".join(param_list))]
+        func_lines += [
+            "  if (count > 100):",
+            "    raise(RuntimeError(\"Call stack depth limit exceeded\"))"
+        ]
+        func_lines += function_body
+        function_code = "\n".join(func_lines)
+        print("Function code:\n{}".format(function_code))
+        parsed_code = ast.parse(function_code, "<p_{}>".format(self.function_name))
+        self.functionmap[self.function_name]['compiled'] = compile(parsed_code,
+            "<c_{}>".format(self.function_name), 'exec')
+        self.function_name = "None"
+        #print(ast.dump(parsed_code))
         # reset the stack and frame
         self.stack = self.outer_block
         self.frame = self.outer_block
@@ -322,16 +399,33 @@ class PyGameMakerCodeBlock(object):
             onto the current stack reference when a grouping is found
             (an assignment or conditional block).
         """
-        func_call = False
+        tok_n = 0
+        add_not = False
+        add_tok = None
         for tok in toks:
-            if tok in self.functionmap:
+            if (tok_n == 0):
+                if (tok == 'not'):
+                    add_not = True
+                    tok_n += 1
+                    continue
+                else:
+                    add_tok = tok
+                    break
+            else:
+                add_tok = tok
+                break
+        func_call = False
+        if add_tok in self.functionmap:
                 func_call = True
-            break
         #print("atom: {}".format(toks.asList()))
         if func_call:
-            self.scratch += infix_to_postfix.convert_infix_to_postfix([toks[0]],
+            self.scratch += infix_to_postfix.convert_infix_to_postfix([add_tok],
                 self.OPERATOR_REPLACEMENTS)
+            if add_not:
+                self.scratch.append("operator.not_")
         else:
+            if add_not:
+                print("not tokens:".format(toks.asList()))
             self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
                 self.OPERATOR_REPLACEMENTS)
         #print("scratch is now: {}".format(self.scratch))
@@ -401,22 +495,8 @@ class PyGameMakerCodeBlock(object):
                             if not isinstance(rev_item, numbers.Number):
                                 all_numbers = False
                                 break
-                            if not isinstance(rev_item, int):
-                                result_type = type(rev_item)
                         if all_numbers:
-                            operation = "{}(".format(check_op)
-                            operand_strs = [str(n) for n in code_line[line_idx-op_len:line_idx]]
-                            operation += "{})".format(",".join(operand_strs))
-                            #print("Perform calc: {}".format(operation))
-                            op_result = eval(operation)
-                            # true/false become ints
-                            if isinstance(op_result, bool):
-                                if op_result:
-                                    op_result = 1
-                                else:
-                                    op_result = 0
-                            else:
-                                op_result = result_type(op_result)
+                            op_result = self.executeOperation(check_op, code_line[line_idx-op_len:line_idx])
                             code_line[line_idx-op_len] = op_result
                             for dead_idx in range(op_len):
                                 del code_line[line_idx-op_len+1]
@@ -461,8 +541,223 @@ class PyGameMakerCodeBlock(object):
         """
         self.reduceBlock(self.outer_block)
 
-    def execute(self):
-        pass
+    def toPythonLine(self, code_line, loc=[0,0], func_name=None):
+        """
+            toPythonLine():
+            The hard work of arranging the postfix representation of a line of
+            code into a line of executable Python code happens here. The
+            round-trip serves 2 purposes: the game language is essentially
+            used for calculations, so doesn't need the full features of Python;
+            and this effectively isolates and sanitizes user-written code to
+            prevent it from adversely affecting the game engine.
+        """
+        op_stack = []
+        current_value = 0
+        symbol = None
+        start_pos = 0
+        type_upgrade = False
+        if code_line[-1] == '=':
+            symbol = code_line[0][1:]
+            start_pos = 1
+        for op_idx in range(start_pos,len(code_line)):
+            op = code_line[op_idx]
+            if isinstance(op, int):
+                op_stack.append({"type": "int", "val": str(op)})
+            elif isinstance(op, float):
+                op_stack.append({"type": "float", "val": str(op)})
+            else:
+                sym_minfo = self.SYMBOL_RE.match(op)
+                if sym_minfo:
+                    opname = op[1:]
+                else:
+                    opname = op
+                if (opname in self.OPERATOR_FUNCTIONS or
+                    opname in self.functionmap):
+                    # perform a calculation, and place the result in the
+                    #  op stack
+                    arg_count = 0
+                    opcall = opname
+                    func_params = []
+                    if opname in self.OPERATOR_FUNCTIONS:   
+                        arg_count = len(self.OPERATOR_FUNCTIONS[opname])
+                    else:
+                        arg_count = len(self.functionmap[opname]["arglist"])
+                        opcall = "userfunc_{}".format(opname)
+                        func_params = ["_symbols"]
+                    id_start = len(op_stack) - arg_count
+                    id_end = len(op_stack)
+                    if id_start < 0:
+                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+                    res_type = "int"
+                    last_type = None
+                    type_upgrade = False
+                    params = list(op_stack[id_start:id_end])
+                    if opcall not in self.CONDITIONALS:
+                        for arghash in params:
+                            # track argument types
+                            if arghash["type"] == "float":
+                                res_type = "float"
+                            elif arghash["type"] == "string":
+                                res_type = "str"
+                            if not last_type:
+                                last_type = res_type
+                            elif last_type != res_type:
+                                type_upgrade = True
+                    else:
+                        res_type = "bool"
+                    # replace args and function call/operator with python
+                    #  code string, keeping track of the result type
+                    for dead_idx in range(arg_count):
+                        del(op_stack[-1])
+                    param_list = func_params + [param['val'] for param in params]
+                    count_arg = ""
+                    if func_name and not (opcall in self.OPERATOR_FUNCTIONS):
+                        # if calling a function within a function block, append
+                        #  a count+1 arg to limit recursion depth (this is to
+                        #  prevent user code from crashing the game engine)
+                        count_arg = ", count+1"
+                    op_stack.append({"type": res_type, "val": "{}({}{})".format(opcall,",".join(param_list), count_arg)})
+                    if type_upgrade:
+                        prev_val = op_stack[-1]["val"]
+                        prev_val = "{}({})".format(res_type,prev_val)
+                elif opname == "unary -":
+                    # the special case
+                    if len(op_stack) > 0:
+                        last_op_val = op_stack[-1]["val"]
+                        last_op_type = op_stack[-1]["type"]
+                        if (last_op_type in ["int", "float"]):
+                            op_stack.insert(-1, {"type": last_op_type, "val": "operator.mul(-1, {})".format(last_op_val)})
+                            del op_stack[-1]
+                elif opname in ["and", "or"]:
+                    id_start = len(op_stack) - 2
+                    id_end = len(op_stack)
+                    if id_start < 0:
+                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+                    params = list(op_stack[id_start:id_end])
+                    for dead_idx in range(2):
+                        del(op_stack[-1])
+                    op_stack.append({"type": "bool", "val": "(({}) {} ({}))".format(params[0]['val'], opname, params[1]['val'])})
+                elif opname == '=':
+                    # '=' must always be the last token for an assignment.
+                    #  Time to store the value in the symbol table
+                    last_op_val = op_stack[-1]["val"]
+                    last_op_val = "_symbols['{}'] = {}".format(symbol, last_op_val)
+                    op_stack[-1]['val'] = last_op_val
+                    break
+                elif opname == 'return':
+                    last_op_val = op_stack[-1]["val"]
+                    last_op_val = "return {}".format(last_op_val)
+                    op_stack[-1]['val'] = last_op_val
+                    break
+                else:
+                    func_arg = False
+                    if func_name:
+                        func_arg_names = [narg["name"] for narg in self.functionmap[func_name]["arglist"]]
+                        if opname in func_arg_names:
+                            func_arg = True
+                    if not func_arg:
+                        op_stack.append({"type": "int",
+                            "val": "_symbols['{}']".format(opname)})
+                    else:
+                        op_stack.append({"type": "int",
+                            "val": "{}".format(opname)})
+            #print("New op_stack: {}".format(op_stack))
+        if len(op_stack) > 1:
+            raise(PyGameMakerCodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+        # apply the (possibly upgraded) result type to the remaining item
+        #print("Result of {}: {}".format(code_line, op_stack))
+        python_code_line = "{}{}".format(' '*loc[1], op_stack[-1]['val'])
+        loc[0] += 1
+        return python_code_line
+
+    def toPythonBlock(self, block, loc=[0,0], func_name=None):
+        """
+            toPythonBlock():
+            When supplied a block of code objects, produce the Python
+            representations for contained conditionals and assignments using
+            appropriate indentation.
+        """
+        python_code_lines=[]
+        loc[1] += 2
+        #print("block start: col is now: {}".format(loc[1]))
+        py_code = ""
+        block_idx = 0
+        while block_idx < len(block):
+            code_line = block[block_idx]
+            if code_line in ["_if", "_elseif", "_else"]:
+                cond_name = code_line[1:]
+                python_code_lines += self.toPythonConditional(cond_name,
+                    block[block_idx+1], loc, func_name)
+                block_idx += 2
+                continue
+            else:
+                python_code_lines.append(self.toPythonLine(code_line, loc, func_name))
+                block_idx += 1
+        loc[1] -= 2
+        #print("block end: col is now: {}".format(loc[1]))
+        return python_code_lines
+
+    def toPythonConditional(self, conditional_name, block, loc=[0,0], func_name=None):
+        """
+            toPythonConditional():
+            When a conditional is found in a code block, produce an executable
+            line of Python containing the condition name, possibly followed
+            by a condition (e.g. if, elseif), then a list of all the lines
+            (and/or other conditionals) within its code block.
+        """
+        python_code_lines=[]
+        conditional_code = self.toPythonLine(block[0], [loc[0],0], func_name)
+        py_cond_name = str(conditional_name)
+        if conditional_name == "elseif":
+            py_cond_name = "elif"
+        if py_cond_name in ["if", "elif"]:
+            python_code_lines.append("{}{} ({}):".format(' '*loc[1],
+                py_cond_name, conditional_code))
+        else:
+            python_code_lines.append("{}{}:".format(' '*loc[1],
+                py_cond_name))
+        python_code_lines += self.toPythonBlock(block[1:], loc, func_name)
+        return python_code_lines
+
+    def toPython(self):
+        """
+            toPython():
+            Convert the postfix code representation into executable Python
+            code, then compile it.
+        """
+        code_loc = [0, 0]
+        python_lines = ["def run(_symbols):".format(self.name)]
+        python_lines += self.toPythonBlock(self.outer_block, code_loc)
+        python_code = "\n".join(python_lines)
+        #print("Python code:\n{}".format("\n".join(python_lines)))
+        return python_code
+
+    def executeOperation(self, op_name, args):
+        """
+            executeOperation():
+            Given a valid Python operation and a list containing its args,
+            convert them into a string and eval() it.
+        """
+        eval_str = ""
+        res = None
+        stargs = [str(a) for a in args]
+        result_type = int
+        for a in args:
+            if not isinstance(a, int):
+                result_type = type(rev_item)
+        if op_name in self.OPERATOR_FUNCTIONS:
+            #print("eval {} {}".format(op_name, stargs))
+            eval_str = "{}({})".format(op_name, ",".join(stargs))
+            res = eval(eval_str)
+            # true/false become ints
+            if isinstance(res, bool):
+                if res:
+                    res = 1
+                else:
+                    res = 0
+            else:
+                res = result_type(res)
+        return res
 
     def copyTo(self, other):
         """
@@ -474,8 +769,8 @@ class PyGameMakerCodeBlock(object):
         #other.scratch = list(self.scratch)
         #other.inner_blocks = list(self.inner_blocks)
         other.outer_block = list(self.outer_block)
-        if self.ast:
-            other.ast = list(self.ast)
+        if self.astree:
+            other.astree = list(self.astree)
         other.addToFuncMap(self.functionmap)
 
     def clear(self):
@@ -483,6 +778,7 @@ class PyGameMakerCodeBlock(object):
             clear():
             Clear out all lists in preparation for a new parsing operation.
         """
+        self.name = ""
         self.stack = []
         self.scratch = []
         self.inner_blocks = []
@@ -490,7 +786,7 @@ class PyGameMakerCodeBlock(object):
         self.outer_block = []
         self.frame = []
         self.functionmap = {}
-        self.ast = None
+        self.astree = None
 
 class PyGameMakerCodeBlockGenerator(object):
     """
@@ -507,15 +803,18 @@ class PyGameMakerCodeBlockGenerator(object):
           prototypes.
     """
     bnf = None
-    code_block = PyGameMakerCodeBlock()
+    code_block = PyGameMakerCodeBlock("none", None)
     @classmethod
-    def wrap_code_block(cls, source_code_str, funcmap=[]):
+    def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=[]):
+        if module_context:
+            cls.code_block.module_context = module_context
         if len(funcmap) > 0:
             cls.code_block.addToFuncMap(funcmap)
         cls.bnf = BNF(cls.code_block)
-        ast = cls.bnf.parseString(source_code_str)
+        astree = cls.bnf.parseString(source_code_str)
         cls.code_block.reduce()
-        new_block = PyGameMakerCodeBlock(funcmap, ast)
+        new_block = PyGameMakerCodeBlock(program_name, module_context, funcmap,
+            astree)
         cls.code_block.copyTo(new_block)
         cls.code_block.clear()
         return new_block
@@ -652,61 +951,60 @@ def BNF(code_block_obj):
         bnf = OneOrMore( comments.suppress() | func_def | assignment | conditional_set ) + stringEnd
     return bnf
 
-# map operator symbols to corresponding arithmetic operations
-#epsilon = 1e-12
-#opn = { "+" : operator.add,
-#        "-" : operator.sub,
-#        "*" : operator.mul,
-#        "/" : operator.truediv,
-#        "^" : operator.pow }
-#fn  = { "sin" : math.sin,
-#        "cos" : math.cos,
-#        "tan" : math.tan,
-#        "abs" : abs,
-#        "trunc" : lambda a: int(a),
-#        "round" : round,
-#        "sgn" : lambda a: (a > epsilon) - (a < -epsilon) }
-#def evaluateStack( s ):
-#    op = s.pop()
-#    if op == 'unary -':
-#        return -evaluateStack( s )
-#    if op in "+-*/^":
-#        op2 = evaluateStack( s )
-#        op1 = evaluateStack( s )
-#        return opn[op]( op1, op2 )
-#    elif op == "PI":
-#        return math.pi # 3.1415926535
-#    elif op == "E":
-#        return math.e  # 2.718281828
-#    elif op in fn:
-#        return fn[op]( evaluateStack( s ) )
-#    elif op[0].isalpha():
-#        raise Exception("invalid identifier '%s'" % op)
-#    else:
-#        return float( op )
-
 if __name__ == "__main__":
     pgm = ""
+    distance_code="""
+def userfunc_distance(_symbols,start,end):
+    return(abs(start - end))
+"""
+    dist_parsed = ast.parse(distance_code, '<p_distance>')
+    randint_code="""
+def userfunc_randint(_symbols,max):
+    val = 0
+    range = max
+    if max < 0:
+        range = abs(max)
+    val = random.randint(0,range)
+    if max < 0:
+        val = -1 * val
+    return(val)
+"""
+    randint_parsed = ast.parse(randint_code, '<p_randint>')
+    time_code="""
+def userfunc_time(_symbols):
+    return(int(time.time()))
+"""
+    time_parsed = ast.parse(time_code, '<p_time>')
     functionmap = {
         'distance': { "arglist":
         [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
-        'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
+        'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"],
+        'compiled': compile(dist_parsed, '<c_distance>', 'exec'),
+        'recursive': False
         },
         'randint': { "arglist":
         [{"type":"number", "name":"max"}],
-        'block': [0, "_max", "random.randint", "_return"]
+        'block': [0, "_max", "random.randint", "_return"],
+        'compiled': compile(randint_parsed, '<c_randint>', 'exec'),
+        'recursive': False
         },
         'time': { "arglist": [],
-        'block': ["time.time", "_return"]
+        'block': ["time.time", "_return"],
+        'compiled': compile(time_parsed, '<c_time>', 'exec'),
+        'recursive': False
         }
     }
     with open("testpgm", "r") as pf:
         pgm = pf.read()
-    code_block = PyGameMakerCodeBlockGenerator.wrap_code_block(pgm,
-        functionmap)
+    module_context = imp.new_module('game_functions')
+    code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("test",
+        module_context, pgm, functionmap)
+    for userfunc in code_block.functionmap:
+        #print("exec {}".format(userfunc))
+        exec code_block.functionmap[userfunc]['compiled'] in module_context.__dict__
     print("Program:\n{}".format(pgm))
     print("=======")
-    print("parsed:\n{}".format(code_block.ast))
+    print("parsed:\n{}".format(code_block.astree))
     #print("=======")
     #print("scratch:\n{}".format(code_block.scratch))
     print("=======")
@@ -717,4 +1015,12 @@ if __name__ == "__main__":
     #print("inner blocks:\n{}".format(code_block.inner_blocks))
     print("=======")
     print("outer block:\n{}".format(code_block.outer_block))
+    sym_tab = PyGameMakerSymbolTable()
+    pyth_code = "import math\nimport operator\nimport random\nimport time\n"
+    pyth_code += code_block.toPython()
+    print("Run program:\n{}".format(pyth_code))
+    exec pyth_code in module_context.__dict__
+    module_context.run(sym_tab)
+    print("Symbol table:")
+    sym_tab.dumpVars()
 
