@@ -49,17 +49,20 @@
 
 import re
 
-OPERATORS=['^', '*', '/', '%', '-', '+', '<', '<=', '>', '>=', '==', '!=', '=']
+OPERATORS=['^', '*', '/', '%', '-', '+', 'not', '<', '<=', '>', '>=', '==', '!=', '=', 'and', 'or']
 PRECEDENCE_TABLE=[
+    ('not',11),
     ('^',10),
     ('*',9), ('/',9), ('%', 9),
     ('-',8), ('+',8),
     ('<',7), ('<=',7), ('>',7), ('>=',7), ('==',7), ('!=',7),
+    ('and',6), ('or',6),
     ('=', 5)
 ]
 LEFT=0
 RIGHT=1
 ASSOCIATIVITY={
+    'not': RIGHT,
     '^': RIGHT,
     '*': LEFT,
     '/': LEFT,
@@ -72,6 +75,8 @@ ASSOCIATIVITY={
     '>=': LEFT,
     '==': LEFT,
     '!=': LEFT,
+    'and': LEFT,
+    'or': LEFT,
     '=': RIGHT
 }
 
@@ -163,25 +168,37 @@ if __name__ == "__main__":
                 "*": "operator.mul",
                 "/": "operator.truediv",
                 "%": "operator.mod",
-                "^": "math.pow"
+                "^": "math.pow",
+                ">": "operator.gt",
+                "==": "operator.eq",
+                "not": "operator.not_"
             }
 
         def test_005simple_sequence(self):
             tok_list = ['a', '+', '1', '*', '2', '^', '32', '-', '4']
             postfix = convert_infix_to_postfix(tok_list)
-            expected = ['a', 1, 2, 32, '^', '*', '+', 4, '-']
+            expected = ['_a', 1, 2, 32, '^', '*', '+', 4, '-']
             self.assertEqual(expected, postfix)
 
         def test_010parenthesis(self):
             tok_list = [['a', '+', '1'], '*', '2', '^', ['32', '-', '4']]
             postfix = convert_infix_to_postfix(tok_list)
-            expected = ['a', 1, '+', 2, 32, 4, '-', '^', '*']
+            expected = ['_a', 1, '+', 2, 32, 4, '-', '^', '*']
+            self.assertEqual(expected, postfix)
 
         def test_015replacements(self):
             tok_list = [['a', '+', '1'], '*', '2', '^', ['32', '-', '4']]
             postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
-            expected = ['a', 1, 'operator.add', 2, 32, 4, 'operator.sub',
+            expected = ['_a', 1, 'operator.add', 2, 32, 4, 'operator.sub',
                 'math.pow', 'operator.mul']
+            self.assertEqual(expected, postfix)
+
+        def test_020boolean(self):
+            tok_list = ['not', ['a', '>', '1'], 'or', ['a', '==', '4']]
+            postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
+            expected = ['_a', 1, 'operator.gt', 'operator.not_', '_a', 4,
+                'operator.eq', 'or']
+            self.assertEqual(expected, postfix)
 
     unittest.main()
 
