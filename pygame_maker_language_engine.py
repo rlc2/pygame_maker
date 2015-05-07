@@ -125,6 +125,8 @@ class PyGameMakerCodeBlock(object):
     def __init__(self, name, module_context, funcmap={}, astree=None):
         """
             __init__():
+            name: The name assigned to this code block
+            module_context: A new module for the Python blocks to be loaded into
             optional args:
              funcmap: A dict with <function_name>: [arg_type1, .., arg_typeN]
               entries, representing the external function table made available
@@ -231,6 +233,7 @@ class PyGameMakerCodeBlock(object):
             #print("container: outer block")
             pass
         container_block.append(if_statement)
+        #print("outer block is now:\n{}".format(self.outer_block))
         self.inner_block_count += 1
         self.inner_blocks.append([])
         #print("stack now points at inner block {}".format(self.inner_block_count-1))
@@ -242,7 +245,7 @@ class PyGameMakerCodeBlock(object):
             When the parser matches a comparison, push it onto the current
              stack.
         """
-        #print("append {} to stack".format(comparison_list))
+        #print("append {} to stack".format(self.scratch))
         self.stack.append(list(self.scratch))
         self.scratch = []
 
@@ -706,8 +709,10 @@ class PyGameMakerCodeBlock(object):
             (and/or other conditionals) within its code block.
         """
         python_code_lines=[]
+        #print("{} {{{}}} to python".format(conditional_name, block))
         conditional_code = self.toPythonLine(block[0], [loc[0],0], func_name)
         py_cond_name = str(conditional_name)
+        block_start_idx = 1
         if conditional_name == "elseif":
             py_cond_name = "elif"
         if py_cond_name in ["if", "elif"]:
@@ -716,7 +721,9 @@ class PyGameMakerCodeBlock(object):
         else:
             python_code_lines.append("{}{}:".format(' '*loc[1],
                 py_cond_name))
-        python_code_lines += self.toPythonBlock(block[1:], loc, func_name)
+            block_start_idx = 0
+        python_code_lines += self.toPythonBlock(block[block_start_idx:], loc,
+            func_name)
         return python_code_lines
 
     def toPython(self):
@@ -759,6 +766,28 @@ class PyGameMakerCodeBlock(object):
                 res = result_type(res)
         return res
 
+    def load(self, import_list=None):
+        """
+            load():
+            Place all functions and executable code into the module's __dict__
+        """
+        for userfunc in self.functionmap:
+            #print("exec {}".format(userfunc))
+            exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
+        import_line = ""
+        if import_list:
+            import_line = "import {}\n".format(",".join(import_list))
+        pyth_code = import_line + self.toPython()
+        print("Run program:\n{}".format(pyth_code))
+        exec pyth_code in self.module_context.__dict__
+
+    def run(self, sym_table):
+        """
+            run():
+            Execute the code block.
+        """
+        self.module_context.run(sym_table)
+
     def copyTo(self, other):
         """
             copyTo():
@@ -769,6 +798,7 @@ class PyGameMakerCodeBlock(object):
         #other.scratch = list(self.scratch)
         #other.inner_blocks = list(self.inner_blocks)
         other.outer_block = list(self.outer_block)
+        #print("Copied outer block:\n{}".format(other.outer_block))
         if self.astree:
             other.astree = list(self.astree)
         other.addToFuncMap(self.functionmap)
@@ -779,12 +809,12 @@ class PyGameMakerCodeBlock(object):
             Clear out all lists in preparation for a new parsing operation.
         """
         self.name = ""
-        self.stack = []
         self.scratch = []
         self.inner_blocks = []
         self.inner_block_count = 0
         self.outer_block = []
-        self.frame = []
+        self.frame = self.outer_block
+        self.stack = self.outer_block
         self.functionmap = {}
         self.astree = None
 
@@ -952,13 +982,58 @@ def BNF(code_block_obj):
     return bnf
 
 if __name__ == "__main__":
-    pgm = ""
-    distance_code="""
+    import unittest
+
+    class TestPyGameMakerLanguageEngine(unittest.TestCase):
+
+        def setUp(self):
+            self.testpgm = """
+# this is a comment
+function blah(number x, number y) {
+    # comment within function
+    a = x + y + 2^(3-1) - 1
+    if (x < 0) {
+        b = blah(x+1, y+1)
+    }
+    else
+    {
+        b = a + 1
+    }
+    if (a > 99) {
+        a = 99
+    }
+    return (b - a)
+}
+x = -9
+y = 12
+if (((x * 4) > 40) or (x == -9)) {
+ # comment within block
+ x = x - 2 # assignment comment
+ if (x < 0) { # conditional start comment
+  x = -randint(6^3+distance(17,randint(17))+blah(x,y))
+ } # block end comment
+}
+elseif ((x * 5) > 40) {
+ x = x - 1
+ y = y ^ y
+}
+elseif ((y > 1000000) or (y < 1)) {
+ y = 1
+}
+else {                  # I
+ x = x + 2              # comment
+ if (not (x > 7)) {     # every
+  x = 7 * 2 + 4^(3 - 2) # line
+ }
+}
+            """
+
+            self.distance_code="""
 def userfunc_distance(_symbols,start,end):
     return(abs(start - end))
-"""
-    dist_parsed = ast.parse(distance_code, '<p_distance>')
-    randint_code="""
+            """
+
+            self.randint_code="""
 def userfunc_randint(_symbols,max):
     val = 0
     range = max
@@ -968,59 +1043,67 @@ def userfunc_randint(_symbols,max):
     if max < 0:
         val = -1 * val
     return(val)
-"""
-    randint_parsed = ast.parse(randint_code, '<p_randint>')
-    time_code="""
+            """
+
+            self.time_code="""
 def userfunc_time(_symbols):
     return(int(time.time()))
-"""
-    time_parsed = ast.parse(time_code, '<p_time>')
-    functionmap = {
-        'distance': { "arglist":
-        [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
-        'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"],
-        'compiled': compile(dist_parsed, '<c_distance>', 'exec'),
-        'recursive': False
-        },
-        'randint': { "arglist":
-        [{"type":"number", "name":"max"}],
-        'block': [0, "_max", "random.randint", "_return"],
-        'compiled': compile(randint_parsed, '<c_randint>', 'exec'),
-        'recursive': False
-        },
-        'time': { "arglist": [],
-        'block': ["time.time", "_return"],
-        'compiled': compile(time_parsed, '<c_time>', 'exec'),
-        'recursive': False
-        }
-    }
-    with open("testpgm", "r") as pf:
-        pgm = pf.read()
-    module_context = imp.new_module('game_functions')
-    code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("test",
-        module_context, pgm, functionmap)
-    for userfunc in code_block.functionmap:
-        #print("exec {}".format(userfunc))
-        exec code_block.functionmap[userfunc]['compiled'] in module_context.__dict__
-    print("Program:\n{}".format(pgm))
-    print("=======")
-    print("parsed:\n{}".format(code_block.astree))
-    #print("=======")
-    #print("scratch:\n{}".format(code_block.scratch))
-    print("=======")
-    print("function map:\n{}".format(code_block.functionmap))
-    #print("=======")
-    #print("stack:\n{}".format(code_block.stack))
-    #print("=======")
-    #print("inner blocks:\n{}".format(code_block.inner_blocks))
-    print("=======")
-    print("outer block:\n{}".format(code_block.outer_block))
-    sym_tab = PyGameMakerSymbolTable()
-    pyth_code = "import math\nimport operator\nimport random\nimport time\n"
-    pyth_code += code_block.toPython()
-    print("Run program:\n{}".format(pyth_code))
-    exec pyth_code in module_context.__dict__
-    module_context.run(sym_tab)
-    print("Symbol table:")
-    sym_tab.dumpVars()
+            """
+
+            self.functionmap = {
+                'distance': { "arglist":
+                [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
+                'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"],
+                'compiled': compile(self.distance_code, '<c_distance>', 'exec'),
+                'recursive': False
+                },
+                'randint': { "arglist":
+                [{"type":"number", "name":"max"}],
+                'block': [0, "_max", "random.randint", "_return"],
+                'compiled': compile(self.randint_code, '<c_randint>', 'exec'),
+                'recursive': False
+                },
+                'time': { "arglist": [],
+                'block': ["time.time", "_return"],
+                'compiled': compile(self.time_code, '<c_time>', 'exec'),
+                'recursive': False
+                }
+            }
+            self.sym_table = PyGameMakerSymbolTable()
+            self.module_context = imp.new_module('game_functions')
+
+        def test_005valid_assignment(self):
+            simple_line = "x = 49"
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment",
+                self.module_context, simple_line, self.functionmap)
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            code_block.run(sym_table)
+            print("Symbol table:")
+            sym_table.dumpVars()
+            self.assertTrue(sym_table['x'] == 49)
+
+        def test_010valid_conditional(self):
+            valid_conditional="""
+if (4 > 5) { x = 1 }
+elseif (4 > 4) { x = 2 }
+elseif (4 < 4) { x = 3 }
+else { x = 4 }
+            """
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodconditional",
+                self.module_context, valid_conditional, self.functionmap)
+            #print("ast:\n{}".format(code_block.astree))
+            #print("outer block:\n{}".format(code_block.outer_block))
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            code_block.run(sym_table)
+            print("Symbol table:")
+            sym_table.dumpVars()
+            self.assertTrue(sym_table['x'] == 4)
+
+        def test_015invalid_syntax(self):
+            bad_line1 = "x + 1 = 59"
+            bad_line2 = "_y = 1"
+
+    unittest.main()
 
