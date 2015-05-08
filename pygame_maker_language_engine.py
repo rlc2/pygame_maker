@@ -72,11 +72,11 @@ class PyGameMakerCodeBlock(object):
         "operator.mod": ["number", "number"],
         "operator.not_": ["bool"],
         "operator.lt": ["number", "number"],
-        "operator.lte": ["number", "number"],
+        "operator.le": ["number", "number"],
         "operator.gt": ["number", "number"],
-        "operator.gte": ["number", "number"],
+        "operator.ge": ["number", "number"],
         "operator.eq": ["number", "number"],
-        "operator.neq": ["number", "number"],
+        "operator.ne": ["number", "number"],
         "math.pow": ["number", "number"]
     }
     KNOWN_CONSTANTS={
@@ -91,20 +91,20 @@ class PyGameMakerCodeBlock(object):
         "%": "operator.mod",
         "<": "operator.lt",
         "not": "operator.not_",
-        "<=": "operator.lte",
+        "<=": "operator.le",
         ">": "operator.gt",
-        ">=": "operator.gte",
+        ">=": "operator.ge",
         "==": "operator.eq",
-        "!=": "operator.neq",
+        "!=": "operator.ne",
         "^": "math.pow"
     }
     CONDITIONALS=[
         "operator.lt",
-        "operator.lte",
+        "operator.le",
         "operator.gt",
-        "operator.gte",
+        "operator.ge",
         "operator.eq",
-        "operator.neq"
+        "operator.ne"
     ]
     REVERSE_OPERATORS={
         "operator.add":     "+",
@@ -113,11 +113,11 @@ class PyGameMakerCodeBlock(object):
         "operator.truediv": "/",
         "operator.mod":     "%",
         "operator.lt":      "<",
-        "operator.lte":     "<=",
+        "operator.le":     "<=",
         "operator.gt":      ">",
-        "operator.gte":     ">=",
+        "operator.ge":     ">=",
         "operator.eq":      "==",
-        "operator.neq":     "!=",
+        "operator.ne":      "!=",
         "math.pow":         "**"
     }
     SYMBOL_RE=re.compile("_[a-zA-Z][a-zA-Z0-9._]*$")
@@ -751,7 +751,7 @@ class PyGameMakerCodeBlock(object):
         result_type = int
         for a in args:
             if not isinstance(a, int):
-                result_type = type(rev_item)
+                result_type = type(a)
         if op_name in self.OPERATOR_FUNCTIONS:
             #print("eval {} {}".format(op_name, stargs))
             eval_str = "{}({})".format(op_name, ",".join(stargs))
@@ -944,7 +944,7 @@ def BNF(code_block_obj):
         is_gt = Keyword( ">" )
         is_gte = Keyword( ">=" )
         assignop = Keyword( "=" )
-        compareop = is_equal | is_nequal | is_lt | is_lte | is_gt | is_gte
+        compareop = is_equal | is_nequal | is_lte | is_lt | is_gte | is_gt
         boolop = boolor | booland
         addop  = plus | minus
         multop = mult | div
@@ -1101,9 +1101,43 @@ else { x = 4 }
             sym_table.dumpVars()
             self.assertTrue(sym_table['x'] == 4)
 
-        def test_015invalid_syntax(self):
-            bad_line1 = "x + 1 = 59"
-            bad_line2 = "_y = 1"
+        def test_015valid_operations(self):
+            valid_operations="""
+va = 1 > 0
+vb = 1 < 0
+vc = 2 >= 2
+vd = 2 <= 2
+ve = 1 >= 2
+vf = 1 <= 2
+vg = 1 != 2
+vh = 1 == 2
+vi = ((va == 0) and vb)
+vj = ve or vf
+vv = 7 / 3
+vw = 6.0 / 1.5
+vx = 4 + 5
+vy = 6 ^ 3
+vz = -2 * 4
+            """
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodops",
+                self.module_context, valid_operations, self.functionmap)
+            #print("ast:\n{}".format(code_block.astree))
+            #print("outer block:\n{}".format(code_block.outer_block))
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            code_block.run(sym_table)
+            print("Symbol table:")
+            sym_table.dumpVars()
+            answers = {
+                "va": 1, "vb": 0, "vc": 1, "vd": 1, "ve": 0, "vf": 1,
+                "vg": 1, "vh": 0, "vi": 0, "vj": 1,
+                "vv": 2, "vw": 4.0, "vx": 9, "vy": 216, "vz": -8
+            }
+            self.assertEqual(sym_table._vars, answers)
+
+#        def test_015invalid_syntax(self):
+#            bad_line1 = "x + 1 = 59"
+#            bad_line2 = "_y = 1"
 
     unittest.main()
 
