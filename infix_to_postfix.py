@@ -1,5 +1,9 @@
 #!/usr/bin/python -W all
 
+# Author: Ron Lockwood-Childs
+
+# Licensed under LGPL v2.1 (see file COPYING for details)
+
 # convert infix token stack into postfix (aka RPN) form
 
 # While there are tokens to be read:

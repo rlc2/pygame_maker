@@ -1,6 +1,10 @@
 #!/usr/bin/python -W all
 
-# Copied from the fourFn.py example that ships with PyParser
+# Author: Ron Lockwood-Childs
+
+# Licensed under LGPL v2.1 (see file COPYING for details)
+
+# Adapted from the fourFn.py example that ships with PyParser
 # original code copyright 2003-2009 by Paul McGuire
 
 # handles math operations, predefined functions, keywords, boolean comparisons,
@@ -19,7 +23,6 @@ import operator
 import infix_to_postfix
 import os
 import re
-import ast
 import imp
 import sys
 
@@ -121,6 +124,7 @@ class PyGameMakerCodeBlock(object):
         "math.pow":         "**"
     }
     SYMBOL_RE=re.compile("_[a-zA-Z][a-zA-Z0-9._]*$")
+    RETURN_RE=re.compile("  return ")
 
     def __init__(self, name, module_context, funcmap={}, astree=None):
         """
@@ -358,7 +362,6 @@ class PyGameMakerCodeBlock(object):
             self.functionmap[func_name] = { "arglist": arg_list }
         else:
             self.functionmap[func_name] = { "arglist":[] }
-        self.functionmap[func_name]["recursive"] = False
         self.functionmap[func_name]["block"] = []
         #print("New functionmap: {}".format(self.functionmap))
         self.stack = self.functionmap[func_name]["block"]
@@ -376,19 +379,23 @@ class PyGameMakerCodeBlock(object):
         param_list = [ fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
         function_body = self.toPythonBlock(self.frame, func_loc,
             self.function_name)
-        func_lines = ["def userfunc_{}(_symbols, {}, count=0):".format(self.function_name, ",".join(param_list))]
+        param_list.append("count=0")
+        func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name, ",".join(param_list))]
         func_lines += [
             "  if (count > 100):",
-            "    raise(RuntimeError(\"Call stack depth limit exceeded\"))"
+            "    raise(PyGameMakerCodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\"))".format(self.function_name)
         ]
         func_lines += function_body
+        ret_minfo = self.RETURN_RE.match(func_lines[-1])
+        if not ret_minfo:
+            # force all functions to return a value. if the final line is
+            #  not a return, return the "uninitialized" value
+            func_lines.append("  return {}".format(-sys.maxint - 1))
         function_code = "\n".join(func_lines)
         print("Function code:\n{}".format(function_code))
-        parsed_code = ast.parse(function_code, "<p_{}>".format(self.function_name))
-        self.functionmap[self.function_name]['compiled'] = compile(parsed_code,
+        self.functionmap[self.function_name]['compiled'] = compile(function_code,
             "<c_{}>".format(self.function_name), 'exec')
         self.function_name = "None"
-        #print(ast.dump(parsed_code))
         # reset the stack and frame
         self.stack = self.outer_block
         self.frame = self.outer_block
@@ -613,13 +620,12 @@ class PyGameMakerCodeBlock(object):
                     for dead_idx in range(arg_count):
                         del(op_stack[-1])
                     param_list = func_params + [param['val'] for param in params]
-                    count_arg = ""
                     if func_name and not (opcall in self.OPERATOR_FUNCTIONS):
                         # if calling a function within a function block, append
                         #  a count+1 arg to limit recursion depth (this is to
                         #  prevent user code from crashing the game engine)
-                        count_arg = ", count+1"
-                    op_stack.append({"type": res_type, "val": "{}({}{})".format(opcall,",".join(param_list), count_arg)})
+                        param_list.append("count+1")
+                    op_stack.append({"type": res_type, "val": "{}({})".format(opcall,",".join(param_list))})
                     if type_upgrade:
                         prev_val = op_stack[-1]["val"]
                         prev_val = "{}({})".format(res_type,prev_val)
@@ -733,10 +739,14 @@ class PyGameMakerCodeBlock(object):
             code, then compile it.
         """
         code_loc = [0, 0]
-        python_lines = ["def run(_symbols):".format(self.name)]
-        python_lines += self.toPythonBlock(self.outer_block, code_loc)
-        python_code = "\n".join(python_lines)
-        #print("Python code:\n{}".format("\n".join(python_lines)))
+        python_code = ""
+        # the code block has to have SOMETHING in it, but if it only contains
+        #  function definitions, don't construct the run() method
+        if len(self.outer_block) > 0:
+            python_lines = ["def run(_symbols):".format(self.name)]
+            python_lines += self.toPythonBlock(self.outer_block, code_loc)
+            python_code = "\n".join(python_lines)
+            #print("Python code:\n{}".format("\n".join(python_lines)))
         return python_code
 
     def executeOperation(self, op_name, args):
@@ -774,19 +784,22 @@ class PyGameMakerCodeBlock(object):
         for userfunc in self.functionmap:
             #print("exec {}".format(userfunc))
             exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
-        import_line = ""
+        import_lines = "from pygame_maker_run_time_support import *\n"
         if import_list:
-            import_line = "import {}\n".format(",".join(import_list))
-        pyth_code = import_line + self.toPython()
-        print("Run program:\n{}".format(pyth_code))
-        exec pyth_code in self.module_context.__dict__
+            import_lines += "import {}\n".format(",".join(import_list))
+        exec_code = self.toPython()
+        if len(exec_code) > 0:
+            pyth_code = import_lines + self.toPython()
+            print("Run program:\n{}".format(pyth_code))
+            exec pyth_code in self.module_context.__dict__
 
     def run(self, sym_table):
         """
             run():
             Execute the code block.
         """
-        self.module_context.run(sym_table)
+        if "run" in self.module_context.__dict__:
+            self.module_context.run(sym_table)
 
     def copyTo(self, other):
         """
@@ -815,6 +828,7 @@ class PyGameMakerCodeBlock(object):
         self.outer_block = []
         self.frame = self.outer_block
         self.stack = self.outer_block
+        self.func_name = None
         self.functionmap = {}
         self.astree = None
 
@@ -841,7 +855,14 @@ class PyGameMakerCodeBlockGenerator(object):
         if len(funcmap) > 0:
             cls.code_block.addToFuncMap(funcmap)
         cls.bnf = BNF(cls.code_block)
-        astree = cls.bnf.parseString(source_code_str)
+        try:
+            astree = cls.bnf.parseString(source_code_str)
+        except ParseException as exc:
+            cls.code_block.clear()
+            raise exc
+        except ParseFatalException as exc:
+            cls.code_block.clear()
+            raise exc
         cls.code_block.reduce()
         new_block = PyGameMakerCodeBlock(program_name, module_context, funcmap,
             astree)
@@ -983,6 +1004,7 @@ def BNF(code_block_obj):
 
 if __name__ == "__main__":
     import unittest
+    import pygame_maker_run_time_support as pgmrts
 
     class TestPyGameMakerLanguageEngine(unittest.TestCase):
 
@@ -1054,19 +1076,16 @@ def userfunc_time(_symbols):
                 'distance': { "arglist":
                 [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
                 'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"],
-                'compiled': compile(self.distance_code, '<c_distance>', 'exec'),
-                'recursive': False
+                'compiled': compile(self.distance_code, '<c_distance>', 'exec')
                 },
                 'randint': { "arglist":
                 [{"type":"number", "name":"max"}],
                 'block': [0, "_max", "random.randint", "_return"],
-                'compiled': compile(self.randint_code, '<c_randint>', 'exec'),
-                'recursive': False
+                'compiled': compile(self.randint_code, '<c_randint>', 'exec')
                 },
                 'time': { "arglist": [],
                 'block': ["time.time", "_return"],
-                'compiled': compile(self.time_code, '<c_time>', 'exec'),
-                'recursive': False
+                'compiled': compile(self.time_code, '<c_time>', 'exec')
                 }
             }
             self.sym_table = PyGameMakerSymbolTable()
@@ -1135,9 +1154,94 @@ vz = -2 * 4
             }
             self.assertEqual(sym_table._vars, answers)
 
-#        def test_015invalid_syntax(self):
-#            bad_line1 = "x + 1 = 59"
-#            bad_line2 = "_y = 1"
+        def test_020valid_function_def(self):
+            valid_function="""
+function set_X(number n) { x = n }
+            """
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodfunc",
+                self.module_context, valid_function, self.functionmap)
+            #print("ast:\n{}".format(code_block.astree))
+            #print("outer block:\n{}".format(code_block.outer_block))
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            code_block.run(sym_table)
+            self.module_context.userfunc_set_X(sym_table, 20)
+            print("Symbol table:")
+            sym_table.dumpVars()
+            self.assertEqual(sym_table['x'], 20)
+
+        def test_025valid_function_call(self):
+            valid_function_call="""
+x = distance(12, 19)
+            """
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodfunccall",
+                self.module_context, valid_function_call, self.functionmap)
+            #print("ast:\n{}".format(code_block.astree))
+            #print("outer block:\n{}".format(code_block.outer_block))
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            code_block.run(sym_table)
+            print("Symbol table:")
+            sym_table.dumpVars()
+            self.assertEqual(sym_table['x'], 7)
+
+        def test_030invalid_syntax(self):
+            module_context = imp.new_module('for_errors')
+            bad_line1 = "x + 1 = 59"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax1",
+                    module_context, bad_line1, self.functionmap)
+            bad_line2 = "_y = 1"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax2",
+                    module_context, bad_line2, self.functionmap)
+            bad_line3 = "if { a = 2 }"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax3",
+                    module_context, bad_line3, self.functionmap)
+            bad_line4 = "function noparams() { a = 2 }"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax4",
+                    module_context, bad_line4, self.functionmap)
+            bad_line5 = "function oneparam(n) { a = n }"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax5",
+                    module_context, bad_line5, self.functionmap)
+            bad_line6 = "if 2 > 1 { a = 2 }"
+            with self.assertRaises(ParseException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax6",
+                    module_context, bad_line6, self.functionmap)
+            bad_line7 = "if ((2 > 1) or or (1 > 2)) { a = 2 }"
+            with self.assertRaises(ParseFatalException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax7",
+                    module_context, bad_line7, self.functionmap)
+
+        def test_035semantic_errors(self):
+            module_context = imp.new_module('for_sem_errors')
+            bad_code1 = "x = nosuchfunc(1)"
+            with self.assertRaises(ParseFatalException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("semanticerror1",
+                    module_context, bad_code1, self.functionmap)
+            bad_code2 = "x = distance(12)"
+            with self.assertRaises(ParseFatalException):
+                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("semanticerror2",
+                    module_context, bad_code2, self.functionmap)
+
+        def test_040call_stack_error(self):
+            module_context = imp.new_module('for_recursion_error')
+            call_stack_error_code="""
+function infinite_recursion(void) {
+    x = infinite_recursion()
+    return 1
+}
+a = infinite_recursion()
+            """
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("recursionbomb",
+                module_context, call_stack_error_code, self.functionmap)
+            code_block.load(['random', 'time', 'operator', 'math'])
+            sym_table = PyGameMakerSymbolTable()
+            with self.assertRaises(pgmrts.PyGameMakerCodeBlockRuntimeError):
+                code_block.run(sym_table)
 
     unittest.main()
 
