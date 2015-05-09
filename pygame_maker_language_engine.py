@@ -12,6 +12,31 @@
 #  if/elseif/else conditionals, comments
 # represent toy language source code with python classes
 
+# toy language description:
+# expressions contain:
+#  atoms:
+#   numbers (int, float)
+#   bare identifiers (symbols)
+#   identifier( <empty> | <comma-delimited args> ) (function call)
+#   parenthesized expression
+#  operators:
+#   unary -, +, -, *, /, %, ^, <, <=, >, >=, ==, !=, and, or, not
+#  operations are all in infix format
+# high-level language constructs are one of three types:
+#  assignments:
+#   <symbol> = <expression>
+#   '=' must be delimited by spaces
+#  conditionals:
+#   if (expression) { <zero or more> ( assignment | conditional ) }
+#   optional elseif (expression) { <zero or more> ( assignment | conditional ) }
+#    (any number of elseif)
+#   optional else { <zero or more> ( assignment | conditional ) }
+#    only one, and it must come after if [elseif..]
+#  function definition:
+#   function <name>( void | (comma-delimited <type> <argname> ) ) {
+#    <zero or more> ( assignment | conditional | return <expression> )
+#    }
+
 from pyparsing import Literal,CaselessLiteral,Word,Group,Optional,\
     ZeroOrMore,OneOrMore,Forward,nums,alphas,Regex,ParseException,Keyword,\
     Dict,stringEnd,ParseFatalException
@@ -977,6 +1002,7 @@ def BNF(code_block_obj):
         minus = Literal( "-" )
         mult  = Literal( "*" )
         div   = Literal( "/" )
+        mod   = Literal( "%" )
         lpar  = Literal( "(" ).suppress()
         rpar  = Literal( ")" ).suppress()
         lbrack = Literal( "{" ).suppress()
@@ -1002,7 +1028,7 @@ def BNF(code_block_obj):
         compareop = is_equal | is_nequal | is_lte | is_lt | is_gte | is_gt
         boolop = boolor | booland
         addop  = plus | minus
-        multop = mult | div
+        multop = mult | div | mod
         typestring = num | strn
         expop = Literal( "^" )
 
