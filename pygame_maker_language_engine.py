@@ -25,6 +25,7 @@ import os
 import re
 import imp
 import sys
+import pygame_maker_run_time_support as pgmrts
 
 class PyGameMakerLanguageEngineException(Exception):
     pass
@@ -37,24 +38,43 @@ class PyGameMakerSymbolTable(object):
 
     def __init__(self, initial_symbols={}):
         self._vars = {}
-        self._vars.update(initial_symbols)
+        self._consts = {}
+        self._consts.update(initial_symbols)
 
     def dumpVars(self):
+        constlist = list(self._consts.keys())
+        constlist.sort()
+        print("constants:")
+        for const in constlist:
+            print("{} = {}".format(var, self._consts[var]))
         varlist = list(self._vars.keys())
         varlist.sort()
+        print("variables:")
         for var in varlist:
             print("{} = {}".format(var, self._vars[var]))
 
     def __setitem__(self, item, val):
         #print("Setting {} to {}".format(item, val))
-        self._vars[item] = val
+        # don't allow constants to be written this way
+        if not item in self._consts:
+            self._vars[item] = val
 
     def __getitem__(self, item):
         new_val = self.DEFAULT_UNINITIALIZED_VALUE
-        if item in self._vars:
+        if item in self._consts:
+            new_val = self._consts[item]
+        elif item in self._vars:
             new_val = self._vars[item]
         #print("Retrieve item {}: {}".format(item, new_val))
         return new_val
+
+    def setConstant(self, constant_name, constant_value):
+        """
+            setConstant():
+            Called from within the game engine to set values that can be
+             read from, but not written to, by user code
+        """
+        self._consts[constant_name] = constant_value
 
 class PyGameMakerCodeBlock(object):
     """
@@ -83,8 +103,8 @@ class PyGameMakerCodeBlock(object):
         "math.pow": ["number", "number"]
     }
     KNOWN_CONSTANTS={
-        "PI":   math.pi,
-        "E":    math.e
+        "_PI":   "math.pi",
+        "_E":    "math.e"
     }
     OPERATOR_REPLACEMENTS={
         "+": "operator.add",
@@ -150,6 +170,13 @@ class PyGameMakerCodeBlock(object):
         self.func_name = None
         self.functionmap = dict(funcmap)
         self.astree = astree
+        # collect a list of constants that refer to Python module constants
+        # this prevents constants like math.pi from being turned into
+        #  _symbols['math.pi']
+        self.python_constants = []
+        for val in self.KNOWN_CONSTANTS.values():
+            if isinstance(val, str):
+                self.python_constants.append(val)
 
     def addToFuncMap(self, func_map):
         """
@@ -664,7 +691,7 @@ class PyGameMakerCodeBlock(object):
                         func_arg_names = [narg["name"] for narg in self.functionmap[func_name]["arglist"]]
                         if opname in func_arg_names:
                             func_arg = True
-                    if not func_arg:
+                    if not func_arg and not opname in self.python_constants:
                         op_stack.append({"type": "int",
                             "val": "_symbols['{}']".format(opname)})
                     else:
@@ -783,7 +810,8 @@ class PyGameMakerCodeBlock(object):
         """
         for userfunc in self.functionmap:
             #print("exec {}".format(userfunc))
-            exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
+            if 'compiled' in self.functionmap[userfunc]:
+                exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
         import_lines = "from pygame_maker_run_time_support import *\n"
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
@@ -877,28 +905,48 @@ class PyGameMakerLanguageEngine(object):
         functions that can be accessed by and/or created within the code block.
     """
     def __init__(self):
-        self.constant_table = {}
-        self.variable_table = {}
+        self.symbol_table = PyGameMakerSymbolTable()
         self.function_table = {}
-        self.code_block = PyGameMakerCodeBlock()
+        self.functionmap = {
+            'distance': { "arglist":
+            [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
+            'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
+            },
+            'randint': { "arglist":
+            [{"type":"number", "name":"max"}],
+            'block': [0, "_max", "random.randint", "_return"]
+            },
+            'time': { "arglist": [],
+            'block': ["time.time", "_return"]
+            }
+        }
+        self.code_blocks = {}
 
-    def set_variable_value(self, variable_name, value):
-        if variable_name in self.constant_table:
-            raise(PyGameMakerLanguageEngineException("{} = {}: Cannot assign a value to a constant".format(variable_name, value)))
-        # @@@ disallow using function names as variables
-        self.variable_table[variable_name] = value
+    def register_code_block(self, block_name, code_string):
+        """
+            register_code_block():
+            Supply <code_string>, containing the source code in a single string.
+            The executable code block will be placed in the code block hash,
+             using its name as the key.
+        """
+        code_block_runnable = None
+        code_block_id = -1
+        if block_name in self.code_blocks:
+            raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name)))
+        module_context = imp.new_module('{}_module'.format(block_name))
+        code_block_runnable = PyGameMakerCodeBlockGenerator.wrap_code_block(
+            block_name, module_context, code_string, self.functionmap)
+        code_block_runnable.load(['operator', 'math'])
+        self.code_blocks[block_name] = code_block_runnable
 
-    def get_variable_value(self, variable_name):
-        if not variable_name in self.variable_table:
-            if not variable_name in self.constant_table:
-                return None
-            else:
-                return self.constant_table[variable_name]
-        else:
-            return self.variable_table[variable_name]
-
-    def add_function(self, function_name, function_block, *function_args):
-        pass
+    def execute_code_block(self, block_name):
+        """
+            execute_code_block():
+            Supply the name of a registered code block that will be executed.
+        """
+        if not block_name in self.code_blocks:
+            raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name)))
+        self.code_blocks[block_name].module_context.run(self.symbol_table)
 
 bnf = None
 def BNF(code_block_obj):
@@ -976,8 +1024,8 @@ def BNF(code_block_obj):
         comments = comment_sym + uptolineend
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( pi | e | ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
-                Group( lpar + combinatorial + rpar )).setParseAction(code_block_obj.pushUMinus)
+        atom = ((0,None)*minus + ( ( pi | e | ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
+                Group( lpar + combinatorial + rpar ))).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
@@ -1004,88 +1052,22 @@ def BNF(code_block_obj):
 
 if __name__ == "__main__":
     import unittest
-    import pygame_maker_run_time_support as pgmrts
 
     class TestPyGameMakerLanguageEngine(unittest.TestCase):
 
         def setUp(self):
-            self.testpgm = """
-# this is a comment
-function blah(number x, number y) {
-    # comment within function
-    a = x + y + 2^(3-1) - 1
-    if (x < 0) {
-        b = blah(x+1, y+1)
-    }
-    else
-    {
-        b = a + 1
-    }
-    if (a > 99) {
-        a = 99
-    }
-    return (b - a)
-}
-x = -9
-y = 12
-if (((x * 4) > 40) or (x == -9)) {
- # comment within block
- x = x - 2 # assignment comment
- if (x < 0) { # conditional start comment
-  x = -randint(6^3+distance(17,randint(17))+blah(x,y))
- } # block end comment
-}
-elseif ((x * 5) > 40) {
- x = x - 1
- y = y ^ y
-}
-elseif ((y > 1000000) or (y < 1)) {
- y = 1
-}
-else {                  # I
- x = x + 2              # comment
- if (not (x > 7)) {     # every
-  x = 7 * 2 + 4^(3 - 2) # line
- }
-}
-            """
-
-            self.distance_code="""
-def userfunc_distance(_symbols,start,end):
-    return(abs(start - end))
-            """
-
-            self.randint_code="""
-def userfunc_randint(_symbols,max):
-    val = 0
-    range = max
-    if max < 0:
-        range = abs(max)
-    val = random.randint(0,range)
-    if max < 0:
-        val = -1 * val
-    return(val)
-            """
-
-            self.time_code="""
-def userfunc_time(_symbols):
-    return(int(time.time()))
-            """
 
             self.functionmap = {
                 'distance': { "arglist":
                 [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
-                'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"],
-                'compiled': compile(self.distance_code, '<c_distance>', 'exec')
+                'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
                 },
                 'randint': { "arglist":
                 [{"type":"number", "name":"max"}],
-                'block': [0, "_max", "random.randint", "_return"],
-                'compiled': compile(self.randint_code, '<c_randint>', 'exec')
+                'block': [0, "_max", "random.randint", "_return"]
                 },
                 'time': { "arglist": [],
-                'block': ["time.time", "_return"],
-                'compiled': compile(self.time_code, '<c_time>', 'exec')
+                'block': ["time.time", "_return"]
                 }
             }
             self.sym_table = PyGameMakerSymbolTable()
@@ -1095,7 +1077,7 @@ def userfunc_time(_symbols):
             simple_line = "x = 49"
             code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment",
                 self.module_context, simple_line, self.functionmap)
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             code_block.run(sym_table)
             print("Symbol table:")
@@ -1113,7 +1095,7 @@ else { x = 4 }
                 self.module_context, valid_conditional, self.functionmap)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             code_block.run(sym_table)
             print("Symbol table:")
@@ -1142,7 +1124,7 @@ vz = -2 * 4
                 self.module_context, valid_operations, self.functionmap)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             code_block.run(sym_table)
             print("Symbol table:")
@@ -1162,7 +1144,7 @@ function set_X(number n) { x = n }
                 self.module_context, valid_function, self.functionmap)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             code_block.run(sym_table)
             self.module_context.userfunc_set_X(sym_table, 20)
@@ -1178,7 +1160,7 @@ x = distance(12, 19)
                 self.module_context, valid_function_call, self.functionmap)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             code_block.run(sym_table)
             print("Symbol table:")
@@ -1238,10 +1220,31 @@ a = infinite_recursion()
             """
             code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("recursionbomb",
                 module_context, call_stack_error_code, self.functionmap)
-            code_block.load(['random', 'time', 'operator', 'math'])
+            code_block.load(['operator', 'math'])
             sym_table = PyGameMakerSymbolTable()
             with self.assertRaises(pgmrts.PyGameMakerCodeBlockRuntimeError):
                 code_block.run(sym_table)
+
+        def test_045language_engine(self):
+            language_engine = PyGameMakerLanguageEngine()
+            source_string = ""
+            with open("unittest_files/testpgm", "r") as source_f:
+                source_string = source_f.read()
+            #print("Program:\n{}".format(source_string))
+            language_engine.register_code_block("testA", source_string)
+            another_program_string="""
+radius = 2
+circumference = 2.0 * pi * radius
+            """
+            language_engine.register_code_block("testB", another_program_string)
+            language_engine.execute_code_block("testB")
+            language_engine.execute_code_block("testA")
+            print("Symbol table:")
+            language_engine.symbol_table.dumpVars()
+            answers = {"radius": 2,
+                "circumference": 2 * math.pi * 2,
+                "a": 26, "b": -259, "x": 64, "y": 12}
+            self.assertEqual(language_engine.symbol_table._vars, answers)
 
     unittest.main()
 

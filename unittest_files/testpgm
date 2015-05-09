@@ -1,0 +1,48 @@
+# this is a comment
+function blah(number x, number y) {
+    # comment within function
+    a = x + y + 2^(3-1) - 1
+    if (x < 0) {
+        b = blah(x+1, y+1)
+    }
+    else
+    {
+        b = a + 1
+    }
+    if (a > 99) {
+        a = 99
+    }
+    return (b - a)
+}
+x = -9
+y = 12
+if (((x * 4) > 40) or (x == -9)) {
+ # comment within block
+ x = x - 2 # assignment comment
+ if (x < 0) { # conditional start comment
+  x = -(6^3+distance(17,12)+blah(x,y))
+ } # block end comment
+}
+elseif ((x * 5) > 40) {
+ x = x - 1
+ y = y ^ y
+}
+elseif ((y > 1000000) or (y < 1)) {
+ y = 1
+}
+else {                  # I
+ x = x + 2              # comment
+ if (not (x > 7)) {     # every
+  x = 7 * 2 + 4^(3 - 2) # line
+ }
+}
+# -randint(6^3+distance(17,randint(17))+time())
+# 216, 17, 17, '_randint', '_distance', 'operator.add', '_time', 'operator.add', '_randint', 'unary -'
+# [216, 17, 17]
+# [216, 17, '_randint'(17)]
+# [216, '_distance'(17, '_randint'(17))]
+# [(216, '+', '_distance'(17, '_randint'(17)))]
+# [((216, '+', '_distance'(17, '_randint'(17))), '+', '_time'())]
+# ['_randint'(((216, '+', '_distance'(17, '_randint'(17))), '+', '_time'()))]
+# ['UMinus'('_randint'((216, '+', '_distance'(17, '_randint'(17))), '+', '_time'()))]
+
