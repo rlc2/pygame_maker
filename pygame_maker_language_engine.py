@@ -46,7 +46,7 @@ class PyGameMakerSymbolTable(object):
         constlist.sort()
         print("constants:")
         for const in constlist:
-            print("{} = {}".format(var, self._consts[var]))
+            print("{} = {}".format(const, self._consts[const]))
         varlist = list(self._vars.keys())
         varlist.sort()
         print("variables:")
@@ -101,10 +101,6 @@ class PyGameMakerCodeBlock(object):
         "operator.eq": ["number", "number"],
         "operator.ne": ["number", "number"],
         "math.pow": ["number", "number"]
-    }
-    KNOWN_CONSTANTS={
-        "_PI":   "math.pi",
-        "_E":    "math.e"
     }
     OPERATOR_REPLACEMENTS={
         "+": "operator.add",
@@ -170,13 +166,6 @@ class PyGameMakerCodeBlock(object):
         self.func_name = None
         self.functionmap = dict(funcmap)
         self.astree = astree
-        # collect a list of constants that refer to Python module constants
-        # this prevents constants like math.pi from being turned into
-        #  _symbols['math.pi']
-        self.python_constants = []
-        for val in self.KNOWN_CONSTANTS.values():
-            if isinstance(val, str):
-                self.python_constants.append(val)
 
     def addToFuncMap(self, func_map):
         """
@@ -517,10 +506,6 @@ class PyGameMakerCodeBlock(object):
             while line_idx < len(code_line):
                 check_op = "{}".format(code_line[line_idx])
                 #print("check op: {}".format(check_op))
-                if check_op in self.KNOWN_CONSTANTS:
-                    code_line[line_idx] = self.KNOWN_CONSTANTS[check_op]
-                    line_idx += 1
-                    continue
                 if check_op in self.OPERATOR_FUNCTIONS:
                     #print("found op: {}".format(check_op))
                     op_len = len(self.OPERATOR_FUNCTIONS[check_op])
@@ -691,7 +676,7 @@ class PyGameMakerCodeBlock(object):
                         func_arg_names = [narg["name"] for narg in self.functionmap[func_name]["arglist"]]
                         if opname in func_arg_names:
                             func_arg = True
-                    if not func_arg and not opname in self.python_constants:
+                    if not func_arg:
                         op_stack.append({"type": "int",
                             "val": "_symbols['{}']".format(opname)})
                     else:
@@ -906,6 +891,8 @@ class PyGameMakerLanguageEngine(object):
     """
     def __init__(self):
         self.symbol_table = PyGameMakerSymbolTable()
+        self.symbol_table.setConstant('pi', math.pi)
+        self.symbol_table.setConstant('e', math.e)
         self.function_table = {}
         self.functionmap = {
             'distance': { "arglist":
@@ -978,7 +965,6 @@ def BNF(code_block_obj):
     global bnf
     if not bnf:
         point = Literal( "." )
-        e     = CaselessLiteral( "E" )
         #~ fnumber = Combine( Word( "+-"+nums, nums ) + 
                            #~ Optional( point + Optional( Word( nums ) ) ) +
                            #~ Optional( e + Word( "+-"+nums, nums ) ) )
@@ -1019,12 +1005,11 @@ def BNF(code_block_obj):
         multop = mult | div
         typestring = num | strn
         expop = Literal( "^" )
-        pi    = CaselessLiteral( "PI" )
 
         comments = comment_sym + uptolineend
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( ( pi | e | ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
+        atom = ((0,None)*minus + ( ( ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
                 Group( lpar + combinatorial + rpar ))).setParseAction(code_block_obj.pushUMinus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
