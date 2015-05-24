@@ -54,15 +54,24 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
         self.visible = kind.visible
-        # @@@ instance was never drawn, consider it "dirty"
-        self.dirty = 1
+        if self.visible:
+            # instance was never drawn, consider it "dirty"
+            self.dirty = 1
+        else:
+            self.dirty = 0
         # copy this instance's image and Rect from the sprite resource
         self.image = kind.get_image()
-        self.rect = self.image.get_rect()
+        if self.image:
+            self.rect = self.image.get_rect()
+        else:
+            self.rect = pygame.Rect(0,0,0,0)
         self.position = [0.0, 0.0]
-        self.source_rect = pygame.Rect(kind.sprite_resource.bounding_box_rect)
+        if kind.sprite_resource:
+            self.source_rect = pygame.Rect(kind.sprite_resource.bounding_box_rect)
+        else:
+            self.source_rect = pygame.Rect(0,0,0,0)
         self.blendmode = 0
-        # @@@ use the instance type's 'depth' parameter as the layer for this
+        # use the instance type's 'depth' parameter as the layer for this
         #  instance
         self.layer = kind.depth
         # call the superclass __init__
@@ -83,11 +92,9 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     self.direction = float(kwargs["direction"])
                     # restrict direction between 0.0 and 360.0 degrees
                     if (self.direction >= 360.0):
-                        while (self.direction >= 360.0):
-                            self.direction -= 360.0
+                        self.direction %= 360.0
                     if (self.direction <= -360.0):
-                        while (self.direction <= -360.0):
-                            self.direction += 360.0
+                        self.direction %= 360.0
                     if (self.direction > -360.0) and (self.direction < 0.0):
                         self.direction = (360.0 + self.direction)
                 if arg == "gravity":
@@ -96,8 +103,13 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     self.gravity_direction = float(kwargs["gravity_direction"])
                     # restrict gravity direction between 0.0 and 360.0 degrees
                     if (self.gravity_direction >= 360.0):
-                        while (self.gravity_direction >= 360.0):
-                            self.gravity_direction -= 360.0
+                        self.gravity_direction %= 360.0
+                    if (self.gravity_direction <= -360.0):
+                        self.gravity_direction %= 360.0
+                    if (self.gravity_direction > -360.0) and
+                        (self.gravity_direction < 0.0):
+                        self.gravity_direction = (360.0 +
+                            self.gravity_direction)
                 if arg == "friction":
                     self.friction = float(kwargs["friction"])
         print("obj {} pos: {} ({})".format(self.id, self.position, self.rect))
