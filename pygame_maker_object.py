@@ -355,7 +355,7 @@ if __name__ == "__main__":
             self.done = False
             self.test_sprite = None
             self.objects = None
-            self.event_engine = PyGameMakerEventEngine()
+            self.event_engine = pgmee.PyGameMakerEventEngine()
             print("Manager init complete")
         def setup(self, screen):
             self.screen = screen
