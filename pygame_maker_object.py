@@ -106,8 +106,8 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                         self.gravity_direction %= 360.0
                     if (self.gravity_direction <= -360.0):
                         self.gravity_direction %= 360.0
-                    if (self.gravity_direction > -360.0) and
-                        (self.gravity_direction < 0.0):
+                    if ((self.gravity_direction > -360.0) and
+                        (self.gravity_direction < 0.0)):
                         self.gravity_direction = (360.0 +
                             self.gravity_direction)
                 if arg == "friction":
