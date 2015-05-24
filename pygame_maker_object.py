@@ -143,7 +143,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             self.position[1] += yadj
             self.rect.x = int(math.floor(self.position[0] + 0.5))
             self.rect.y = int(math.floor(self.position[1] + 0.5))
-            if self.dirty == 0:
+            if self.visible and self.dirty == 0:
                 self.dirty = 1
             # check for boundary collisions
             if ((self.rect.x <= 0) or
