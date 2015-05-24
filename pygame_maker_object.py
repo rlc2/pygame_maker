@@ -40,6 +40,30 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
     """
     MINIMUM_FRACTION = 1.0e-4
     def __init__(self, kind, screen_dims, id, **kwargs):
+        """
+            PyGameMakerObjectInstance.__init__():
+            Constructor for object instances. As a pygame.sprite.DirtySprite
+             subclass, instances support dirty, blendmode, source_rect,
+             visible, and layer attributes.
+            parameters:
+             kind (PyGameMakerObject): The object type of this new instance
+             screen_dims (list of int): Width, height of the surface this
+              instance will be drawn to. Allows boundary collisions to be
+              detected.
+             **kwargs: Supply alternatives to instance defaults
+              position (list of float or pygame.Rect): Upper left XY coordinate.
+               If not integers, each will be rounded to the next highest
+               integer [(0,0)]
+              speed (float): How many pixels (or fraction thereof) the object
+               moves in each update [0.0]
+              direction (float): 0-359 degrees for direction of motion [0.0]
+              gravity (float): Strength of gravity toward gravity_direction in
+               pixels/sec^2 [0.0]
+              gravity_direction (float): 0-359 degrees for direction of gravity
+               vector [0.0]
+              friction (float): Strength of friction vs direction of motion in
+               pixels/sec [0.0]
+        """
         pygame.sprite.DirtySprite.__init__(self)
         self.id = id
         self.speed = 0.0
@@ -50,6 +74,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.last_vector = [0.0, 0.0]
         self.last_adjustment = [0.0, 0.0]
         self.kind = kind
+        self.event_engine = kind.event_engine
         self.screen_dims = list(screen_dims)
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
@@ -212,12 +237,30 @@ class PyGameMakerObject(object):
     """
     DEFAULT_OBJECT_PREFIX="obj_"
 
-    def __init__(self, object_name=None, **kwargs):
+    def __init__(self, object_name, event_engine, **kwargs):
+
+        """
+            PyGameMakerObject.__init__():
+            Create a new type of object. An object type can create instances
+            of itself.
+            parameters:
+             object_name (str): Supply a name for the object type
+             event_engine (PyGameMakerEventEngine): Supply the event engine for
+              creating and handling events
+             **kwargs: Supply alternatives for default object properties:
+              visible (bool): Whether instances will be drawn [True]
+              solid (bool): Whether instances block other object instances
+                     (e.g. a platform) [False]
+              depth (int): How many layers object instances will cover [0]
+              sprite (PyGameMakerSprite): Sprite resource used as the
+               image [None]
+        """
 
         if object_name:
             self.name = object_name
         else:
             self.name = self.DEFAULT_OBJECT_PREFIX
+        self.event_engine = event_engine
         self.sprite_resource = None
         self.mask = None
         self.visible = True
@@ -242,6 +285,20 @@ class PyGameMakerObject(object):
         print("Finished setup of {}".format(self.name))
 
     def create_instance(self, screen, **kwargs):
+        """
+            create_instance():
+            Create a new instance of this object type. Every instance is
+             assigned a unique ID, and placed inside a sprite group that
+             automatically handles positional updates.
+            parameters:
+             screen (pygame.Surface): The surface the instance will be drawn
+              upon. The instance will use this surface's width and height
+              parameters to detect boundary collision events, which are queued
+              in the event engine.
+             **kwargs: Passed on to the instance constructor, to supply
+              alternatives to object instance defaults (usually 'speed',
+              'direction', and/or 'position')
+        """
         print("Create new instance of {}".format(self))
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = PyGameMakerObjectInstance(self, screen_dims, self.id,
@@ -250,10 +307,19 @@ class PyGameMakerObject(object):
         self.id += 1
 
     def update(self):
+        """
+            update():
+            Call to perform position updates for all instances. The sprite
+            group handles this for us.
+        """
         if len(self.group) > 0:
             self.group.update()
 
     def draw(self, surface):
+        """
+            draw():
+            Call to draw all instances. The sprite group handles this for us.
+        """
         if len(self.group) > 0:
             self.group.draw(surface)
 
@@ -277,6 +343,7 @@ class PyGameMakerObject(object):
 if __name__ == "__main__":
     import pg_template
     import random
+    import pygame_maker_event_engine as pgmee
 
     class TestGameManager(object):
         LEFT_MARGIN = 10
@@ -288,6 +355,7 @@ if __name__ == "__main__":
             self.done = False
             self.test_sprite = None
             self.objects = None
+            self.event_engine = PyGameMakerEventEngine()
             print("Manager init complete")
         def setup(self, screen):
             self.screen = screen
@@ -295,7 +363,7 @@ if __name__ == "__main__":
                 "spr_test",
                 filename="unittest_files/Ball.png"
             )
-            self.objects = [PyGameMakerObject("obj_test",
+            self.objects = [PyGameMakerObject("obj_test", self.event_engine,
                 sprite=self.test_sprite)]
             print("Setup complete")
         def collect_event(self, event):
