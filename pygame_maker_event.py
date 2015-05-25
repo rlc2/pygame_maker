@@ -57,7 +57,9 @@ class PyGameMakerEvent(object):
     def repr_event_strings(self):
         event_param_strs = []
         ev_str = ""
-        for evparam in self.event_params:
+        ev_parms_sorted = self.event_params.keys()
+        ev_parms_sorted.sort()
+        for evparam in ev_parms_sorted:
             event_param_strs.append("{}={}".format(evparam, self.event_params[evparam]))
         if len(event_param_strs) > 0:
             ev_str = " "
