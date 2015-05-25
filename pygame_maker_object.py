@@ -106,7 +106,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     # position should either be a tuple (x,y) or a pygame Rect
                     pos = list(kwargs["position"])
                     if len(pos) >= 2:
-                        print("Set position to {}".format(pos))
+                        #print("Set position to {}".format(pos))
                         self.position[0] = pos[0]
                         self.position[1] = pos[1]
                         self.rect.x = math.floor(pos[0] + 0.5)
@@ -137,8 +137,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                             self.gravity_direction)
                 if arg == "friction":
                     self.friction = float(kwargs["friction"])
-        print("obj {} pos: {} ({})".format(self.id, self.position, self.rect))
-        print("obj {} speed: {}, dir: {}".format(self.id, self.speed, self.direction))
+        print("{}".format(self))
 
     def update(self):
         """
@@ -173,12 +172,18 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             # check for boundary collisions
             if ((self.rect.x <= 0) or
                 ((self.rect.x + self.rect.width) >= self.screen_dims[0])):
-                # @@@ queue boundary collision
+                # queue boundary collision event
+                self.event_engine.queue_event(
+                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
+                )
                 print("inst {} hit x bound".format(self.id))
                 self.speed = 0.0
             elif ((self.rect.y <= 0) or
                 ((self.rect.y + self.rect.height) >= self.screen_dims[1])):
-                # @@@ queue boundary collision
+                # queue boundary collision event
+                self.event_engine.queue_event(
+                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
+                )
                 print("inst {} hit y bound".format(self.id))
                 self.speed = 0.0
             #print("inst {} new position: {} ({})".format(self.id,
@@ -206,6 +211,11 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             if new_speed < 0.0:
                 new_speed = 0.0
             self.speed = new_speed
+
+    def __repr__(self):
+        return "<{} @ {},{} dir {} speed {}>".format(type(self).__name__,
+            int(self.position[0]), int(self.position[1]), self.direction,
+            self.speed)
 
 class PyGameMakerObjectException(Exception):
     pass
@@ -236,6 +246,9 @@ class PyGameMakerObject(object):
          There can be many instances of a particular kind of object.
     """
     DEFAULT_OBJECT_PREFIX="obj_"
+    EVENT_NAME_OBJECT_HASH={
+        "outside_room": pygm_event.PyGameMakerOtherEvent,
+    }
 
     def __init__(self, object_name, event_engine, **kwargs):
 
@@ -289,7 +302,7 @@ class PyGameMakerObject(object):
             create_instance():
             Create a new instance of this object type. Every instance is
              assigned a unique ID, and placed inside a sprite group that
-             automatically handles positional updates.
+             handles drawing and positional updates for all contained instances.
             parameters:
              screen (pygame.Surface): The surface the instance will be drawn
               upon. The instance will use this surface's width and height
