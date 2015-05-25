@@ -25,6 +25,17 @@ class PyGameMakerEventEngine(object):
             self.event_handlers[event_name].append(event_handler)
         #print("handlers: {}".format(self.event_handlers))
 
+    def unregister_event_handler(self, event_name, event_handler):
+        """
+            unregister_event_handler():
+            Remove a handler method reference from the named event
+        """
+        if event_name in self.event_handlers.keys():
+            if event_handler in self.event_handlers[event_name]:
+                self.event_handlers[event_name].remove(event_handler)
+                if len(self.event_handlers[event_name]) == 0:
+                    del(self.event_handlers[event_name])
+
     def queue_event(self, event):
         """
             queue_event():
@@ -74,7 +85,29 @@ if __name__ == "__main__":
             print("{} received event {}.".format(ev_tag, event))
             self.called_events.append("{} {}".format(event, ev_tag))
 
-        def test_005event_handling(self):
+        def test_005event_handler_registration(self):
+            engine = PyGameMakerEventEngine()
+            begin_hdlr1 = lambda name: self.event_handler(name, 'bhdlr1')
+            begin_hdlr2 = lambda name: self.event_handler(name, 'bhdlr2')
+            normal_hdlr1 = lambda name: self.event_handler(name, 'nhdlr1')
+            normal_hdlr2 = lambda name: self.event_handler(name, 'nhdlr2')
+            begin_handlers = [begin_hdlr1, begin_hdlr2]
+            normal_handlers = [normal_hdlr1, normal_hdlr2]
+            engine.register_event_handler('begin_step', begin_hdlr1)
+            engine.register_event_handler('begin_step', begin_hdlr2)
+            engine.register_event_handler('normal_step', normal_hdlr1)
+            engine.register_event_handler('normal_step', normal_hdlr2)
+            self.assertEqual(begin_handlers,
+                engine.event_handlers['begin_step'])
+            self.assertEqual(normal_handlers,
+                engine.event_handlers['normal_step'])
+            engine.unregister_event_handler('normal_step', normal_hdlr1)
+            self.assertEqual([normal_hdlr2],
+                engine.event_handlers['normal_step'])
+            engine.unregister_event_handler('normal_step', normal_hdlr2)
+            self.assertTrue('normal_step' not in engine.event_handlers)
+
+        def test_010event_handling(self):
             self.called_events = []
             self.event_engine.register_event_handler('left_pressed',
                 lambda name: self.event_handler(name, 'hdlr1'))
