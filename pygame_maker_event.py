@@ -33,11 +33,11 @@ class PyGameMakerEvent(object):
         return False
 
     @classmethod
-    def get_event_instance_by_event_name(cls, event_name, **kwargs):
+    def get_event_instance_by_event_name(cls, event_name, event_params={}):
         if len(cls.event_type_registry) > 0:
             for atype in cls.event_type_registry:
                 if atype.find_event_by_name(event_name):
-                    return atype(event_name, **kwargs)
+                    return atype(event_name, event_params)
         # no event type handles the named event
         raise PyGameMakerEventException("Event '{}' is unknown".format(event_name))
 
