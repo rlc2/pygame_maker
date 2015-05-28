@@ -895,17 +895,12 @@ class PyGameMakerCodeBlockGenerator(object):
         cls.bnf = BNF(cls.code_block)
         try:
             astree = cls.bnf.parseString(source_code_str)
-        except ParseException as exc:
+            cls.code_block.reduce()
+            new_block = PyGameMakerCodeBlock(program_name, module_context,
+                funcmap, astree)
+            cls.code_block.copyTo(new_block)
+        finally:
             cls.code_block.clear()
-            raise exc
-        except ParseFatalException as exc:
-            cls.code_block.clear()
-            raise exc
-        cls.code_block.reduce()
-        new_block = PyGameMakerCodeBlock(program_name, module_context, funcmap,
-            astree)
-        cls.code_block.copyTo(new_block)
-        cls.code_block.clear()
         return new_block
 
 class PyGameMakerLanguageEngine(object):
