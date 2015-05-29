@@ -26,6 +26,7 @@ class PyGameMakerAction(object):
     DEFAULT_COLLISION_TYPE="solid"
     DEFAULT_PRECISION_TYPE="imprecise"
     COMPASS_DIRECTIONS=[
+        "NONE",
         "UPLEFT",
         "UP",
         "UPRIGHT",
@@ -161,20 +162,23 @@ class PyGameMakerMotionAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=MOVE_ACTIONS + JUMP_ACTIONS + PATH_ACTIONS + STEP_ACTIONS
     MOTION_ACTION_DATA_MAP={
-        "set_velocity_compass": {"apply_to": "self", "direction":"UP",
+        "set_velocity_compass": {"apply_to": "self", "compass_direction":"UP",
             "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
         "set_velocity_degrees": {"apply_to": "self",
             "direction": PyGameMakerAction.DEFAULT_DIRECTION,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
             "relative": False},
         "move_toward_point": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "destination": PyGameMakerAction.DEFAULT_POINT_XY,
             "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
-        "move_horizontal": {"apply_to": "self", "direction": "RIGHT",
-            "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
-        "move_vertical": {"apply_to": "self", "direction": "DOWN",
-            "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
-        "apply_gravity": {"apply_to": "self", "direction": "DOWN",
+        "set_horizontal_speed": {"apply_to": "self",
+            "horizontal_direction": "RIGHT",
+            "horizontal_speed": PyGameMakerAction.DEFAULT_SPEED,
+            "relative": False},
+        "set_vertical_speed": {"apply_to": "self", "vertical_direction": "DOWN",
+            "vertical_speed": PyGameMakerAction.DEFAULT_SPEED,
+            "relative": False},
+        "apply_gravity": {"apply_to": "self", "gravity_direction": "DOWN",
             "gravity": PyGameMakerAction.DEFAULT_GRAVITY, "relative": False},
         "reverse_horizontal_speed": {"apply_to": "self"},
         "reverse_vertical_speed": {"apply_to": "self"},
@@ -182,12 +186,12 @@ class PyGameMakerMotionAction(PyGameMakerAction):
             "friction": PyGameMakerAction.DEFAULT_FRICTION,
             "relative": False},
         "jump_to": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "relative": False},
         "jump_to_start": {"apply_to": "self"},
         "jump_random": {"apply_to": "self", "snapxy": (0,0) },
         "snap_to_grid": {"apply_to": "self",
-        "gridxy": PyGameMakerAction.DEFAULT_GRID_SNAP_XY},
+            "gridxy": PyGameMakerAction.DEFAULT_GRID_SNAP_XY},
         "wrap_around": {"apply_to": "self",
             "wrap_direction": PyGameMakerAction.DEFAULT_WRAP_DIRECTION},
         "move_until_collision": {"apply_to": "self",
@@ -195,7 +199,7 @@ class PyGameMakerMotionAction(PyGameMakerAction):
             "max_distance": -1,
             "collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
         "bounce_off_collider": {"apply_to": "self", "precision": "imprecise",
-            "collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
+            "bounce_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
         "set_path": {"apply_to": "self", "path": PyGameMakerAction.DEFAULT_PATH,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
             "at_end": "stop", "relative": True},
@@ -207,14 +211,14 @@ class PyGameMakerMotionAction(PyGameMakerAction):
             "speed": PyGameMakerAction.DEFAULT_SPEED,
             "relative": False},
         "step_toward_point": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "destination": PyGameMakerAction.DEFAULT_POINT_XY,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
+            "stop_at_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
             "relative": False },
         "step_toward_point_around_objects": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
+            "avoid_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
             "relative": False }
     }
 
@@ -242,21 +246,21 @@ class PyGameMakerObjectAction(PyGameMakerAction):
     HANDLED_ACTIONS=OBJECT_ACTIONS + SPRITE_ACTIONS
     OBJECT_ACTION_DATA_MAP={
         "create_object": {"apply_to": "self", "object": None,
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "relative": False},
         "create_object_with_velocity": {"apply_to": "self", "object": None,
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
             "direction": PyGameMakerAction.DEFAULT_DIRECTION,
             "relative": False},
         "create_random_object": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "object_list": [], "relative": False},
         "transform_object": {"apply_to": "self", "object": None,
             "new_object": None, "perform_events": "no"},
         "destroy_object": {"apply_to": "self"},
         "destroy_instances_at_location": {"apply_to": "self",
-            "locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+            "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "relative": False},
         "set_sprite": {"apply_to": "self", "sprite": None, "subimage": 0,
             "speed": 1},
@@ -481,7 +485,7 @@ class PyGameMakerAccountingAction(PyGameMakerAction):
     ACCOUNTING_ACTION_DATA_MAP={
         "set_score_value": {"score": 0, "relative": False},
         "if_score_value": {"score": 0, "operation": "is_equal", "invert": False},
-        "draw_score_value": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+        "draw_score_value": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
             "caption": "Score:", "relative": False},
         "show_highscore_table": {"background": None, "border": True,
             "new_color": "#ff0000", "other_color": "#ffffff",
@@ -489,9 +493,9 @@ class PyGameMakerAccountingAction(PyGameMakerAction):
         "clear_highscore_table": {},
         "set_lives_value": {"lives": 0, "relative": False},
         "if_lives_value": {"lives": 0, "operation": "is_equal", "invert": False},
-        "draw_lives_value": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+        "draw_lives_value": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
             "caption": "Lives:", "relative": False},
-        "draw_lives_image": {"locationxy": PyGameMakerAction.DEFAULT_POINT_XY,
+        "draw_lives_image": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
             "sprite": None, "relative": False},
         "set_health_value": {"value": 0, "relative": False},
         "if_health_value": {"value": 0, "operation": "is_equal", "invert": False},
@@ -600,8 +604,8 @@ if __name__ == "__main__":
 
         def test_010valid_object_action(self):
             object_action = PyGameMakerObjectAction("create_object",
-                locationxy=(250,250))
-            self.assertEqual(object_action["locationxy"], (250,250))
+                position=(250,250))
+            self.assertEqual(object_action["position"], (250,250))
             print("action: {}".format(object_action))
 
         def test_015valid_sound_action(self):
