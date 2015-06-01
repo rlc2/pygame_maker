@@ -105,6 +105,8 @@ class PyGameMakerAction(object):
         if minfo or (action_name == "else"):
             # automatically nest after question tasks
             self.nest_adjustment = "nest_next_action"
+            if minfo:
+                self.action_result = True
         else:
             self.nest_adjustment = None
         for param in kwargs:
@@ -197,7 +199,7 @@ class PyGameMakerMotionAction(PyGameMakerAction):
         "move_until_collision": {"apply_to": "self",
             "direction": PyGameMakerAction.DEFAULT_DIRECTION,
             "max_distance": -1,
-            "collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
+            "stop_at_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
         "bounce_off_collider": {"apply_to": "self", "precision": "imprecise",
             "bounce_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
         "set_path": {"apply_to": "self", "path": PyGameMakerAction.DEFAULT_PATH,
