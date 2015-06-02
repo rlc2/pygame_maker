@@ -395,7 +395,7 @@ class PyGameMakerEventActionSequence(object):
         statement = PyGameMakerEventActionSequenceStatement.get_sequence_item_from_action(action)
         self.main_block.add_statement(statement)
 
-    def walk(self):
+    def get_next_action(self):
         for next_action in self.main_block.walk():
             if next_action != None:
                 yield next_action
@@ -480,7 +480,7 @@ if __name__ == "__main__":
             action_sequence.pretty_print()
             walked_list = []
             print("\nconditional True paths:")
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 print("{}".format(action))
                 if hasattr(action, "action_result"):
                     action.action_result = True
@@ -488,7 +488,7 @@ if __name__ == "__main__":
             self.assertEqual(walked_list, all_true_action_list)
             walked_list = []
             print("\nconditional False paths:")
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 print("{}".format(action))
                 if hasattr(action, "action_result"):
                     action.action_result = False
@@ -497,7 +497,7 @@ if __name__ == "__main__":
             walked_list = []
             print("\nSimulated real-time conditionals:")
             if_idx = 0
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 if_idx = action_list.index(action)
                 if_result = result_list[if_idx]
                 print("{}".format(action))
@@ -570,7 +570,7 @@ if __name__ == "__main__":
             action_sequence.pretty_print()
             walked_list=[]
             print("\nconditional True paths:")
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 print("{}".format(action))
                 if hasattr(action, "action_result"):
                     action.action_result = True
@@ -578,7 +578,7 @@ if __name__ == "__main__":
             self.assertEqual(walked_list, all_true_action_list)
             walked_list=[]
             print("\nconditional False paths:")
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 print("{}".format(action))
                 if hasattr(action, "action_result"):
                     action.action_result = False
@@ -587,7 +587,7 @@ if __name__ == "__main__":
             walked_list=[]
             print("\nSimulated real-time conditionals:")
             if_idx = 0
-            for action in action_sequence.walk():
+            for action in action_sequence.get_next_action():
                 if_idx = action_list.index(action)
                 if_result = result_list[if_idx]
                 print("{}".format(action))
