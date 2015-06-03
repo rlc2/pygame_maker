@@ -124,6 +124,21 @@ class PyGameMakerMouseEvent(PyGameMakerEvent):
         "mouse_leave",
         "mouse_wheelup",
         "mouse_wheeldown"
+        "mouse_global_button_left",
+        "mouse_global_button_right",
+        "mouse_global_button_middle",
+        "mouse_global_button_6"
+        "mouse_global_button_7"
+        "mouse_global_button_8"
+        "mouse_global_nobutton",
+        "mouse_global_left_pressed",
+        "mouse_global_right_pressed",
+        "mouse_global_middle_pressed",
+        "mouse_global_left_released",
+        "mouse_global_right_released",
+        "mouse_global_middle_released",
+        "mouse_global_wheelup",
+        "mouse_global_wheeldown"
     ]
     HANDLED_EVENTS=MOUSE_EVENTS
 
