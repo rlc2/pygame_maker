@@ -8,214 +8,12 @@
 
 import pygame
 import re
-import math
 import yaml
+import pygame_maker_object_instance as pygm_instance
 import pygame_maker_event as pygm_event
 import pygame_maker_action as pygm_action
 import pygame_maker_sprite as pygm_sprite
 import pygame_maker_event_action_sequence as pygm_sequence
-
-def get_vector_xy(speed, angle):
-    xval = speed * math.sin(angle / 180.0 * math.pi)
-    yval = speed * -1 * math.cos(angle / 180.0 * math.pi)
-    xy = (xval, yval)
-    return xy
-
-class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
-    """
-        PyGameMakerObjectInstance class:
-        Fits the purpose of pygame's Sprite class
-        Represent an instance of a particular kind of object
-        An instance has:
-         o position
-         o speed
-         o direction of motion
-         o gravity
-         o gravity direction
-         o friction
-        An instance does:
-         o respond to events
-         o produce collision events
-         o draws itself
-    """
-    MINIMUM_FRACTION = 1.0e-4
-    def __init__(self, kind, screen_dims, id, **kwargs):
-        """
-            PyGameMakerObjectInstance.__init__():
-            Constructor for object instances. As a pygame.sprite.DirtySprite
-             subclass, instances support dirty, blendmode, source_rect,
-             visible, and layer attributes.
-            parameters:
-             kind (PyGameMakerObject): The object type of this new instance
-             screen_dims (list of int): Width, height of the surface this
-              instance will be drawn to. Allows boundary collisions to be
-              detected.
-             **kwargs: Supply alternatives to instance defaults
-              position (list of float or pygame.Rect): Upper left XY coordinate.
-               If not integers, each will be rounded to the next highest
-               integer [(0,0)]
-              speed (float): How many pixels (or fraction thereof) the object
-               moves in each update [0.0]
-              direction (float): 0-359 degrees for direction of motion [0.0]
-              gravity (float): Strength of gravity toward gravity_direction in
-               pixels/sec^2 [0.0]
-              gravity_direction (float): 0-359 degrees for direction of gravity
-               vector [0.0]
-              friction (float): Strength of friction vs direction of motion in
-               pixels/sec [0.0]
-        """
-        pygame.sprite.DirtySprite.__init__(self)
-        self.id = id
-        self.speed = 0.0
-        self.direction = 0.0
-        self.gravity = 0.0
-        self.gravity_direction = 0.0
-        self.friction = 0.0
-        self.last_vector = [0.0, 0.0]
-        self.last_adjustment = [0.0, 0.0]
-        self.kind = kind
-        self.event_engine = kind.event_engine
-        self.screen_dims = list(screen_dims)
-        # set up the Sprite/DirtySprite expected parameters
-        # default visibility comes from this instance's type
-        self.visible = kind.visible
-        if self.visible:
-            # instance was never drawn, consider it "dirty"
-            self.dirty = 1
-        else:
-            self.dirty = 0
-        # copy this instance's image and Rect from the sprite resource
-        self.image = kind.get_image()
-        if self.image:
-            self.rect = self.image.get_rect()
-        else:
-            self.rect = pygame.Rect(0,0,0,0)
-        self.position = [0.0, 0.0]
-        if kind.sprite_resource:
-            self.source_rect = pygame.Rect(kind.sprite_resource.bounding_box_rect)
-        else:
-            self.source_rect = pygame.Rect(0,0,0,0)
-        self.blendmode = 0
-        # use the instance type's 'depth' parameter as the layer for this
-        #  instance
-        self.layer = kind.depth
-        # call the superclass __init__
-        if kwargs:
-            for arg in kwargs:
-                if arg == "position":
-                    # position should either be a tuple (x,y) or a pygame Rect
-                    pos = list(kwargs["position"])
-                    if len(pos) >= 2:
-                        #print("Set position to {}".format(pos))
-                        self.position[0] = pos[0]
-                        self.position[1] = pos[1]
-                        self.rect.x = math.floor(pos[0] + 0.5)
-                        self.rect.y = math.floor(pos[1] + 0.5)
-                if arg == "speed":
-                    self.speed = math.fabs(float(kwargs["speed"]))
-                if arg == "direction":
-                    self.direction = float(kwargs["direction"])
-                    # restrict direction between 0.0 and 360.0 degrees
-                    if (self.direction >= 360.0):
-                        self.direction %= 360.0
-                    if (self.direction <= -360.0):
-                        self.direction %= 360.0
-                    if (self.direction > -360.0) and (self.direction < 0.0):
-                        self.direction = (360.0 + self.direction)
-                if arg == "gravity":
-                    self.gravity = float(kwargs["gravity"])
-                if arg == "gravity_direction":
-                    self.gravity_direction = float(kwargs["gravity_direction"])
-                    # restrict gravity direction between 0.0 and 360.0 degrees
-                    if (self.gravity_direction >= 360.0):
-                        self.gravity_direction %= 360.0
-                    if (self.gravity_direction <= -360.0):
-                        self.gravity_direction %= 360.0
-                    if ((self.gravity_direction > -360.0) and
-                        (self.gravity_direction < 0.0)):
-                        self.gravity_direction = (360.0 +
-                            self.gravity_direction)
-                if arg == "friction":
-                    self.friction = float(kwargs["friction"])
-        print("{}".format(self))
-
-    def update(self):
-        """
-            update():
-            Move the instance from its current position using its speed and
-            direction.
-            Expected args:
-                screen: a reference to the surface that will be drawn onto,
-                    to check for boundary collisions
-                event_manager: a reference to the event manager for generating
-                    any events
-        """
-        # handle the simple cases
-        if (self.speed > 0.0):
-            xadj = 0.0
-            yadj = 0.0
-            if (self.last_vector == [self.speed, self.direction]):
-                # no need to calculate, if the motion vector didn't change
-                xadj = self.last_adjustment[0]
-                yadj = self.last_adjustment[1]
-            else:
-                xadj, yadj = get_vector_xy(self.speed, self.direction)
-                print("new inst {} xyadj {}, {}".format(self.id, xadj, yadj))
-                self.last_adjustment[0] = xadj
-                self.last_adjustment[1] = yadj
-            self.position[0] += xadj
-            self.position[1] += yadj
-            self.rect.x = int(math.floor(self.position[0] + 0.5))
-            self.rect.y = int(math.floor(self.position[1] + 0.5))
-            if self.visible and self.dirty == 0:
-                self.dirty = 1
-            # check for boundary collisions
-            if ((self.rect.x <= 0) or
-                ((self.rect.x + self.rect.width) >= self.screen_dims[0])):
-                # queue boundary collision event
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
-                )
-                print("inst {} hit x bound".format(self.id))
-                self.speed = 0.0
-            elif ((self.rect.y <= 0) or
-                ((self.rect.y + self.rect.height) >= self.screen_dims[1])):
-                # queue boundary collision event
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
-                )
-                print("inst {} hit y bound".format(self.id))
-                self.speed = 0.0
-            #print("inst {} new position: {} ({})".format(self.id,
-            #    self.position, self.rect))
-        # apply forces for next update
-        self.apply_gravity()
-        self.apply_friction()
-        self.last_vector[0] = self.speed
-        self.last_vector[1] = self.direction
-
-    def apply_gravity(self):
-        """
-            apply_gravity():
-            Adjust speed and direction using value and direction of gravity
-        """
-        pass
-
-    def apply_friction(self):
-        """
-            apply_friction():
-            Adjust speed based on friction value
-        """
-        if (self.friction) > 0.0 and (self.speed > 0.0):
-            new_speed = self.speed - self.friction
-            if new_speed < 0.0:
-                new_speed = 0.0
-            self.speed = new_speed
-
-    def __repr__(self):
-        return "<{} @ {},{} dir {} speed {}>".format(type(self).__name__,
-            int(self.position[0]), int(self.position[1]), self.direction,
-            self.speed)
 
 class PyGameMakerObjectException(Exception):
     pass
@@ -248,7 +46,11 @@ class PyGameMakerObject(object):
     DEFAULT_OBJECT_PREFIX="obj_"
     EVENT_NAME_OBJECT_HASH={
         "outside_room": pygm_event.PyGameMakerOtherEvent,
+        "intersect_boundary": pygm_event.PyGameMakerOtherEvent,
+        "create": pygm_event.PyGameMakerObjectStateEvent,
+        "image_loaded": pygm_event.PyGameMakerOtherEvent,
     }
+    CREATE_ACTION_RE=re.compile("^create")
 
     def __init__(self, object_name, event_engine, **kwargs):
 
@@ -264,7 +66,7 @@ class PyGameMakerObject(object):
               visible (bool): Whether instances will be drawn [True]
               solid (bool): Whether instances block other object instances
                      (e.g. a platform) [False]
-              depth (int): How many layers object instances will cover [0]
+              depth (int): Which layer object instances will be placed into [0]
               sprite (PyGameMakerSprite): Sprite resource used as the
                image [None]
         """
@@ -279,9 +81,21 @@ class PyGameMakerObject(object):
         self.visible = True
         self.solid = False
         self.depth = 0
+        # begin inside a collection containing only our own type
+        self.object_type_collection = {self.name: self}
         self.group = pygame.sprite.LayeredDirty()
-        self.events = {}
+        self.event_action_sequences = {}
         self.id = 0
+        self.handler_table = {
+            re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
+            re.compile("^kb_(.*)$"):            self.handle_keyboard_event,
+            re.compile("^mouse_(.*)$"):         self.handle_mouse_event,
+            re.compile("^collision_(.*)$"):     self.handle_collision_event,
+            re.compile("^([^_]+)_step$"):       self.handle_step_event,
+            re.compile("^outside_room$"):       self.handle_instance_event,
+            re.compile("^intersect_boundary$"): self.handle_instance_event,
+            re.compile("^create$"):             self.handle_create_event,
+        }
         if kwargs:
             for kw in kwargs:
                 if "visible" in kwargs:
@@ -295,7 +109,25 @@ class PyGameMakerObject(object):
                         pygm_sprite.PyGameMakerSprite)):
                         raise PyGameMakerObjectException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]))
                     self.sprite_resource = kwargs["sprite"]
+                if "event_action_sequences" in kwargs:
+                    ev_dict = kwargs["event_action_sequences"]
+                    if not (ev_dict, dict):
+                        raise PyGameMakerObjectException("'{}' must contain a hash of event names -> action sequences")
+                    for ev_name in ev_dict:
+                        if not isinstance(ev_dict[ev_name],
+                            pygm_sequence.PyGameMakerEventActionSequence):
+                            raise PyGameMakerObjectException("Event '{}' does not contain a PyGameMakerEventActionSequence")
+                    self.event_action_sequences = ev_dict
+
         print("Finished setup of {}".format(self.name))
+
+    def belongs_to_collection(self, object_type_collection):
+        """
+            belongs_to_collection():
+            Supply the object type collection this type belongs to. This allows
+             actions to affect every instance of a particular type.
+        """
+        self.object_type_collection = object_type_collection
 
     def create_instance(self, screen, **kwargs):
         """
@@ -314,10 +146,12 @@ class PyGameMakerObject(object):
         """
         print("Create new instance of {}".format(self))
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = PyGameMakerObjectInstance(self, screen_dims, self.id,
-            **kwargs)
+        new_instance = pygm_instance.PyGameMakerObjectInstance(self,
+            screen_dims, self.id, **kwargs)
         self.group.add(new_instance)
         self.id += 1
+        # queue the creation event for the new instance
+        self.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create", { "type": self, "instance": new_instance }))
 
     def update(self):
         """
@@ -345,9 +179,167 @@ class PyGameMakerObject(object):
         if self.sprite_resource:
             if not self.sprite_resource.image:
                 self.sprite_resource.load_graphic()
+                # queue the image_loaded event
+                self.event_engine.queue_event(
+                    self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
+                        { "type": self, "sprite": self.sprite_resource })
+                )
             return self.sprite_resource.image.copy()
         else:
             return None
+
+    def get_applied_instance_list(self, action, event):
+        """
+            get_applied_instance_list():
+            For actions with "apply_to" parameters, return a list of the
+             object instances affected. There could be one, called "self",
+             which can refer to a particular instance (which needs to
+             be part of the event data), or called "other", in cases where
+             another instance is involved in the event (collisions); or
+             multiple, if apply_to refers to an object type, in which case
+             all objects of the named type recieve the action.
+             For "create" type actions, "self" instead refers to the object
+             type to be created.
+            parameters:
+             action (PyGameMakerAction): The action with an "apply_to" field
+             event (PyGameMakerEvent): The received event
+        """
+        apply_to_instances = []
+        if 'instance' in event.event_params:
+            apply_to_instances = [event['instance']]
+        if not 'apply_to' in action.action_data:
+            return apply_to_instances
+        if action["apply_to"] == "other":
+            if 'other' in event:
+                # receiving an "other" instance is uncommon. ignore actions
+                #  that apply to "other" if an "other" instance isn't supplied
+                apply_to_instances = [event['other']]
+        elif action["apply_to"] != "self":
+            # applies to an object type; this means apply it to all instances
+            #  of that object
+            if action["apply_to"] in self.object_type_collection:
+                apply_to_instances = self.object_type_collection[action["apply_to"]].group
+        return apply_to_instances
+
+    def execute_action_sequence(self, event):
+        if event.event_name in self.event_action_sequences:
+            for action in self.event_action_sequences[event.event_name].get_next_action():
+                print("Action {}".format(action))
+                affected_instance_list = self.get_applied_instance_list(action,
+                    event)
+                #print("Action {} applies to {}".format(action, affected_instance_list))
+                if "apply_to" in action.action_data:
+                    for target in affected_instance_list:
+                        print("applying to {}".format(target))
+                        target.execute_action(action)
+
+    def handle_instance_event(self, event):
+        """
+            handle_instance_event():
+            Execute action sequences generated by an instance:
+             intersect_boundary
+             outside_room
+        """
+        print("Received event {}".format(event))
+        self.execute_action_sequence(event)
+
+    def handle_mouse_event(self, event):
+        """
+            handle_mouse_event():
+            Execute the action sequence associated with the supplied mouse
+             event, if its XY coordinate intersects one or more instances and
+             the exact mouse event is handled by this object (button #,
+             press/release). mouse_global_* events are handled by instances
+             watching for them at any location.
+        """
+        pass
+
+    def handle_keyboard_event(self, event):
+        """
+            handle_keyboard_event():
+            Execute the action sequence associated with the supplied key event,
+             if the exact key event is handled by this object (which key,
+             press/release)
+        """
+        pass
+
+    def handle_collision_event(self, event):
+        """
+            handle_collision_event():
+            Execute the action sequence associated with the collision event,
+             if the name of the object collided with is part of the event's name
+        """
+        pass
+
+    def handle_step_event(self, event):
+        """
+            handle_step_event():
+            Execute the action sequence associated with the supplied step event,
+             if the exact step event is handled by this object (begin, end,
+             normal), on every instance
+        """
+        pass
+
+    def handle_alarm_event(self, event):
+        """
+            handle_alarm_event():
+            Execute the action sequence associated with the alarm event, if
+             the exact alarm is handled by this object (0-11)
+        """
+        pass
+
+    def handle_create_event(self, event):
+        """
+            handle_create_event():
+            Execute the action sequence associated with the create event,
+             passing it on to the instance recorded in the event
+        """
+        pass
+
+    def select_event_handler(self, event_name):
+        hdlr = None
+        for ev_re in self.handler_table.keys():
+            minfo = ev_re.match(event_name)
+            if minfo:
+                hdlr = self.handler_table[ev_re]
+        return hdlr
+
+    def __getitem__(self, itemname):
+        """
+            __getitem__():
+            PyGameMakerObject instances support obj[event_name] to directly
+             access the action sequence for a particular event.
+        """
+        if itemname in self.event_action_sequences:
+            return self.event_action_sequences[itemname]
+        else:
+            return None
+
+    def __setitem__(self, itemname, val):
+        """
+            __setitem__():
+            PyGameMakerObject instances support obj[event_name] = sequence for
+             directly setting the action sequence for a particular event.
+        """
+        if not isinstance(itemname, str):
+            raise PyGameMakerObjectException("Event action sequence keys must be strings")
+        if not isinstance(val, pygm_sequence.PyGameMakerEventActionSequence):
+            raise PyGameMakerObjectException("Supplied event action sequence is not a PyGameMakerEventActionSequence instance")
+        self.event_action_sequences[itemname] = val
+        # register our handler for this event
+        new_handler = self.select_event_handler(itemname)
+        if new_handler:
+            self.event_engine.register_event_handler(itemname, new_handler)
+        else:
+            raise PyGameMakerObjectException("PyGameMakerObject does not yet handle '{}' events (NYI)".format(itemname))
+
+    def __delitem__(self, itemname):
+        if itemname in self.event_action_sequences:
+            # stop handling the given event name
+            old_handler = self.select_event_handler(itemname)
+            self.event_engine.unregister_event_handler(itemname, old_handler)
+            # remove the event from the table
+            del(self.event_action_sequences[itemname])
 
     def __repr__(self):
         rpr = "<{} '{}'>".format(type(self).__name__, self.name)
@@ -378,6 +370,14 @@ if __name__ == "__main__":
             )
             self.objects = [PyGameMakerObject("obj_test", self.event_engine,
                 sprite=self.test_sprite)]
+            intersect_sequence = pygm_sequence.PyGameMakerEventActionSequence()
+            intersect_sequence.append_action(
+                pygm_action.PyGameMakerMotionAction('reverse_vertical_speed')
+            )
+            intersect_sequence.append_action(
+                pygm_action.PyGameMakerMotionAction('reverse_horizontal_speed')
+            )
+            self.objects[0]['intersect_boundary'] = intersect_sequence
             print("Setup complete")
         def collect_event(self, event):
             self.current_events.append(event)
