@@ -449,11 +449,17 @@ class PyGameMakerVariableAction(PyGameMakerAction):
         "draw_variable_value"
     ]
     HANDLED_ACTIONS=VARIABLE_ACTIONS
+    VARIABLE_ACTION_DATA_MAP={
+        "set_variable_value": {"variable": "test", "value": 0},
+        "if_variable_value": {"variable": "test", "test": "eq", "value": 0},
+        "draw_variable_value": {"variable": "test", "x": 0, "y": 0}
+    }
 
-    def __init__(self):
+    def __init__(self, action_name, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerVariableAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+            self.VARIABLE_ACTION_DATA_MAP[action_name], **kwargs)
 
 class PyGameMakerAccountingAction(PyGameMakerAction):
     SCORE_ACTIONS=[
