@@ -601,8 +601,8 @@ if __name__ == "__main__":
             pass
 
         def test_003find_action_by_name(self):
-            motion_action = PyGameMakerAction.get_action_instance_by_action_name("set_velocity_compass", direction="DOWN")
-            self.assertEqual(motion_action["direction"], "DOWN")
+            motion_action = PyGameMakerAction.get_action_instance_by_action_name("set_velocity_compass", compass_direction="DOWN")
+            self.assertEqual(motion_action["compass_direction"], "DOWN")
             print("action: {}".format(motion_action))
 
         def test_005valid_motion_action(self):
