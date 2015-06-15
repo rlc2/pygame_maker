@@ -78,6 +78,9 @@ class PyGameMakerSymbolTable(object):
         for var in varlist:
             print("{} = {}".format(var, self._vars[var]))
 
+    def keys(self):
+        return self._vars.keys() + self._consts.keys()
+
     def __setitem__(self, item, val):
         #print("Setting {} to {}".format(item, val))
         # don't allow constants to be written this way
@@ -165,6 +168,7 @@ class PyGameMakerCodeBlock(object):
         "math.pow":         "**"
     }
     SYMBOL_RE=re.compile("_[a-zA-Z][a-zA-Z0-9._]*$")
+    GLOBAL_RE=re.compile("^__")
     RETURN_RE=re.compile("  return ")
 
     def __init__(self, name, module_context, funcmap={}, astree=None):
@@ -209,14 +213,21 @@ class PyGameMakerCodeBlock(object):
              operator need to be added here, since the parser won't add these
              itself. Push these and the right-hand side of the assignment
              (which were already collected in self.scratch) onto the current
-             stack. '=' will always go at the end.
+             stack. '=' will always go at the end. An optional "global" keyword
+             can precede the asignee, to make it part of the global symbol
+             table.
         """
         assign_list = []
+        global_prefix = ""
         for assign_tok in toks.asList():
             for inner_item in assign_tok:
                 if inner_item == '=':
                     break
-                assign_list.append("_{}".format(inner_item))
+                if inner_item == "global":
+                    global_prefix = "_"
+                else:
+                    assign_list.append("{}_{}".format(global_prefix,
+                        inner_item))
             break
         #print("assignment scratch: {}".format(self.scratch))
         self.stack.append(assign_list + list(self.scratch) + ['='])
@@ -687,7 +698,7 @@ class PyGameMakerCodeBlock(object):
                     # '=' must always be the last token for an assignment.
                     #  Time to store the value in the symbol table
                     last_op_val = op_stack[-1]["val"]
-                    last_op_val = "_symbols['{}'] = {}".format(symbol, last_op_val)
+                    last_op_val = "update_symbol(_symbols, '{}', {})".format(symbol, last_op_val)
                     op_stack[-1]['val'] = last_op_val
                     break
                 elif opname == 'return':
@@ -703,7 +714,7 @@ class PyGameMakerCodeBlock(object):
                             func_arg = True
                     if not func_arg:
                         op_stack.append({"type": "int",
-                            "val": "_symbols['{}']".format(opname)})
+                            "val": "get_symbol(_symbols, '{}')".format(opname)})
                     else:
                         op_stack.append({"type": "int",
                             "val": "{}".format(opname)})
@@ -831,13 +842,17 @@ class PyGameMakerCodeBlock(object):
             print("Run program:\n{}".format(pyth_code))
             exec pyth_code in self.module_context.__dict__
 
-    def run(self, sym_table):
+    def run(self, sym_tables):
         """
             run():
             Execute the code block.
+            Parameter:
+             sym_tables (dict): A mapping of 'globals' => global symbol table,
+                                'locals' => local symbol table
         """
+        # @@@@ implement dual symbol tables: global, local
         if "run" in self.module_context.__dict__:
-            self.module_context.run(sym_table)
+            self.module_context.run(sym_tables)
 
     def copyTo(self, other):
         """
@@ -910,9 +925,9 @@ class PyGameMakerLanguageEngine(object):
         functions that can be accessed by and/or created within the code block.
     """
     def __init__(self):
-        self.symbol_table = PyGameMakerSymbolTable()
-        self.symbol_table.setConstant('pi', math.pi)
-        self.symbol_table.setConstant('e', math.e)
+        self.global_symbol_table = PyGameMakerSymbolTable()
+        self.global_symbol_table.setConstant('pi', math.pi)
+        self.global_symbol_table.setConstant('e', math.e)
         self.function_table = {}
         self.functionmap = {
             'distance': { "arglist":
@@ -928,6 +943,7 @@ class PyGameMakerLanguageEngine(object):
             }
         }
         self.code_blocks = {}
+        self.local_tables = {}
 
     def register_code_block(self, block_name, code_string):
         """
@@ -946,14 +962,20 @@ class PyGameMakerLanguageEngine(object):
         code_block_runnable.load(['operator', 'math'])
         self.code_blocks[block_name] = code_block_runnable
 
-    def execute_code_block(self, block_name):
+    def execute_code_block(self, block_name, local_symbol_table):
         """
             execute_code_block():
             Supply the name of a registered code block that will be executed.
         """
         if not block_name in self.code_blocks:
             raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name)))
-        self.code_blocks[block_name].module_context.run(self.symbol_table)
+        if local_symbol_table:
+            if not block_name in self.local_tables:
+                self.local_tables[block_name] = {}
+            self.local_tables[block_name].update(local_symbol_table)
+        symtables = { 'globals': self.global_symbol_table,
+            'locals': local_symbol_table }
+        self.code_blocks[block_name].module_context.run(symtables)
 
 bnf = None
 def BNF(code_block_obj):
@@ -1002,6 +1024,7 @@ def BNF(code_block_obj):
         rpar  = Literal( ")" ).suppress()
         lbrack = Literal( "{" ).suppress()
         rbrack = Literal( "}" ).suppress()
+        glbl = Keyword( "global" )
         boolnot = Keyword( "not" )
         boolor = Keyword( "or" )
         booland = Keyword( "and" )
@@ -1041,7 +1064,7 @@ def BNF(code_block_obj):
         expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
         combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( ( boolop | compareop ) + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
         returnline = Group( ret + combinatorial ).setParseAction(code_block_obj.pushReturn)
-        assignment = Group( ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
+        assignment = Group( Optional( glbl ) + ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
 #        comparison = Forward()
 #        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
         block = Forward()
@@ -1061,6 +1084,13 @@ if __name__ == "__main__":
 
     class TestPyGameMakerLanguageEngine(unittest.TestCase):
 
+        def dumpSymtables(self, symtables):
+            print("Symbol table:")
+            print("globals:")
+            symtables['globals'].dumpVars()
+            print("locals:")
+            symtables['locals'].dumpVars()
+
         def setUp(self):
 
             self.functionmap = {
@@ -1076,7 +1106,8 @@ if __name__ == "__main__":
                 'block': ["time.time", "_return"]
                 }
             }
-            self.sym_table = PyGameMakerSymbolTable()
+            self.sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
             self.module_context = imp.new_module('game_functions')
 
         def test_005valid_assignment(self):
@@ -1084,11 +1115,20 @@ if __name__ == "__main__":
             code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment",
                 self.module_context, simple_line, self.functionmap)
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
-            code_block.run(sym_table)
-            print("Symbol table:")
-            sym_table.dumpVars()
-            self.assertTrue(sym_table['x'] == 49)
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
+            self.assertTrue(sym_tables['locals']['x'] == 49)
+            simple_line2 = "global y = 49"
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment2",
+                self.module_context, simple_line2, self.functionmap)
+            code_block.load(['operator', 'math'])
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
+            self.assertTrue(sym_tables['globals']['y'] == 49)
 
         def test_010valid_conditional(self):
             valid_conditional="""
@@ -1102,11 +1142,11 @@ else { x = 4 }
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
-            code_block.run(sym_table)
-            print("Symbol table:")
-            sym_table.dumpVars()
-            self.assertTrue(sym_table['x'] == 4)
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
+            self.assertTrue(sym_tables['locals']['x'] == 4)
 
         def test_015valid_operations(self):
             valid_operations="""
@@ -1131,16 +1171,16 @@ vz = -2 * 4
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
-            code_block.run(sym_table)
-            print("Symbol table:")
-            sym_table.dumpVars()
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
             answers = {
                 "va": 1, "vb": 0, "vc": 1, "vd": 1, "ve": 0, "vf": 1,
                 "vg": 1, "vh": 0, "vi": 0, "vj": 1,
                 "vv": 2, "vw": 4.0, "vx": 9, "vy": 216, "vz": -8
             }
-            self.assertEqual(sym_table._vars, answers)
+            self.assertEqual(sym_tables['locals']._vars, answers)
 
         def test_020valid_function_def(self):
             valid_function="""
@@ -1150,13 +1190,15 @@ function set_X(number n) { x = n }
                 self.module_context, valid_function, self.functionmap)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
+            exec "from pygame_maker_run_time_support import *\n" in self.module_context.__dict__
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
-            code_block.run(sym_table)
-            self.module_context.userfunc_set_X(sym_table, 20)
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.module_context.userfunc_set_X(sym_tables, 20)
             print("Symbol table:")
-            sym_table.dumpVars()
-            self.assertEqual(sym_table['x'], 20)
+            self.dumpSymtables(sym_tables)
+            self.assertEqual(sym_tables['locals']['x'], 20)
 
         def test_025valid_function_call(self):
             valid_function_call="""
@@ -1167,11 +1209,11 @@ x = distance(12, 19)
             #print("ast:\n{}".format(code_block.astree))
             #print("outer block:\n{}".format(code_block.outer_block))
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
-            code_block.run(sym_table)
-            print("Symbol table:")
-            sym_table.dumpVars()
-            self.assertEqual(sym_table['x'], 7)
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
+            self.assertEqual(sym_tables['locals']['x'], 7)
 
         def test_030invalid_syntax(self):
             module_context = imp.new_module('for_errors')
@@ -1227,9 +1269,10 @@ a = infinite_recursion()
             code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("recursionbomb",
                 module_context, call_stack_error_code, self.functionmap)
             code_block.load(['operator', 'math'])
-            sym_table = PyGameMakerSymbolTable()
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
             with self.assertRaises(pgmrts.PyGameMakerCodeBlockRuntimeError):
-                code_block.run(sym_table)
+                code_block.run(sym_tables)
 
         def test_045language_engine(self):
             language_engine = PyGameMakerLanguageEngine()
@@ -1238,19 +1281,26 @@ a = infinite_recursion()
                 source_string = source_f.read()
             #print("Program:\n{}".format(source_string))
             language_engine.register_code_block("testA", source_string)
+            testa_locals = PyGameMakerSymbolTable()
             another_program_string="""
 radius = 2
 circumference = 2.0 * pi * radius
             """
             language_engine.register_code_block("testB", another_program_string)
-            language_engine.execute_code_block("testB")
-            language_engine.execute_code_block("testA")
-            print("Symbol table:")
-            language_engine.symbol_table.dumpVars()
-            answers = {"radius": 2,
-                "circumference": 2 * math.pi * 2,
-                "a": 26, "b": -259, "x": 64, "y": 12}
-            self.assertEqual(language_engine.symbol_table._vars, answers)
+            testb_locals = PyGameMakerSymbolTable()
+            language_engine.execute_code_block("testB", testb_locals)
+            language_engine.execute_code_block("testA", testa_locals)
+            print("Global symbol table:")
+            language_engine.global_symbol_table.dumpVars()
+            print("test A symbol table:")
+            testa_locals.dumpVars()
+            print("test B symbol table:")
+            testb_locals.dumpVars()
+            testa_answers = { "a": 26, "b": -259, "x": 64, "y": 12 }
+            testb_answers = { "radius": 2,
+                "circumference": 2 * math.pi * 2 }
+            self.assertEqual(testa_locals._vars, testa_answers)
+            self.assertEqual(testb_locals._vars, testb_answers)
 
     unittest.main()
 
