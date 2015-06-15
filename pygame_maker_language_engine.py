@@ -1130,6 +1130,24 @@ if __name__ == "__main__":
             self.dumpSymtables(sym_tables)
             self.assertTrue(sym_tables['globals']['y'] == 49)
 
+        def test_006global_vs_local_symbols(self):
+            symbol_test="""
+global answer = 42
+wrong_answer = 54
+x = wrong_answer - answer
+answer = wrong_answer
+"""
+            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("symbol_tables",
+                self.module_context, symbol_test, self.functionmap)
+            code_block.load(['operator', 'math'])
+            sym_tables = { "globals": PyGameMakerSymbolTable(),
+                "locals": PyGameMakerSymbolTable() }
+            code_block.run(sym_tables)
+            self.dumpSymtables(sym_tables)
+            self.assertTrue(sym_tables['globals']['answer'] == 54)
+            self.assertTrue(sym_tables['locals']['wrong_answer'] == 54)
+            self.assertTrue(sym_tables['locals']['x'] == 12)
+
         def test_010valid_conditional(self):
             valid_conditional="""
 if (4 > 5) { x = 1 }
