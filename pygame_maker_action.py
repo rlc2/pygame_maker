@@ -119,8 +119,16 @@ class PyGameMakerAction(object):
             convenience
         """
         if not itemname in self.action_data:
-            raise PyGameMakerActionException
+            raise KeyError("{}".format(itemname))
         return self.action_data[itemname]
+
+    def __setitem__(self, itemname, value):
+        """
+            Allow action data to be modified.
+        """
+        if not itemname in self.action_data:
+            raise KeyError("{}".format(itemname))
+        self.action_data[itemname] = value
 
     def __repr__(self):
         return "<{} '{}': {}>".format(type(self).__name__, self.name,
@@ -236,8 +244,8 @@ class PyGameMakerObjectAction(PyGameMakerAction):
         "create_object",
         "create_object_with_velocity",
         "create_random_object",
-        "transform_self",
-        "destroy_self",
+        "transform_object",
+        "destroy_object",
         "destroy_instances_at_location"
     ]
     SPRITE_ACTIONS=[
@@ -431,7 +439,7 @@ class PyGameMakerCodeAction(PyGameMakerAction):
     HANDLED_ACTIONS=CODE_ACTIONS
 
     CODE_ACTION_DATA_MAP={
-        "execute_code": {"apply_to": "self", "code": ""},
+        "execute_code": {"apply_to": "self", "code": "", "engine_handle": None},
         "execute_script": {"apply_to": "self", "script": None,
             "parameter_list": []}
     }
@@ -450,8 +458,8 @@ class PyGameMakerVariableAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=VARIABLE_ACTIONS
     VARIABLE_ACTION_DATA_MAP={
-        "set_variable_value": {"variable": "test", "value": 0},
-        "if_variable_value": {"variable": "test", "test": "eq", "value": 0},
+        "set_variable_value": {"variable": "test", "value": 0, "global": False},
+        "if_variable_value": {"variable": "test", "test": "equals", "value": 0},
         "draw_variable_value": {"variable": "test", "x": 0, "y": 0}
     }
 
