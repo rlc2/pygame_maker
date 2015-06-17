@@ -63,6 +63,8 @@ class PyGameMakerEventEngine(object):
                 for handler in self.event_handlers[event_name]:
                     #print("call handler!")
                     handler(queued)
+            # clear the queue
+            del(self.event_queues[event_name])
 
     def transmit_event_type(self, event_type):
         """
