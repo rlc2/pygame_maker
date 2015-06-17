@@ -10,9 +10,15 @@ import pygame
 import math
 import numpy as np
 import pygame_maker_action as pygm_action
+from pygame_maker_language_engine import PyGameMakerSymbolTable
 from numbers import Number
 
 class Coordinate(object):
+    """
+        Coordinate class:
+        This class records an x,y location, and allows for running callback
+         methods when x and/or y are changed.
+    """
     def __init__(self, x=0, y=0, x_change_callback=None, y_change_callback=None):
         self._x = x
         self._y = y
@@ -40,6 +46,10 @@ class Coordinate(object):
             self.y_callback()
         
     def __getitem__(self, itemkey):
+        """
+            __getitem__():
+            Support index form coordinate[0] for x or coordinate[1] for y.
+        """
         if itemkey == 0:
             return self.x
         elif itemkey == 1:
@@ -48,6 +58,10 @@ class Coordinate(object):
             raise IndexError("Coordinates only have indices 0 or 1")
 
     def __setitem__(self, itemkey, value):
+        """
+            __setitem__():
+            Support index form coordinate[0] for x or coordinate[1] for y.
+        """
         if not isinstance(value, Number):
             raise ValueError("Coordinates can only hold numbers")
         if itemkey == 0:
@@ -58,6 +72,10 @@ class Coordinate(object):
             raise IndexError("Coordinates only have indices 0 or 1")
 
     def __len__(self):
+        """
+            __len__():
+            A coordinate always has 2 items: x and y.
+        """
         return 2
 
     def __repr__(self):
@@ -73,7 +91,7 @@ def get_vector_xy_from_speed_direction(speed, angle):
     xy = (xval, yval)
     return np.array(xy)
 
-def get_speed_direction_from_vector(xyvec):
+def get_speed_direction_from_xy(x,y):
     """
         get_speed_direction_from_xy():
         Return speed and direction of motion, given an x,y vector starting from
@@ -81,8 +99,8 @@ def get_speed_direction_from_vector(xyvec):
     """
     speed = 0.0
     direction = 0.0
-    speed = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1])
-    direction = direction_from_a_to_b(np.zeros(2), xyvec)
+    speed = math.sqrt(x * x + y * y)
+    direction = direction_from_a_to_b(np.zeros(2), (x,y))
     spdir = (speed, direction)
     return spdir
 
@@ -148,7 +166,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         """
         pygame.sprite.DirtySprite.__init__(self)
         self.id = id
-        self.symbols = {
+        self._symbols = {
             "speed"             : 0.0,
             "direction"         : 0.0,
             "gravity"           : 0.0,
@@ -160,11 +178,13 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                                   self.round_position_x_to_rect_x,
                                   self.round_position_y_to_rect_y)
         }
+        self.symbols = PyGameMakerSymbolTable()
+        for sym in self._symbols.keys():
+            self.symbols[sym] = self._symbols[sym]
         self.last_adjustment = [0.0, 0.0]
-        self.motion_changed = False
-        self.delay_motion_xy = False
+        self.delay_motion_updates = False
         self.kind = kind
-        self.event_engine = kind.event_engine
+        self.game_engine = kind.game_engine
         self.screen_dims = list(screen_dims)
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
@@ -191,21 +211,64 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # call the superclass __init__
         if kwargs:
             self.apply_kwargs(kwargs)
+        #print("Initial symbols:")
+        #self.symbols.dumpVars()
 
         self.start_position = (self.position.x, self.position.y)
+        self.action_name_to_method_map={
+            'set_velocity_compass': self.set_velocity_compass,
+            'move_toward_point': self.move_toward_point,
+            'set_horizontal_speed': self.set_horizontal_speed,
+            'set_vertical_speed': self.set_vertical_speed,
+            'execute_code': self.execute_code,
+            'if_variable_value': self.if_variable_value,
+            'set_variable_value': self.set_variable_value,
+        }
         #print("{}".format(self))
 
     def change_motion_x_y(self):
+        """
+            change_motion_x_y():
+            Motion is represented as x and y adjustments that are made every
+             update when using the speed/direction model (as opposed to
+             manually changing the position). Caching these values reduces the
+             number of times math functions will be called for object instances
+             with constant velocity.
+        """
         xadj, yadj = get_vector_xy_from_speed_direction(self.symbols['speed'],
             self.symbols['direction'])
         #print("new inst {} xyadj {}, {}".format(self.id, xadj, yadj))
         self.last_adjustment[0] = xadj
         self.last_adjustment[1] = yadj
 
+    def change_hspeed_vspeed(self):
+        """
+            change_hspeed_vspeed():
+            Horizontal and vertical speed components can be read or changed
+             directly. These are cached to reduce the number of times math
+             functions will be called for object instances with constant
+             velocity.
+        """
+        motion_vec = get_vector_xy_from_speed_direction(self.speed,
+            self.direction)
+        self.symbols['hspeed'], self.symbols['vspeed'] = motion_vec
+
     def round_position_x_to_rect_x(self):
+        """
+            round_position_x_to_rect_x():
+            Called when the x coordinate of the position changes, to round
+             the floating-point value to the nearest integer and place it
+             in rect.x for the draw() method.
+        """
         self.rect.x = math.floor(self.position.x + 0.5)
 
     def round_position_y_to_rect_y(self):
+        """
+            round_position_y_to_rect_y():
+            Called when the y coordinate of the position changes, to round
+             the floating-point value to the nearest integer and place it
+             in rect.y for the draw() method.
+        """
         self.rect.y = math.floor(self.position.y + 0.5)
 
     @property
@@ -223,23 +286,25 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         if (new_value > -360.0) and (new_value < 0.0):
             new_value = (360.0 + new_value)
         self.symbols['direction'] = new_value
-        if not self.delay_motion_xy:
+        if not self.delay_motion_updates:
             self.change_motion_x_y()
-        self.motion_changed = True
+            self.change_hspeed_vspeed()
 
     @property
     def speed(self):
+        """Speed property"""
         return self.symbols['speed']
 
     @speed.setter
     def speed(self, value):
         self.symbols['speed'] = value
-        if not self.delay_motion_xy:
+        if not self.delay_motion_updates:
             self.change_motion_x_y()
-        self.motion_changed = True
+            self.change_hspeed_vspeed()
 
     @property
     def position(self):
+        """Position property"""
         return self.symbols['position']
 
     @position.setter
@@ -250,6 +315,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
 
     @property
     def friction(self):
+        """Friction property"""
         return self.symbols['friction']
 
     @friction.setter
@@ -258,6 +324,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
 
     @property
     def gravity(self):
+        """Gravity property"""
         return self.symbols['gravity']
 
     @gravity.setter
@@ -266,6 +333,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
 
     @property
     def gravity_direction(self):
+        """Gravity direction property"""
         return self.symbols['gravity_direction']
 
     @gravity_direction.setter
@@ -281,78 +349,76 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
 
     @property
     def hspeed(self):
-        if self.motion_changed:
-            motion_vec = get_vector_xy_from_speed_direction(self.speed,
-                self.direction)
-            self.symbols['hspeed'] = motion_vec[0]
-            self.motion_changed = False
+        """Horizontal speed property"""
         return self.symbols['hspeed']
 
     @hspeed.setter
     def hspeed(self, value):
-        self.delay_motion_xy = True # don't get the new x,y adjustments twice
+        # skip setting motion x,y and hspeed, vspeed
+        self.delay_motion_updates = True
         self.speed, self.direction = get_speed_direction_from_xy(value,
             self.vspeed)
-        self.delay_motion_xy = False
+        self.delay_motion_updates = False
         self.change_motion_x_y()
-        # motion_changed gets set as a side-effect; cancel it because we
-        #  already know the new value
-        self.motion_changed = False
         self.symbols['hspeed'] = value
 
     @property
     def vspeed(self):
-        if self.motion_changed:
-            motion_vec = get_vector_xy_from_speed_direction(self.speed,
-                self.direction)
-            self.symbols['vspeed'] = motion_vec[1]
-            self.motion_changed = False
+        """Vertical speed property"""
         return self.symbols['vspeed']
 
     @vspeed.setter
     def vspeed(self, value):
-        self.delay_motion_xy = True # don't get the new x,y adjustments twice
+        # skip setting motion x,y and hspeed, vspeed
+        self.delay_motion_updates = True
         self.speed, self.direction = get_speed_direction_from_xy(self.hspeed,
             value)
-        self.delay_motion_xy = False
+        self.delay_motion_updates = False
         self.change_motion_x_y()
-        # motion_changed gets set as a side-effect; cancel it because we
-        #  already know the new value
-        self.motion_changed = False
         self.symbols['vspeed'] = value
 
-    def get_instance_symbols(self):
-        symbols = {}
-        symbols["hspeed"] = self.hspeed
-        symbols["vspeed"] = self.vspeed
-        symbols["x"] = self.position[0]
-        symbols["y"] = self.position[1]
-        symbols["direction"] = self.direction
-        symbols["visible"] = self.visible
-
     def center_point(self):
+        """
+            center_point():
+            Return the approximate center pixel coordinate of the object.
+        """
         center_xy = (self.rect.x + self.rect.width / 2.0,
             self.rect.y + self.rect.height / 2.0)
 
     def apply_kwargs(self, kwargs):
+        """
+            apply_kwargs():
+            Apply the kwargs dict mappings to the instance's properties. Any
+             keys that don't refer to built-in properties (speed, direction,
+             etc) will instead be tracked in the local symbol table to support
+             code execution actions.
+        """
         relative = False
-        if "relative" in kwargs:
+        if "relative" in kwargs.keys():
             relative = kwargs["relative"]
         for kwarg in kwargs.keys():
+            if kwarg == 'relative':
+                continue
             if hasattr(self, kwarg):
                 new_val = kwargs[kwarg]
                 if relative:
                     new_val += getattr(self, kwarg)
-                print("apply_kwargs(): Set {} to {}".format(kwarg, new_val))
+                #print("apply_kwargs(): Set {} to {}".format(kwarg, new_val))
                 setattr(self, kwarg, new_val)
+            else:
+                # keep track of local symbols created by code blocks
+                self.symbols[kwarg] = kwargs[kwarg]
 
     def update(self):
         """
             update():
             Move the instance from its current position using its speed and
-            direction.
+             direction. Queue events for boundary collisions or outside-of-room
+             positions. Make friction and/or gravity changes to speed and/or
+             direction for the next update().
         """
-        if (self.symbols['speed'] > 0.0):
+        event_queued = None
+        if (self.speed > 0.0):
             self.position[0] += self.last_adjustment[0]
             self.position[1] += self.last_adjustment[1]
             self.rect.x = int(math.floor(self.position[0] + 0.5))
@@ -360,61 +426,44 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             if self.visible and self.dirty == 0:
                 self.dirty = 1
             # check for boundary collisions
-            if ((self.rect.x <= 0) or
-                ((self.rect.x + self.rect.width) >= self.screen_dims[0])):
+            # allow boundary collisions for objects completely outside
+            #  the other dimension's boundaries to be ignored; this
+            #  makes intersect_boundary and outside_room mutually exclusive
+            in_x_bounds = (((self.rect.x + self.rect.width) >= 0) and
+                (self.rect.x <= self.screen_dims[0]))
+            in_y_bounds = (((self.rect.y + self.rect.height) >= 0) and
+                (self.rect.y <= self.screen_dims[1]))
+            if ((self.rect.x <= 0 <= (self.rect.x + self.rect.width)) or
+                (self.rect.x <= self.screen_dims[0] <=
+                (self.rect.x + self.rect.width)) and in_y_bounds):
                 # queue and handle boundary collision event (async)
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
-                )
-                self.event_engine.transmit_event("intersect_boundary")
-                print("inst {} hit x bound".format(self.id))
-                # +x direction is to the right
-#                dir_plus_x = ((self.direction < 180.0) and
-#                    (self.direction > 0.0))
-#                if (((self.rect.x <= 0) and not dir_plus_x) or
-#                    (((self.rect.x + self.rect.width) >= self.screen_dims[0])
-#                    and dir_plus_x)):
-#                    new_action = pygm_action.PyGameMakerMotionAction("reverse_horizontal_speed")
-#                    self.execute_action(new_action)
-#                else:
-#                    print("dir_plus_x: {} and x coord {} and dir {}".format(dir_plus_x, self.rect.x, self.direction))
-                #self.speed = 0.0
-            elif ((self.rect.y <= 0) or
-                ((self.rect.y + self.rect.height) >= self.screen_dims[1])):
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
+                #print("inst {} hit x bound".format(self.id))
+            if ((self.rect.y <= 0 <= (self.rect.y + self.rect.height)) or
+                (self.rect.y <= self.screen_dims[1] <=
+                (self.rect.y + self.rect.width)) and in_x_bounds):
                 # queue and handle boundary collision event (async)
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
-                )
-                self.event_engine.transmit_event("intersect_boundary")
-                print("inst {} hit y bound".format(self.id))
-                # +y direction is down
-#                dir_plus_y = ((self.direction > 90.0) and
-#                    (self.direction < 270.0))
-#                if (((self.rect.y <= 0) and not dir_plus_y) or
-#                    (((self.rect.y + self.rect.height) >= self.screen_dims[1])
-#                    and dir_plus_y)):
-#                    new_action = pygm_action.PyGameMakerMotionAction("reverse_vertical_speed")
-#                    self.execute_action(new_action)
-#                else:
-#                    print("dir_plus_y: {} and y coord {} and dir {}".format(dir_plus_y, self.rect.y, self.direction))
+                if not event_queued:
+                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
+                #print("inst {} hit y bound".format(self.id))
             # check for outside room
             if ((self.rect.x > self.screen_dims[0]) or
                 ((self.rect.x + self.rect.width) < 0)):
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
-                    )
-                self.speed = 0.0
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
             if ((self.rect.y > self.screen_dims[1]) or
                 ((self.rect.y + self.rect.height) < 0)):
-                self.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
-                )
-                self.speed = 0.0
+                if not event_queued:
+                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
             #print("inst {} new position: {} ({})".format(self.id,
             #    self.position, self.rect))
         # apply forces for next update
         self.apply_gravity()
         self.apply_friction()
+        # transmit outside_room or intersect_boundary event last
+        if event_queued:
+            self.game_engine.event_engine.queue_event(event_queued)
+            #print("{} transmitting {} event".format(self, event_queued))
+            self.game_engine.event_engine.transmit_event(event_queued.event_name)
 
     def apply_gravity(self):
         """
@@ -435,30 +484,157 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             self.speed = new_speed
 
     def aim_toward_point(self, pointxy):
+        """
+            aim_toward_point():
+            Given an xy iteratable, change the direction of motion toward the
+             given point.
+        """
         self.direction = direction_from_a_to_b(self.center_point(), pointxy)
 
+    def set_velocity_compass(self, action):
+        """
+            set_velocity_compass():
+            Handle the set_velocity_compass action.
+        """
+        # convert compass direction into degrees
+        new_params = dict(action.action_data)
+        new_params["direction"] = 0.0
+        if new_params["compass_direction"] in action.COMPASS_DIRECTIONS:
+            new_params["direction"] = action.COMPASS_DIRECTION_DEGREES[new_params["compass_direction"]]
+        del(new_params["compass_direction"])
+        apply_kwargs(new_params)
+
+    def move_toward_point(self, action):
+        """
+            move_toward_point():
+            Handle the move_toward_point action.
+        """
+        if "destination" in action.action_data:
+            self.delay_motion_updates = True
+            # change direction
+            self.aim_toward_point(action.action_data["destination"])
+            # apply speed parameter
+            self.apply_kwargs({"speed": action.action_data['speed']})
+            self.delay_motion_updates = False
+            self.change_motion_x_y()
+            self.change_hspeed_vspeed()
+
+    def set_horizontal_speed(self, action):
+        """
+            set_horizontal_speed():
+            Handle the set_horizontal_speed action.
+        """
+        relative = False
+        if "relative" in action.action_data:
+            relative = action.action_data["relative"]
+        compass_name = action.action_data["horizontal_direction"]
+        if compass_name in ["LEFT", "RIGHT"]:
+            speed = action.action_data["horizontal_speed"]
+            direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
+            # horiz_vec has only x direction
+            horiz_vec = get_vector_xy_from_speed_direction(speed, direction)
+            new_hspeed = horiz_vec[0]
+            if relative:
+                new_hspeed += self.hspeed
+            self.hspeed = new_hspeed
+
+    def set_vertical_speed(self, action):
+        """
+            set_vertical_speed():
+            Handle the set_vertical_speed action.
+        """
+        relative = False
+        if "relative" in action.action_data:
+            relative = action.action_data["relative"]
+        compass_name = action.action_data["vertical_direction"]
+        if compass_name in ["UP", "DOWN"]:
+            speed = action.action_data["vertical_speed"]
+            direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
+            # vert_vec has only y direction
+            vert_vec = get_vector_xy_from_speed_direction(speed, direction)
+            new_vspeed = vert_vec[1]
+            if relative:
+                new_vspeed += self.vspeed
+            self.vspeed = new_vspeed
+
+    def execute_code(self, action):
+        """
+            execute_code():
+            Handle the execute_code action. Puts local variables into the
+             symbols attribute, which is a symbol table. Applies any built-in
+             local variable changes for the instance (speed, direction, etc.).
+        """
+        if (len(action.action_data['code']) > 0):
+            if not action.action_data['engine_handle']:
+                action.action_data['engine_handle'] = self.game_engine.language_engine.register_code_block(
+                    "{}.inst{}".format(self.kind.name, self.id),
+                    action.action_data['code']
+                )
+            local_symbols = PyGameMakerSymbolTable(self.symbols)
+            self.game_engine.language_engine.execute_code_block(
+                action.action_data['engine_handle'], local_symbols
+            )
+            # apply any local variables contributed by the code block
+            self.apply_kwargs(dict(local_symbols.vars))
+
+    def if_variable_value(self, action):
+        """
+            if_variable_value():
+            Handle the if_variable_value action. Makes use of both the local
+             symbol table in self.symbols, and the global symbol table managed
+             by the language engine.
+        """
+        # look in symbol tables for the answer, local table first
+        var_val = self.symbols.DEFAULT_UNINITIALIZED_VALUE
+        test_result = False
+        if action['variable'] in self.symbols.keys():
+            var_val = self.symbols[action['variable']]
+        elif action['variable'] in self.game_engine.language_engine.global_symbol_table.keys():
+            var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
+        if action['test'] == "equals":
+            if action['value'] == var_val:
+                test_result = True
+        if action['test'] == "not_equals":
+            if action['value'] != var_val:
+                test_result = True
+        if action['test'] == "less_than_or_equals":
+            if action['value'] <= var_val:
+                test_result = True
+        if action['test'] == "less_than":
+            if action['value'] < var_val:
+                test_result = True
+        if action['test'] == "greater_than_or_equals":
+            if action['value'] >= var_val:
+                test_result = True
+        if action['test'] == "greater_than":
+            if action['value'] > var_val:
+                test_result = True
+        action.action_result = test_result
+
+    def set_variable_value(self, action):
+        """
+            set_variable_value():
+            Handle the set_variable_value action.
+        """
+        if action['global']:
+            self.game_engine.language_engine.global_symbol_table[action['variable']] = action['value']
+        else:
+            self.symbols[action['variable']] = action['value']
+
     def execute_action(self, action):
+        """
+            execute_action():
+            Perform the actions instances can do.
+        """
         # apply any setting names that match property names found in the
         #  action_data. For some actions, this is enough
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
-        relative = False
-        if "relative" in action.action_data:
-            relative = action.action_data["relative"]
-        if action.name == "set_velocity_compass":
-            # convert compass direction into degrees
-            new_params = dict(action.action_data)
-            new_params["direction"] = 0.0
-            if new_params["compass_direction"] in action.COMPASS_DIRECTIONS:
-                new_params["direction"] = action.COMPASS_DIRECTION_DEGREES[new_params["compass_direction"]]
-            apply_kwargs(new_params)
-        elif action.name == "move_toward_point":
-            if "destination" in action.action_data:
-                # change direction
-                self.aim_toward_point(action.action_data["destination"])
-                # apply speed parameter
-                self.apply_kwargs(action.action_data)
+        kwargs = dict(action.action_data)
+        del(kwargs['apply_to'])
+        if action.name in self.action_name_to_method_map.keys():
+            self.action_name_to_method_map[action.action_name](action)
         elif action.name == "jump_to_start":
             self.position = self.start_position
         elif action.name == "reverse_horizontal_speed":
@@ -469,32 +645,18 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             old_dir = self.direction
             self.direction = 180.0 - self.direction
             #print("Reverse vdir {} to {}".format(old_dir, self.direction))
-        elif action.name == "set_horizontal_speed":
-            compass_name = action.action_data["horizontal_direction"]
-            if compass_name in ["LEFT", "RIGHT"]:
-                speed = action.action_data["horizontal_speed"]
-                direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
-                # horiz_vec has only x direction
-                horiz_vec = get_vector_xy_from_speed_direction(speed, direction)
-                new_hspeed = horiz_vec[0]
-                if relative:
-                    new_hspeed += self.hspeed
-                self.hspeed = new_hspeed
-        elif action.name == "set_vertical_speed":
-            compass_name = action.action_data["vertical_direction"]
-            if compass_name in ["UP", "DOWN"]:
-                speed = action.action_data["vertical_speed"]
-                direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
-                # vert_vec has only y direction
-                vert_vec = get_vector_xy_from_speed_direction(speed, direction)
-                new_vspeed = vert_vec[1]
-                if relative:
-                    new_vspeed += self.vspeed
-                self.vspeed = new_vspeed
+        elif action.name == "destroy_object":
+            # queue the destroy event for this instance and run it. then remove
+            #  ourselves from our parent object
+            self.game_engine.event_engine.queue_event(
+                self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", { "type": self.kind, "instance": self })
+            )
+            self.game_engine.event_engine.transmit_event("destroy")
+            self.kind.add_instance_to_delete_list(self)
         else:
-            apply_kwargs(action.action_data)
+            apply_kwargs(kwargs)
 
     def __repr__(self):
-        return "<{} @ {} dir {} speed {}>".format(type(self).__name__,
-            self.position, self.direction, self.speed)
+        return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
+            self.id, self.position, self.direction, self.speed)
 
