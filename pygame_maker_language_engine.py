@@ -62,37 +62,37 @@ class PyGameMakerSymbolTable(object):
     DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
     def __init__(self, initial_symbols={}):
-        self._vars = {}
-        self._consts = {}
-        self._consts.update(initial_symbols)
+        self.vars = {}
+        self.consts = {}
+        self.consts.update(initial_symbols)
 
     def dumpVars(self):
-        constlist = list(self._consts.keys())
+        constlist = list(self.consts.keys())
         constlist.sort()
         print("constants:")
         for const in constlist:
-            print("{} = {}".format(const, self._consts[const]))
-        varlist = list(self._vars.keys())
+            print("{} = {}".format(const, self.consts[const]))
+        varlist = list(self.vars.keys())
         varlist.sort()
         print("variables:")
         for var in varlist:
-            print("{} = {}".format(var, self._vars[var]))
+            print("{} = {}".format(var, self.vars[var]))
 
     def keys(self):
-        return self._vars.keys() + self._consts.keys()
+        return self.vars.keys() + self.consts.keys()
 
     def __setitem__(self, item, val):
         #print("Setting {} to {}".format(item, val))
         # don't allow constants to be written this way
-        if not item in self._consts:
-            self._vars[item] = val
+        if not item in self.consts:
+            self.vars[item] = val
 
     def __getitem__(self, item):
         new_val = self.DEFAULT_UNINITIALIZED_VALUE
-        if item in self._consts:
-            new_val = self._consts[item]
-        elif item in self._vars:
-            new_val = self._vars[item]
+        if item in self.consts:
+            new_val = self.consts[item]
+        elif item in self.vars:
+            new_val = self.vars[item]
         #print("Retrieve item {}: {}".format(item, new_val))
         return new_val
 
@@ -102,7 +102,7 @@ class PyGameMakerSymbolTable(object):
             Called from within the game engine to set values that can be
              read from, but not written to, by user code
         """
-        self._consts[constant_name] = constant_value
+        self.consts[constant_name] = constant_value
 
 class PyGameMakerCodeBlock(object):
     """
@@ -1198,7 +1198,7 @@ vz = -2 * 4
                 "vg": 1, "vh": 0, "vi": 0, "vj": 1,
                 "vv": 2, "vw": 4.0, "vx": 9, "vy": 216, "vz": -8
             }
-            self.assertEqual(sym_tables['locals']._vars, answers)
+            self.assertEqual(sym_tables['locals'].vars, answers)
 
         def test_020valid_function_def(self):
             valid_function="""
@@ -1317,8 +1317,8 @@ circumference = 2.0 * pi * radius
             testa_answers = { "a": 26, "b": -259, "x": 64, "y": 12 }
             testb_answers = { "radius": 2,
                 "circumference": 2 * math.pi * 2 }
-            self.assertEqual(testa_locals._vars, testa_answers)
-            self.assertEqual(testb_locals._vars, testb_answers)
+            self.assertEqual(testa_locals.vars, testa_answers)
+            self.assertEqual(testb_locals.vars, testb_answers)
 
     unittest.main()
 
