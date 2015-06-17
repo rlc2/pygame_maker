@@ -111,28 +111,28 @@ if __name__ == "__main__":
 
         def test_010event_handling(self):
             self.called_events = []
-            self.event_engine.register_event_handler('left_pressed',
+            self.event_engine.register_event_handler('mouse_left_pressed',
                 lambda name: self.event_handler(name, 'hdlr1'))
-            self.event_engine.register_event_handler('left_pressed',
+            self.event_engine.register_event_handler('mouse_left_pressed',
                 lambda name: self.event_handler(name, 'hdlr2'))
             self.event_engine.register_event_handler('normal_step',
                 lambda name: self.event_handler(name, 'hdlr1'))
             self.event_engine.queue_event(pygm_event.PyGameMakerStepEvent('begin_step'))
-            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('left_pressed', { "x":20, "y":42 } ))
-            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('left_pressed', { "x":40, "y":62 } ))
-            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('left_pressed', { "x":0, "y":0 } ))
+            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('mouse_left_pressed', { "x":20, "y":42 } ))
+            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('mouse_left_pressed', { "x":40, "y":62 } ))
+            self.event_engine.queue_event(pygm_event.PyGameMakerMouseEvent('mouse_left_pressed', { "x":0, "y":0 } ))
             self.event_engine.queue_event(pygm_event.PyGameMakerStepEvent('normal_step'))
             self.event_engine.transmit_event('begin_step')
-            self.event_engine.transmit_event('left_pressed')
+            self.event_engine.transmit_event('mouse_left_pressed')
             self.event_engine.transmit_event('normal_step')
             print("event handler calls:\n{}".format(self.called_events))
             expected_calls = [
-                '<PyGameMakerMouseEvent "left_pressed" x=20,y=42> hdlr1',
-                '<PyGameMakerMouseEvent "left_pressed" x=20,y=42> hdlr2',
-                '<PyGameMakerMouseEvent "left_pressed" x=40,y=62> hdlr1',
-                '<PyGameMakerMouseEvent "left_pressed" x=40,y=62> hdlr2',
-                '<PyGameMakerMouseEvent "left_pressed" x=0,y=0> hdlr1',
-                '<PyGameMakerMouseEvent "left_pressed" x=0,y=0> hdlr2',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=20,y=42> hdlr1',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=20,y=42> hdlr2',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=40,y=62> hdlr1',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=40,y=62> hdlr2',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=0,y=0> hdlr1',
+                '<PyGameMakerMouseEvent "mouse_left_pressed" x=0,y=0> hdlr2',
                 '<PyGameMakerStepEvent "normal_step"> hdlr1'
             ]
             self.assertEqual(self.called_events, expected_calls)
