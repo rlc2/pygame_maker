@@ -113,6 +113,11 @@ class PyGameMakerAction(object):
             if param in self.action_data:
                 self.action_data[param] = kwargs[param]
 
+    def to_yaml(self):
+        yaml_str = "action_name: {}\n".format(self.name)
+        for act_key in self.action_data.keys():
+            yaml_str += "{}: {}\n".format(act_key, self.action_data[act_key])
+
     def __getitem__(self, itemname):
         """
             Forward PyGameMakerAction[key] to the action_data member for
