@@ -8,7 +8,6 @@
 
 import pygame
 import re
-import weakref
 import pygame_maker_action as pygm_action
 
 class PyGameMakerEventActionSequenceStatementException(Exception):
@@ -154,18 +153,6 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
     def __init__(self, action):
         PyGameMakerEventActionSequenceConditional.__init__(self, action)
         self.else_condition = None
-
-    def add_else(self, else_statement):
-        """
-            add_else():
-            Currently unused. Places an 'else' action in the else slot for
-            the 'if' conditional.
-        """
-        if not isinstance(else_statement, PyGameMakerEventActionSequenceConditionalElse):
-            raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceConditionalElse".format(else_statement)))
-        if self.else_condition:
-            raise(PyGameMakerEventActionSequenceStatementException("{}: already contains an else clause".format(self.action)))
-        self.else_condition = else_statement
 
     def add_statement(self, statement):
         """
