@@ -144,8 +144,8 @@ class PyGameMakerMotionAction(PyGameMakerAction):
         "set_velocity_compass",
         "set_velocity_degrees",
         "move_toward_point",
-        "move_horizontal",
-        "move_vertical",
+        "set_horizontal_speed",
+        "set_vertical_speed",
         "apply_gravity",
         "reverse_horizontal_speed",
         "reverse_vertical_speed",
@@ -157,7 +157,7 @@ class PyGameMakerMotionAction(PyGameMakerAction):
         "jump_random",
         "snap_to_grid",
         "wrap_around",
-        "jump_to_collider",
+        "move_until_collision",
         "bounce_off_collider"
     ]
     PATH_ACTIONS=[
