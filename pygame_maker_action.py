@@ -117,6 +117,7 @@ class PyGameMakerAction(object):
         yaml_str = "action_name: {}\n".format(self.name)
         for act_key in self.action_data.keys():
             yaml_str += "{}: {}\n".format(act_key, self.action_data[act_key])
+        return yaml_str
 
     def __getitem__(self, itemname):
         """
