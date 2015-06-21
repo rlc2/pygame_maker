@@ -8,6 +8,7 @@
 
 import pygame
 import re
+import yaml
 import pygame_maker_action as pygm_action
 
 class PyGameMakerEventActionSequenceStatementException(Exception):
@@ -369,6 +370,27 @@ class PyGameMakerEventActionSequence(object):
         Store a list of the actions that are triggered by an event
     """
 
+    @staticmethod
+    def load_sequence_from_yaml_obj(sequence_repr):
+        """
+            load_sequence_from_yaml_obj():
+            Create an event action sequence from its YAML representation.
+            The expected format is as follows:
+            [{<action_name>: { <action_param>:<action_value> .. }, ..., ]
+        """
+        new_sequence = None
+        if len(sequence_repr) > 0:
+            new_sequence = PyGameMakerEventActionSequence()
+            for action_hash in sequence_repr:
+                action_name = action_hash.keys()[0]
+                action_params = {}
+                if action_hash[action_name] and len(action_hash[action_name]) > 0:
+                    action_params.update(action_hash[action_name])
+                next_action = pygm_action.PyGameMakerAction.get_action_instance_by_action_name(action_name, **action_params)
+                #print("New action: {}".format(next_action))
+                new_sequence.append_action(next_action)
+        return new_sequence
+
     def __init__(self):
         """
             main_block: the container for the top-level statements
@@ -386,6 +408,19 @@ class PyGameMakerEventActionSequence(object):
         for next_action in self.main_block.walk():
             if next_action != None:
                 yield next_action
+
+    def to_yaml(self, indent=0):
+        action_list = self.main_block.get_action_list()
+        sequence_yaml=""
+        indent_str = " "*indent
+        for action in action_list:
+            action_yaml_lines = action.to_yaml(indent).splitlines()
+            for idx, aline in enumerate(action_yaml_lines):
+                if idx == 0:
+                    sequence_yaml += "- {}\n".format(aline)
+                else:
+                    sequence_yaml += "  {}\n".format(aline)
+        return sequence_yaml
 
     def pretty_print(self):
         self.main_block.pretty_print()
@@ -596,6 +631,26 @@ if __name__ == "__main__":
             with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
                 action_sequence.append_action("this is not an action!")
 
+        def test_020to_and_from_yaml(self):
+            action_list = [
+                pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
+                pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
+                    sound="sound1"),
+                pygm_action.PyGameMakerSoundAction("stop_sound",
+                    sound="sound1"),
+                pygm_action.PyGameMakerOtherAction("else"),
+                pygm_action.PyGameMakerSoundAction("play_sound",
+                    sound="sound1"),
+            ]
+            action_sequence = PyGameMakerEventActionSequence()
+            for act in action_list:
+                action_sequence.append_action(act)
+            print("{}".format(action_sequence.to_yaml()))
+            yaml_out = yaml.load(action_sequence.to_yaml())
+            print("{}".format(yaml_out))
+            new_seq = PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(yaml_out)
+            self.assertEqual(action_list, new_seq.main_block.get_action_list())
+            new_seq.pretty_print()
 
     unittest.main()
 
