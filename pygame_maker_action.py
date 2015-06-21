@@ -73,6 +73,7 @@ class PyGameMakerAction(object):
         "block_end"
     ]
     IF_STATEMENT_RE=re.compile("^if_")
+    TUPLE_RE=re.compile("\(([^)]+)\)")
 
     action_type_registry = []
 
@@ -99,6 +100,7 @@ class PyGameMakerAction(object):
         """
         self.name = action_name
         self.action_data = {}
+        self.runtime_data = {}
         self.action_data.update(action_data)
         # default: don't nest subsequent action(s)
         minfo = self.IF_STATEMENT_RE.search(action_name)
@@ -113,10 +115,23 @@ class PyGameMakerAction(object):
             if param in self.action_data:
                 self.action_data[param] = kwargs[param]
 
-    def to_yaml(self):
-        yaml_str = "action_name: {}\n".format(self.name)
+    def to_yaml(self, indent=0):
+        indent_str=" "*indent
+        yaml_str = "{}{}:\n".format(indent_str, self.name)
         for act_key in self.action_data.keys():
-            yaml_str += "{}: {}\n".format(act_key, self.action_data[act_key])
+            value = self.action_data[act_key]
+            value_str = "{}".format(value)
+            minfo = self.TUPLE_RE.search(value_str)
+            if minfo:
+                value_str = "[{}]".format(minfo.group(1))
+            val_lines = value_str.splitlines()
+            if len(val_lines) > 1:
+                yaml_str += "{}  {}: |\n".format(indent_str, act_key)
+                for vline in val_lines:
+                    yaml_str += "{}    {}\n".format(indent_str, vline)
+            else:
+                yaml_str += "{}  {}: {}\n".format(indent_str, act_key,
+                    value_str)
         return yaml_str
 
     def __getitem__(self, itemname):
@@ -124,16 +139,22 @@ class PyGameMakerAction(object):
             Forward PyGameMakerAction[key] to the action_data member for
             convenience
         """
+        val = None
         if not itemname in self.action_data:
-            raise KeyError("{}".format(itemname))
-        return self.action_data[itemname]
+            if not itemname in self.runtime_data:
+                raise KeyError("{}".format(itemname))
+            val = self.runtime_data[itemname]
+        else:
+            val = self.action_data[itemname]
+        return val
 
     def __setitem__(self, itemname, value):
         """
             Allow action data to be modified.
         """
         if not itemname in self.action_data:
-            raise KeyError("{}".format(itemname))
+            # fall back to runtime data. this is data that is not serialized.
+            self.runtime_data[itemname] = value
         self.action_data[itemname] = value
 
     def __repr__(self):
@@ -445,7 +466,7 @@ class PyGameMakerCodeAction(PyGameMakerAction):
     HANDLED_ACTIONS=CODE_ACTIONS
 
     CODE_ACTION_DATA_MAP={
-        "execute_code": {"apply_to": "self", "code": "", "engine_handle": None},
+        "execute_code": {"apply_to": "self", "code": ""},
         "execute_script": {"apply_to": "self", "script": None,
             "parameter_list": []}
     }
@@ -608,6 +629,7 @@ PyGameMakerAction.register_new_action_type(PyGameMakerDrawAction)
 
 if __name__ == "__main__":
     import unittest
+    import yaml
 
     class TestPyGameMakerAction(unittest.TestCase):
 
@@ -656,6 +678,38 @@ if __name__ == "__main__":
             self.assertEqual(if_sound_action.name, "if_sound_is_playing")
             self.assertFalse(if_sound_action["invert"])
             self.assertTrue(if_sound_action2["invert"])
+
+        def test_035to_yaml(self):
+            test_action = PyGameMakerMotionAction('jump_to', relative=True)
+            test_yaml="""  jump_to:
+    apply_to: self
+    position: [0, 0]
+    relative: True
+"""
+            self.assertEqual(test_action.to_yaml(2), test_yaml)
+            yaml_in = yaml.load(test_action.to_yaml())
+            print("{}".format(yaml_in))
+            print("{}".format(test_action.to_yaml(2)))
+            code_str="""code line 1
+code line 2
+  indented line 1
+  indented line 2
+code line 3"""
+            test_action2 = PyGameMakerCodeAction('execute_code',
+                code=code_str)
+            test_yaml2="""  execute_code:
+    apply_to: self
+    code: |
+      code line 1
+      code line 2
+        indented line 1
+        indented line 2
+      code line 3
+"""
+            self.assertEqual(test_action2.to_yaml(2), test_yaml2)
+            yaml_in2 = yaml.load(test_action2.to_yaml())
+            print("{}".format(yaml_in2))
+            print("{}".format(test_action2.to_yaml(2)))
 
     unittest.main()
 
