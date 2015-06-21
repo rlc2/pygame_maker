@@ -8,6 +8,7 @@
 
 import pygame
 import math
+import random
 import numpy as np
 import pygame_maker_action as pygm_action
 from pygame_maker_language_engine import PyGameMakerSymbolTable
@@ -114,13 +115,6 @@ def direction_from_a_to_b(pointa, pointb):
     """
     normal_vector = np.array(pointb[:2]) - np.array(pointa[:2])
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
-#    x1 = pointa[0]
-#    x2 = pointb[0]
-#    y1 = pointa[1]
-#    y2 = pointb[1]
-#    x_shift = x2 - x1
-#    y_shift = y2 - y1
-#    return (math.atan2(y_shift, x_shift) * 180) / math.pi
 
 class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
     """
@@ -224,6 +218,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             'if_variable_value': self.if_variable_value,
             'set_variable_value': self.set_variable_value,
         }
+        self._code_block_id = 0
         #print("{}".format(self))
 
     def change_motion_x_y(self):
@@ -270,6 +265,12 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              in rect.y for the draw() method.
         """
         self.rect.y = math.floor(self.position.y + 0.5)
+
+    @property
+    def code_block_id(self):
+        """Return a unique code block id"""
+        self._code_block_id += 1
+        return self._code_block_id
 
     @property
     def direction(self):
@@ -495,13 +496,27 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         """
             set_velocity_compass():
             Handle the set_velocity_compass action.
+            Possible directions:
+            NONE: don't set the direction, just the speed
+            -or- '|' separated list of possible directions to be chosen at
+             random: UP, UPLEFT, UPRIGHT, RIGHT, DOWN, DOWNLEFT, DOWNRIGHT, LEFT
         """
         # convert compass direction into degrees
         new_params = dict(action.action_data)
         new_params["direction"] = 0.0
-        if new_params["compass_direction"] in action.COMPASS_DIRECTIONS:
-            new_params["direction"] = action.COMPASS_DIRECTION_DEGREES[new_params["compass_direction"]]
-        del(new_params["compass_direction"])
+        if new_params["compass_directions"] != "NONE":
+            dirs = new_params['compass_directions'].split('|')
+            dir_count = len(dirs)
+            new_dir = 0
+            if dir_count > 1:
+                new_dir = random.randint(0, dir_count-1)
+            if dirs[new_dir] in action.COMPASS_DIRECTIONS:
+                # convert direction name to degrees
+                new_params["direction"] = action.COMPASS_DIRECTION_DEGREES[dirs[new_dir]]
+            elif dirs[new_dir] == "STOP":
+                # if stop was selected, set speed to zero
+                new_params['speed'] = 0
+        del(new_params["compass_directions"])
         apply_kwargs(new_params)
 
     def move_toward_point(self, action):
@@ -565,14 +580,14 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              local variable changes for the instance (speed, direction, etc.).
         """
         if (len(action.action_data['code']) > 0):
-            if not action.action_data['engine_handle']:
-                action.action_data['engine_handle'] = self.game_engine.language_engine.register_code_block(
-                    "{}.inst{}".format(self.kind.name, self.id),
-                    action.action_data['code']
+            instance_handle_name = "obj{}.block{}".format(self.kind.name, self.code_block_id)
+            if not 'language_engine_handle' in action.runtime_data:
+                action.action_data['language_engine_handle'] = self.game_engine.language_engine.register_code_block(
+                    instance_handle_name, action.action_data['code']
                 )
             local_symbols = PyGameMakerSymbolTable(self.symbols)
             self.game_engine.language_engine.execute_code_block(
-                action.action_data['engine_handle'], local_symbols
+                action.action_data['language_engine_handle'], local_symbols
             )
             # apply any local variables contributed by the code block
             self.apply_kwargs(dict(local_symbols.vars))

@@ -27,6 +27,7 @@ class PyGameMakerAction(object):
     DEFAULT_PRECISION_TYPE="imprecise"
     COMPASS_DIRECTIONS=[
         "NONE",
+        "STOP",
         "UPLEFT",
         "UP",
         "UPRIGHT",
@@ -199,7 +200,7 @@ class PyGameMakerMotionAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=MOVE_ACTIONS + JUMP_ACTIONS + PATH_ACTIONS + STEP_ACTIONS
     MOTION_ACTION_DATA_MAP={
-        "set_velocity_compass": {"apply_to": "self", "compass_direction":"UP",
+        "set_velocity_compass": {"apply_to": "self", "compass_directions":"NONE",
             "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
         "set_velocity_degrees": {"apply_to": "self",
             "direction": PyGameMakerAction.DEFAULT_DIRECTION,
@@ -637,8 +638,8 @@ if __name__ == "__main__":
             pass
 
         def test_003find_action_by_name(self):
-            motion_action = PyGameMakerAction.get_action_instance_by_action_name("set_velocity_compass", compass_direction="DOWN")
-            self.assertEqual(motion_action["compass_direction"], "DOWN")
+            motion_action = PyGameMakerAction.get_action_instance_by_action_name("set_velocity_compass", compass_directions="DOWN")
+            self.assertEqual(motion_action["compass_directions"], "DOWN")
             print("action: {}".format(motion_action))
 
         def test_005valid_motion_action(self):
