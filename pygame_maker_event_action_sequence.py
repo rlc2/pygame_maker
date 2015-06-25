@@ -369,6 +369,7 @@ class PyGameMakerEventActionSequence(object):
     """
         Store a list of the actions that are triggered by an event
     """
+    FIRST_ITEM_RE=re.compile("^\s*([^ ])")
 
     @staticmethod
     def load_sequence_from_yaml_obj(sequence_repr):
@@ -416,8 +417,17 @@ class PyGameMakerEventActionSequence(object):
         for action in action_list:
             action_yaml_lines = action.to_yaml(indent).splitlines()
             for idx, aline in enumerate(action_yaml_lines):
+                sline = str(aline)
                 if idx == 0:
-                    sequence_yaml += "- {}\n".format(aline)
+                    minfo = self.FIRST_ITEM_RE.search(aline)
+                    #print("first item match for '{}': {}".format(aline, minfo))
+                    if minfo:
+                        mpos = minfo.start(1)
+                        #print("match pos:{}".format(mpos))
+                        sline = "{}- {}".format(aline[0:mpos],aline[mpos:])
+                    else:
+                        sline = "- {}".format(aline)
+                    sequence_yaml += "{}\n".format(sline)
                 else:
                     sequence_yaml += "  {}\n".format(aline)
         return sequence_yaml
