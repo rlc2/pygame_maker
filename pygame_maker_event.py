@@ -452,7 +452,7 @@ class PyGameMakerCollisionEvent(PyGameMakerEvent):
         """
         PyGameMakerEvent.__init__(self, event_name, event_params)
         ev_info = PyGameMakerCollisionEvent.find_collision_event(event_name)
-        self.event_name = ev_info[0]
+        #self.event_name = ev_info[0]
         self.collision_object_name = ev_info[1]
 
     def __repr__(self):
@@ -506,7 +506,7 @@ if __name__ == "__main__":
         def test_012valid_collision_events(self):
             good_event5 = PyGameMakerCollisionEvent("collision_obj1")
             print(good_event5)
-            self.assertEqual(good_event5.event_name, "collision")
+            self.assertEqual(good_event5.event_name, "collision_obj1")
             self.assertEqual(good_event5.collision_object_name, "obj1")
 
         def test_015valid_mouse_events(self):
