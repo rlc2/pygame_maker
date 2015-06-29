@@ -105,6 +105,9 @@ def get_speed_direction_from_xy(x,y):
     spdir = (speed, direction)
     return spdir
 
+def get_radius_angle_from_xy(x,y):
+    return get_speed_direction_from_xy(x,y)
+
 def direction_from_a_to_b(pointa, pointb):
     """
         direction_from_a_to_b():
@@ -192,6 +195,10 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.image = kind.get_image()
         if self.image:
             self.rect = self.image.get_rect()
+            self.mask = self.kind.mask
+            if self.kind.radius:
+                # disk collision type; get the predefined radius for collisions
+                self.radius = self.kind.radius
         else:
             self.rect = pygame.Rect(0,0,0,0)
         if kind.sprite_resource:
@@ -378,9 +385,9 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.change_motion_x_y()
         self.symbols['vspeed'] = value
 
-    def center_point(self):
+    def get_center_point(self):
         """
-            center_point():
+            get_center_point():
             Return the approximate center pixel coordinate of the object.
         """
         center_xy = (self.rect.x + self.rect.width / 2.0,
@@ -490,7 +497,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             Given an xy iteratable, change the direction of motion toward the
              given point.
         """
-        self.direction = direction_from_a_to_b(self.center_point(), pointxy)
+        self.direction = direction_from_a_to_b(self.get_center_point(), pointxy)
 
     def set_velocity_compass(self, action):
         """
