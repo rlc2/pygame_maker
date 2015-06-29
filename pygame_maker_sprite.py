@@ -101,7 +101,8 @@ class PyGameMakerSprite(object):
         self.preload_texture = True
         self.transparency_pixel = False
         self.origin = (0,0)
-        self.collision_type = "rectangle"
+        self._collision_type = "rectangle"
+        self.collision_mask = None
         self.bounding_box_type = "automatic"
         self.manual_bounding_box_rect = pygame.Rect(0, 0, 0, 0)
         if "filename" in kwargs:
@@ -154,6 +155,16 @@ class PyGameMakerSprite(object):
         self.image = None
         self.image_size = (0,0)
         self.bounding_box_rect = None
+
+    @property
+    def collision_type(self):
+        return self._collision_type
+
+    @collision_type.setter
+    def collision_type(self, value):
+        if not value in (self.COLLISION_TYPES):
+            raise PyGameMakerSpriteException("Unknown collision type '{}'".format(value))
+        self._collision_type = value
 
     def setup(self):
         """Perform any tasks that can be done before the main program loop, but only after pygame init"""
@@ -342,8 +353,8 @@ if __name__ == "__main__":
         def test_020broken_sprites(self):
             bad_origin = PyGameMakerSprite("spr_bad2", origin="foo")
             self.assertRaises(PyGameMakerSpriteException, bad_origin.check_origin)
-            bad_colltype = PyGameMakerSprite("spr_bad3", collision_type="bar")
-            self.assertRaises(PyGameMakerSpriteException, bad_colltype.check_collision_type)
+            with self.assertRaises(PyGameMakerSpriteException):
+                bad_colltype = PyGameMakerSprite("spr_bad3", collision_type="bar")
             bad_bbtype = PyGameMakerSprite("spr_bad4", bounding_box_type="baz")
             self.assertRaises(PyGameMakerSpriteException, bad_bbtype.check_bounding_box)
             bad_bbdim = PyGameMakerSprite("spr_bad5")
