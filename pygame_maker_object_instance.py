@@ -186,11 +186,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
         self.visible = kind.visible
-        if self.visible:
-            # instance was never drawn, consider it "dirty"
-            self.dirty = 1
-        else:
-            self.dirty = 0
         # copy this instance's image and Rect from the sprite resource
         self.image = kind.get_image()
         if self.image:
@@ -199,11 +194,9 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             if self.kind.radius:
                 # disk collision type; get the predefined radius for collisions
                 self.radius = self.kind.radius
+            self.source_rect = pygame.Rect(self.kind.bounding_box_rect)
         else:
             self.rect = pygame.Rect(0,0,0,0)
-        if kind.sprite_resource:
-            self.source_rect = pygame.Rect(kind.sprite_resource.bounding_box_rect)
-        else:
             self.source_rect = pygame.Rect(0,0,0,0)
         self.blendmode = 0
         # use the instance type's 'depth' parameter as the layer for this
@@ -227,6 +220,19 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         }
         self._code_block_id = 0
         #print("{}".format(self))
+
+    @property
+    def visible(self):
+        return(self._visible)
+
+    @visible.setter
+    def visible(self, is_visible):
+        vis = (is_visible == True)
+        if vis:
+            self.dirty = 2
+        else:
+            self.dirty = 0
+        self._visible = vis
 
     def change_motion_x_y(self):
         """
@@ -431,8 +437,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             self.position[1] += self.last_adjustment[1]
             self.rect.x = int(math.floor(self.position[0] + 0.5))
             self.rect.y = int(math.floor(self.position[1] + 0.5))
-            if self.visible and self.dirty == 0:
-                self.dirty = 1
             # check for boundary collisions
             # allow boundary collisions for objects completely outside
             #  the other dimension's boundaries to be ignored; this
