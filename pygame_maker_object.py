@@ -7,6 +7,7 @@
 # pygame maker object resource
 
 import pygame
+import math
 import re
 import yaml
 import pygame_maker_object_instance as pygm_instance
@@ -18,6 +19,93 @@ import pygame_maker_event_action_sequence as pygm_sequence
 
 class PyGameMakerObjectException(Exception):
     pass
+
+def sprite_collision_test(sprite_a, sprite_b):
+    if sprite_a == sprite_b:
+        return False
+    coll_types = (sprite_a.kind.sprite_resource.collision_type,
+        sprite_b.kind.sprite_resource.collision_type)
+    # simple cases first: both rectangular or disk collision types
+    if coll_types == ("rectangle", "rectangle"):
+        return pygame.sprite.collide_rect(sprite_a, sprite_b)
+    elif coll_types == ("disk", "disk"):
+        return pygame.sprite.collide_circle(sprite_a, sprite_b)
+    else:
+        # any mismatches fall back to mask collisions
+        return pygame.sprite.collide_mask(sprite_a, sprite_b)
+
+def mask_from_surface(surface, threshold = 127):
+    """
+        mask_from_surface():
+        Create a precise mask of pixels with alpha greater than threshold (for
+         a surface with an alpha channel), or of pixels that don't match the
+         color key. Borrowed from pygame's mask.py demo code. For some reason,
+         this works and pygame.mask.from_surface() doesn't for the sample
+         image used in the demo code below.
+    """
+    mask = pygame.mask.Mask(surface.get_size())
+    key = surface.get_colorkey()
+    if key:
+        for y in range(surface.get_height()):
+            for x in range(surface.get_width()):
+                if surface.get_at((x,y)) != key:
+                    mask.set_at((x,y),1)
+    else:
+        for y in range(surface.get_height()):
+            for x in range (surface.get_width()):
+                if surface.get_at((x,y))[3] > threshold:
+                    mask.set_at((x,y),1)
+    return mask
+
+def get_collision_normal(instance_a, instance_b):
+    """
+        get_collision_normal():
+        Get an approximate collision normal between overlapping instances,
+         from instance_a's perspective.
+    """
+    offset = get_offset_between_instances(instance_a, instance_b)
+    overlap = get_mask_overlap(instance_a, instance_b)
+    if overlap == 0:
+        # no collision here..
+        return None
+    nx = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+        (offset[0]+1,offset[1]))-
+        instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+            (offset[0]-1,offset[1])))
+    ny = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+        (offset[0],offset[1]+1))-
+        instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+            (offset[0],offset[1]-1)))
+    if (nx == 0) and (ny == 0):
+        # can't get a normal when one object is inside another..
+        return None
+    n = (nx,ny)
+    return n
+
+def get_offset_between_instances(instance_a, instance_b):
+    """
+        get_offset_between_instances():
+        Return the position offset between instance_a and instance_b from
+         instance_a's perspective.
+    """
+    instance_a_pos = (instance_a.rect.x, instance_a.rect.y)
+    instance_b_pos = (instance_b.rect.x, instance_b.rect.y)
+    offset = (instance_b_pos[0]-instance_a_pos[0],
+        instance_b_pos[1]-instance_a_pos[1])
+    return offset
+
+def get_mask_overlap(instance_a, instance_b):
+    """
+        get_mask_overlap():
+        Return the number of pixels that overlap between instance_a and
+         instance_b
+    """
+    offset = get_offset_between_instances(instance_a, instance_b)
+    overlap = instance_a.kind.mask.overlap_area(instance_b.kind.mask, offset)
+    return overlap
+
+def dot_product(v1,v2):
+    return v1[0]*v2[0]+v1[1]*v2[1]
 
 class PyGameMakerObject(object):
     """
@@ -55,6 +143,7 @@ class PyGameMakerObject(object):
         "create": pygm_event.PyGameMakerObjectStateEvent,
         "image_loaded": pygm_event.PyGameMakerOtherEvent,
         "destroy": pygm_event.PyGameMakerObjectStateEvent,
+        "collision": pygm_event.PyGameMakerCollisionEvent,
     }
 
     @staticmethod
@@ -104,6 +193,8 @@ class PyGameMakerObject(object):
                     #print("Found '{}', passing {} to load..".format(kwarg, yaml_repr[top_level][kwarg]))
                     for ev_seq in yaml_repr[top_level]["events"]:
                         kwargs["event_action_sequences"][ev_seq] = pygm_sequence.PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(yaml_repr[top_level]['events'][ev_seq])
+                        print("Loaded sequence {}:".format(ev_seq))
+                        kwargs["event_action_sequences"][ev_seq].pretty_print()
             return PyGameMakerObject(obj_name, game_engine, **kwargs)
         return None
 
@@ -134,8 +225,11 @@ class PyGameMakerObject(object):
             self.name = self.DEFAULT_OBJECT_PREFIX
         self.game_engine = game_engine
         self.sprite_resource = self.DEFAULT_SPRITE_RESOURCE
+        self.image = None
+        self.bounding_box_rect = None
         self.mask = None
-        self.visible = self.DEFAULT_VISIBLE
+        self.radius = None
+        self._visible = self.DEFAULT_VISIBLE
         self.solid = self.DEFAULT_SOLID
         self.depth = self.DEFAULT_DEPTH
         # begin inside a collection containing only our own type
@@ -158,7 +252,7 @@ class PyGameMakerObject(object):
         if kwargs:
             for kw in kwargs:
                 if kw == "visible":
-                    self.visible = (kwargs["visible"] == True)
+                    self.visible = kwargs["visible"]
                 if kw == "solid":
                     self.solid = (kwargs["solid"] == True)
                 if kw == "depth":
@@ -179,6 +273,18 @@ class PyGameMakerObject(object):
                         self[ev_name] = ev_dict[ev_name]
 
         #print("Finished setup of {}".format(self.name))
+
+    @property
+    def visible(self):
+        return(self._visible)
+
+    @visible.setter
+    def visible(self, is_visible):
+        vis = (is_visible == True)
+        if self._visible != vis:
+            self._visible = vis
+            for instance in self.group:
+                instance.visible = is_visible
 
     def to_yaml(self):
         """
@@ -232,11 +338,58 @@ class PyGameMakerObject(object):
         self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create", { "type": self, "instance": new_instance }))
         self.game_engine.event_engine.transmit_event('create')
 
+    def collision_check(self, other_obj_types):
+        """
+            collision_check():
+            Check for collisions between this and other object types' instances,
+             and queue collision events when detected.
+            Parameters:
+            other_obj_types (sequence): A list of other PyGameMakerObjects
+             to test for collisions with this one.
+            Return value:
+             A list of collision event names that were queued (empty if none).
+        """
+        collision_types_queued = []
+        for other_obj in other_obj_types:
+            other_obj.group = other_obj.group
+            if len(other_obj.group) == 0:
+                continue
+            if (len(self.group) == 1) and self.name == other_obj.name:
+                # skip self collision detection if there's only one sprite
+                continue
+            collision_map = pygame.sprite.groupcollide(self.group,
+                other_obj.group, 0, 0, collided=sprite_collision_test)
+            for collider in collision_map.keys():
+                # in the event of a collision with a solid object (i.e.
+                #  stationary), kick the sprite outside of the other
+                #  object's collision mask
+                for other_inst in collision_map[collider]:
+                    if other_inst.kind.solid:
+                        overlap = get_mask_overlap(collider, other_inst)
+                        collision_normal = get_collision_normal(collider,
+                            other_inst)
+                        if collision_normal:
+                            distance = (overlap /
+                                dot_product(collision_normal,
+                                collision_normal))
+                            collider.position.x = distance * collision_normal[0]
+                            collider.position.y = distance * collision_normal[1]
+                collision_name = "collision_{}".format(other_obj.name)
+                if not collision_name in collision_types_queued:
+                    collision_types_queued.append(collision_name)
+                #print("Queue collision {}".format(collision_name))
+                self.game_engine.event_engine.queue_event(
+                    self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
+                    { "type": self, "instance": collider,
+                    "others": collision_map[collider] })
+                )
+        return collision_types_queued
+
     def update(self):
         """
             update():
-            Call to perform position updates for all instances. The sprite
-            group handles this for us.
+            Call to perform position updates for all instances. After all
+             instances have updated, handle any queued deletions.
         """
         if len(self.group) > 0:
             self.group.update()
@@ -254,21 +407,148 @@ class PyGameMakerObject(object):
         if len(self.group) > 0:
             self.group.draw(surface)
 
+    def create_rectangle_mask(self, orig_rect):
+        """
+            create_rectangle_mask():
+            Create a rectangular mask that covers the opaque pixels of an
+             object. Normally, collisions between objects with collision_type
+             "rectangle" will use the rectangle collision test, which only needs
+             the rect attribute. The mask is created in the event this object
+             collides with an object that has a different collision_type, in
+             which case the objects fall back to using a mask collision test.
+             The assumption is that the user wants a simple collision model, so
+             the mask is made from the rect attribute, instead of creating an
+             exact mask from the opaque pixels in the image.
+            Parameters:
+             orig_rect (pygame.Rect): The Rect for the image
+        """
+        self.mask = pygame.mask.Mask( (orig_rect.width, orig_rect.height) )
+        self.mask.fill()
+
+    def get_disk_radius(self, precise_mask, orig_rect):
+        """
+            get_disk_radius():
+            Calculate the radius of a circle that covers the opaque pixels in
+             precise_mask.
+            Parameters:
+             precise_mask (pygame.mask.Mask): The precise mask for every opaque
+              pixel in the image. If the original image was circular, this can
+              aid in creating in a more accurate circular mask.
+             orig_rect (pygame.Rect): The Rect for the image
+        """
+        radius = 0
+        # find the radius of a circle that contains bound_rect for the worst
+        #  case
+        disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
+        bound_rect = self.bounding_box_rect
+        bound_right = bound_rect.x + bound_rect.width
+        bound_bottom = bound_rect.y + bound_rect.height
+        left_center_distance = abs(disk_mask_center[0]-bound_rect.x)
+        right_center_distance = abs(disk_mask_center[0]-bound_right)
+        top_center_distance = abs(disk_mask_center[1]-bound_rect.y)
+        bottom_center_distance = abs(disk_mask_center[1]-bound_bottom)
+        largest_x_distance = max(left_center_distance, right_center_distance)
+        largest_y_distance = max(top_center_distance, bottom_center_distance)
+        max_bound_radius = math.sqrt(largest_x_distance*largest_x_distance +
+            largest_y_distance*largest_y_distance)
+        # determine whether a smaller radius could be used (i.e.
+        #  no corner pixels within the bounding rect are set)
+        max_r = 0
+        for y in range(bound_rect.y, bound_rect.height):
+            for x in range(bound_rect.x, bound_rect.width):
+                circ_x = disk_mask_center[0]-x
+                circ_y = disk_mask_center[1]-y
+                if precise_mask.get_at((x,y)) > 0:
+                    r = math.sqrt(circ_x*circ_x + circ_y*circ_y)
+                    if r > max_r:
+                        max_r = r
+        bound_radius = max_bound_radius
+        if (max_r > 0) and (max_r < max_bound_radius):
+            bound_radius = max_r
+        radius = int(math.ceil(bound_radius))
+        self.radius = radius
+        return radius
+
+    def create_disk_mask(self, orig_rect):
+        """
+            create_disk_mask():
+            Create a circular mask that covers the opaque pixels of an object.
+             Normally, collisions between objects with collision_type "disk"
+             will use the circle collision test, which only needs the radius
+             attribute. The mask is created in the event this object collides
+             with an object that has a different collision_type, in which case
+             the objects fall back to using a mask collision test. The
+             assumption is that the user wants a simple collision model, so
+             the mask is made from a circle of the right radius, instead of
+             creating an exact mask from the opaque pixels in the image.
+            Parameters:
+             radius (int): The disk radius centered at the center x,y of the
+              image
+             orig_rect (pygame.Rect): The Rect for the image
+        """
+        # create a disk mask with a radius sufficient to cover the
+        #  opaque pixels
+        # NOTE: collisions with objects that have a different collision type
+        #  will use this mask; the mask generated here won't fill the sprite's
+        #  radius, but will be a circle with the correct radius that is clipped
+        #  at the sprite's rect dimensions
+        disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
+        disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height),
+            depth=8)
+        disk_mask_surface.set_colorkey(pygame.Color("#000000"))
+        disk_mask_surface.fill(pygame.Color("#000000"))
+        pygame.draw.circle(disk_mask_surface,
+            pygame.Color("#ffffff"), disk_mask_center, self.radius)
+        self.mask = mask_from_surface(disk_mask_surface)
+
     def get_image(self):
         """
             Called by instances of this Object type, to get a new copy of
-            the sprite resource's image. Also, make sure the image has been
-            loaded now that an instance with this image has been created.
+             the sprite resource's image. Loads the image when the first
+             instance using this image is created. Also, handle the
+             collision type and create a collision mask.
         """
         if self.sprite_resource:
             if not self.sprite_resource.image:
                 self.sprite_resource.load_graphic()
+                original_image = self.sprite_resource.image
+                precise_mask = mask_from_surface(original_image)
+                bound_rect = self.sprite_resource.bounding_box_rect
+                self.image = original_image.copy()
+                orig_rect = original_image.get_rect()
+                if (orig_rect.width == 0) or (orig_rect.height == 0):
+                    raise PyGameMakerObjectException("Found broken sprite resource when creating instance")
+                if (bound_rect.width == 0) or (bound_rect.height == 0):
+                    # use the dimensions of the loaded graphic for the bounding
+                    #  rect in case there's a problem with the sprite resources'
+                    #  bounding rect
+                    bound_rect = orig_rect
+                self.bounding_box_rect = bound_rect
+                max_r = 0
+                precise_mask_ctr = (orig_rect.width/2, orig_rect.height/2)
+                print("bounded dimensions: {}".format(bound_rect))
+                # create a mask based on the collision type
+                print("Sprite collision type: {}".format(self.sprite_resource.collision_type))
+                print("Sprite dimensions: {}".format(orig_rect))
+                # set a mask regardless of the collision type, to enable
+                #  collision checks between objects that have different types
+                if self.sprite_resource.collision_type == "precise":
+                    self.mask = precise_mask
+                elif self.sprite_resource.collision_type == "rectangle":
+                    self.create_rectangle_mask(orig_rect)
+                elif self.sprite_resource.collision_type == "disk":
+                    radius = self.get_disk_radius(precise_mask, orig_rect)
+                    self.create_disk_mask(orig_rect)
+                else:
+                    # other collision types are not supported, fall back to
+                    #  rectangle
+                    self.create_rectangle_mask(orig_rect, bound_rect)
                 # queue the image_loaded event
                 self.game_engine.event_engine.queue_event(
                     self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
                         { "type": self, "sprite": self.sprite_resource })
                 )
-            return self.sprite_resource.image.copy()
+            return self.image
         else:
             return None
 
@@ -295,10 +575,9 @@ class PyGameMakerObject(object):
         if not 'apply_to' in action.action_data:
             return apply_to_instances
         if action["apply_to"] == "other":
-            if 'other' in event:
-                # receiving an "other" instance is uncommon. ignore actions
-                #  that apply to "other" if an "other" instance isn't supplied
-                apply_to_instances = [event['other']]
+            if 'others' in event:
+                # "others" are part of a collision event
+                apply_to_instances = event['others']
         elif action["apply_to"] != "self":
             # applies to an object type; this means apply it to all instances
             #  of that object
@@ -309,9 +588,9 @@ class PyGameMakerObject(object):
     def execute_action_sequence(self, event):
         """
             execute_action_sequence():
-            The sausage factory method. Events come in and the event handler
+            The sausage factory method. When an event comes in the event handler
              calls this to walk through the event action sequence associated
-             with this event. There are many types of actions; the object
+             with the event. There are many types of actions; the object
              instance actions make the most sense to handle here, but the
              game engine that inspired this one uses a model in which a hidden
              manager object type triggers actions that affect other parts
@@ -321,11 +600,11 @@ class PyGameMakerObject(object):
         if event.event_name in self.event_action_sequences:
             for action in self.event_action_sequences[event.event_name].get_next_action():
                 #print("Action {}".format(action))
-                #print("Action {} applies to {}".format(action, affected_instance_list))
                 # forward instance actions to instance(s)
                 if "apply_to" in action.action_data:
                     affected_instance_list = self.get_applied_instance_list(action,
                         event)
+                    #print("Action {} applies to {}".format(action, affected_instance_list))
                     for target in affected_instance_list:
                         #print("applying to {}".format(target))
                         target.execute_action(action)
@@ -368,7 +647,7 @@ class PyGameMakerObject(object):
             Execute the action sequence associated with the collision event,
              if the name of the object collided with is part of the event's name
         """
-        pass
+        self.execute_action_sequence(event)
 
     def handle_step_event(self, event):
         """
@@ -485,6 +764,23 @@ if __name__ == "__main__":
             self.sprites = {}
             self.sounds = {}
             self.objects = {}
+            self.mask_surface = None
+
+        def draw_mask(self, surf, objtype):
+            if not self.mask_surface and objtype.mask:
+                mask_dims = objtype.mask.get_size()
+                print("Mask size: {}".format(mask_dims))
+                self.mask_surface = pygame.Surface(mask_dims, depth=8)
+                self.mask_surface.fill(pygame.Color("#000000"))
+                self.mask_surface.lock()
+                for y in range(0, mask_dims[1]):
+                    for x in range(0, mask_dims[0]):
+                        if objtype.mask.get_at( (x,y) ):
+                            self.mask_surface.set_at( (x,y),
+                                pygame.Color("#ffffff"))
+                self.mask_surface.unlock()
+            if self.mask_surface:
+                surf.blit(self.mask_surface, (5,5))
 
         def execute_action(self, action):
             #print("Engine recieved action: {}".format(action))
@@ -505,9 +801,14 @@ if __name__ == "__main__":
             print("Manager init complete")
         def setup(self, screen):
             self.screen = screen
-            self.game_engine.sprites['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/Ball.png")
+            self.game_engine.sprites['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
+            self.game_engine.sprites['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="rectangle")
             self.game_engine.sounds['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
+            self.game_engine.sounds['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
             self.game_engine.objects['obj_test'] = PyGameMakerObject.load_obj_type_from_yaml_file(OBJ_TEST_FILE, self.game_engine)
+            self.game_engine.objects['obj_solid'] = PyGameMakerObject("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
+            self.game_engine.objects['obj_solid'].create_instance(self.screen,
+                position=(308,228))
             print("Setup complete")
         def collect_event(self, event):
             self.current_events.append(event)
@@ -529,9 +830,22 @@ if __name__ == "__main__":
             self.current_events = []
             for obj_name in self.game_engine.objects.keys():
                 self.game_engine.objects[obj_name].update()
+            # check for object instance collisions
+            obj_types = self.game_engine.objects.values()
+            collision_types = []
+            for obj_name in self.game_engine.objects.keys():
+                collision_types += self.game_engine.objects[obj_name].collision_check(obj_types)
+            if len(collision_types) > 0:
+                for coll_type in collision_types:
+                    self.game_engine.event_engine.transmit_event(coll_type)
         def draw_objects(self):
             for obj_name in self.game_engine.objects.keys():
                 self.game_engine.objects[obj_name].draw(self.screen)
+            self.game_engine.draw_mask(self.screen,
+                self.game_engine.objects['obj_test'])
+            if self.game_engine.objects['obj_test'].image:
+                self.screen.blit(self.game_engine.objects['obj_test'].image,
+                    (5,5))
         def draw_background(self):
             self.screen.fill(pg_template.PygameTemplate.BLACK)
         def is_done(self):
