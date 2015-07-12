@@ -184,16 +184,6 @@ class PyGameMakerSprite(object):
             else:
                 self.bounding_box_rect = self.manual_bounding_box_rect
 
-    def get_extents_from_position(self, pos):
-        """Find furthest left, right, top, and bottom pixel locations for sprite from supplied (x, y) position
-            pos: (x, y) tuple
-            returns a dict {"left": int, "right": int, "top": int, "bottom": int}
-        """
-        left_extent = 0
-        right_extent = 0
-        top_extent = 0
-        bottom_extent = 0
-
     def set_defaults(self):
         """Reset the sprite's parameters to defaults"""
         self.filename = ""
