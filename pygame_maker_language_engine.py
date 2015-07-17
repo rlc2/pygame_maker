@@ -63,8 +63,8 @@ class PyGameMakerSymbolTable(object):
 
     def __init__(self, initial_symbols={}):
         self.vars = {}
+        self.vars.update(initial_symbols)
         self.consts = {}
-        self.consts.update(initial_symbols)
 
     def dumpVars(self):
         constlist = list(self.consts.keys())
