@@ -413,12 +413,23 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         for kwarg in kwargs.keys():
             if kwarg == 'relative':
                 continue
-            if hasattr(self, kwarg):
+            attrs = kwarg.split('.')
+            if hasattr(self, attrs[0]):
                 new_val = kwargs[kwarg]
-                if relative:
-                    new_val += getattr(self, kwarg)
-                #print("apply_kwargs(): Set {} to {}".format(kwarg, new_val))
-                setattr(self, kwarg, new_val)
+                if len(attrs) == 1:
+                    old_val = getattr(self, kwarg)
+                    if relative:
+                        new_val += getattr(self, kwarg)
+                    if (new_val != old_val):
+                        #print("apply_kwargs(): Set {} to {}".format(kwarg, new_val))
+                        setattr(self, kwarg, new_val)
+                elif len(attrs) == 2:
+                    main_attr = getattr(self, attrs[0])
+                    old_val = getattr(main_attr, attrs[1])
+                    if relative:
+                        new_val += old_val
+                    if (new_val != old_val):
+                        setattr(main_attr, attrs[1], new_val)
             else:
                 # keep track of local symbols created by code blocks
                 self.symbols[kwarg] = kwargs[kwarg]
@@ -591,16 +602,20 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              local variable changes for the instance (speed, direction, etc.).
         """
         if (len(action.action_data['code']) > 0):
-            instance_handle_name = "obj{}.block{}".format(self.kind.name, self.code_block_id)
+            instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
             if not 'language_engine_handle' in action.runtime_data:
-                action.action_data['language_engine_handle'] = self.game_engine.language_engine.register_code_block(
+                action['language_engine_handle'] = instance_handle_name
+                print("action {} runtime: '{}'".format(action, action.runtime_data))
+                self.game_engine.language_engine.register_code_block(
                     instance_handle_name, action.action_data['code']
                 )
             local_symbols = PyGameMakerSymbolTable(self.symbols)
+            #print("syms before code block: {}".format(local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
-                action.action_data['language_engine_handle'], local_symbols
+                action['language_engine_handle'], local_symbols
             )
             # apply any local variables contributed by the code block
+            #print("Code block vars: {}".format(local_symbols.vars))
             self.apply_kwargs(dict(local_symbols.vars))
 
     def if_variable_value(self, action):
@@ -660,7 +675,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         kwargs = dict(action.action_data)
         del(kwargs['apply_to'])
         if action.name in self.action_name_to_method_map.keys():
-            self.action_name_to_method_map[action.action_name](action)
+            self.action_name_to_method_map[action.name](action)
         elif action.name == "jump_to_start":
             self.position = self.start_position
         elif action.name == "reverse_horizontal_speed":

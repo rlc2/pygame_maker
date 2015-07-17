@@ -192,6 +192,7 @@ class PyGameMakerObject(object):
                 elif kwarg == "events":
                     #print("Found '{}', passing {} to load..".format(kwarg, yaml_repr[top_level][kwarg]))
                     for ev_seq in yaml_repr[top_level]["events"]:
+                        print("create sequence from '{}'".format(yaml_repr[top_level]['events'][ev_seq]))
                         kwargs["event_action_sequences"][ev_seq] = pygm_sequence.PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(yaml_repr[top_level]['events'][ev_seq])
                         print("Loaded sequence {}:".format(ev_seq))
                         kwargs["event_action_sequences"][ev_seq].pretty_print()
@@ -609,6 +610,7 @@ class PyGameMakerObject(object):
                         #print("applying to {}".format(target))
                         target.execute_action(action)
                 else:
+                    #print("calling game engine execute_action for {}".format(action))
                     self.game_engine.execute_action(action)
 
     def handle_instance_event(self, event):
@@ -639,7 +641,23 @@ class PyGameMakerObject(object):
              if the exact key event is handled by this object (which key,
              press/release)
         """
-        pass
+        #print("Received event {}".format(event))
+        matched_seq = None
+        for ev_seq in self.event_action_sequences.keys():
+            #print("match {} vs {}".format(ev_seq, event.event_name))
+            if ev_seq.find(event.event_name) == 0:
+                # found this event in the list, find out if it's the right type
+                if (ev_seq == event.event_name) or ev_seq.endswith('_keydn'):
+                    if event.key_event_type == "down":
+                        matched_seq = event.event_name
+                        break
+                elif (ev_seq.endswith('_keyup') and 
+                    (event.key_event_type == "up")):
+                    matched_seq = event.event_name
+                    break
+        if matched_seq:
+            #print("executing {} event sequence")
+            self.execute_action_sequence(event)
 
     def handle_collision_event(self, event):
         """
@@ -765,6 +783,8 @@ if __name__ == "__main__":
             self.sounds = {}
             self.objects = {}
             self.mask_surface = None
+            self.last_key_down = None
+            self.screen = None
 
         def draw_mask(self, surf, objtype):
             if not self.mask_surface and objtype.mask:
@@ -787,7 +807,30 @@ if __name__ == "__main__":
             if action.name == "play_sound":
                 if (len(action['sound']) > 0) and (action['sound'] in self.sounds.keys()):
                     self.sounds[action['sound']].play_sound()
-                    
+            if action.name == "create_object":
+                if (self.screen and (len(action['object']) > 0) and
+                    (action['object'] in self.objects.keys())):
+                    self.objects[action['object']].create_instance(self.screen)
+
+        def send_key_event(self, pygame_key, up_down):
+            pk_map = pygm_event.PyGameMakerKeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
+            key_event_init_name = None
+            key_event_name = None
+            if not pygame_key:
+                key_event_init_name = "kb_no_key"
+                key_event_name = key_event_init_name
+            elif pygame_key in pk_map:
+                key_event_name = str(pk_map[pygame_key])
+                if up_down == pygame.KEYDOWN:
+                    key_event_init_name = "{}_keydn".format(pk_map[pygame_key])
+                elif up_down == pygame.KEYUP:
+                    key_event_init_name = "{}_keyup".format(pk_map[pygame_key])
+            ev = pygm_event.PyGameMakerKeyEvent(key_event_init_name)
+            #print("queue event: {}".format(ev))
+            self.event_engine.queue_event(ev)
+            #print("xmit event: {}".format(key_event_name))
+            self.event_engine.transmit_event(key_event_name)
+
     class TestGameManager(object):
         LEFT_MARGIN = 10
         TOP_MARGIN  = 8
@@ -801,14 +844,21 @@ if __name__ == "__main__":
             print("Manager init complete")
         def setup(self, screen):
             self.screen = screen
+            self.game_engine.screen = screen
             self.game_engine.sprites['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
             self.game_engine.sprites['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="rectangle")
             self.game_engine.sounds['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
             self.game_engine.sounds['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
             self.game_engine.objects['obj_test'] = PyGameMakerObject.load_obj_type_from_yaml_file(OBJ_TEST_FILE, self.game_engine)
             self.game_engine.objects['obj_solid'] = PyGameMakerObject("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
+            # this doubles as a solid object and as the manager object
             self.game_engine.objects['obj_solid'].create_instance(self.screen,
                 position=(308,228))
+            self.game_engine.objects['obj_solid']['kb_enter'] = pygm_sequence.PyGameMakerEventActionSequence()
+            self.game_engine.objects['obj_solid']['kb_enter'].append_action(
+                pygm_action.PyGameMakerObjectAction("create_object",
+                    object='obj_test')
+            )
             print("Setup complete")
         def collect_event(self, event):
             self.current_events.append(event)
@@ -818,14 +868,16 @@ if __name__ == "__main__":
                     if ev.key == pygame.K_ESCAPE:
                         self.done = True
                         break
-                    elif ev.key == pygame.K_RETURN:
-                        # create a new object instance
-                        posn = (float(random.randint(0, self.screen.get_width())),
-                            float(random.randint(0, self.screen.get_height())))
-                        self.game_engine.objects['obj_test'].create_instance(self.screen,
-                            speed=random.random(),
-                            direction=(360.0 * random.random()),
-                            position=posn)
+                    else:
+                        self.game_engine.send_key_event(ev.key, pygame.KEYDOWN)
+#                    elif ev.key == pygame.K_RETURN:
+#                        # create a new object instance
+#                        posn = (float(random.randint(0, self.screen.get_width())),
+#                            float(random.randint(0, self.screen.get_height())))
+#                        self.game_engine.objects['obj_test'].create_instance(self.screen,
+#                            speed=random.random(),
+#                            direction=(360.0 * random.random()),
+#                            position=posn)
             # done with event handling
             self.current_events = []
             for obj_name in self.game_engine.objects.keys():

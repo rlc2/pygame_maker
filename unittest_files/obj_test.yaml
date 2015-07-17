@@ -4,6 +4,15 @@ obj_test:
   depth: 0
   sprite: spr_test
   events:
+    create:
+      - execute_code:
+          apply_to: self
+          code: |
+            # set random position, speed, and direction
+            position.x = randint(640)
+            position.y = randint(480)
+            direction = randint(360)
+            speed = randint(1000.0) / 1000.0
     destroy:
       - if_sound_is_playing:
           sound: snd_explosion
