@@ -283,15 +283,15 @@ class PyGameMakerObjectAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=OBJECT_ACTIONS + SPRITE_ACTIONS
     OBJECT_ACTION_DATA_MAP={
-        "create_object": {"apply_to": "self", "object": None,
+        "create_object": {"object": None,
             "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "relative": False},
-        "create_object_with_velocity": {"apply_to": "self", "object": None,
+        "create_object_with_velocity": {"object": None,
             "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "speed": PyGameMakerAction.DEFAULT_SPEED,
             "direction": PyGameMakerAction.DEFAULT_DIRECTION,
             "relative": False},
-        "create_random_object": {"apply_to": "self",
+        "create_random_object": {
             "position": PyGameMakerAction.DEFAULT_POINT_XY,
             "object_list": [], "relative": False},
         "transform_object": {"apply_to": "self", "object": None,
