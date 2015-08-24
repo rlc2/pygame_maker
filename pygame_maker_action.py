@@ -7,9 +7,15 @@
 # represent a PyGameMaker action that executes following an event
 
 import pygame
+import yaml
 import re
+import sys
+from pygame_maker_language_engine import PyGameMakerSymbolTable
 
 class PyGameMakerActionException(Exception):
+    pass
+
+class PyGameMakerActionParameterException(Exception):
     pass
 
 class PyGameMakerAction(object):
@@ -48,7 +54,7 @@ class PyGameMakerAction(object):
         "LEFT"      : 270
     }
     HORIZONTAL_DIRECTIONS=["LEFT", "RIGHT"]
-    VERTICAL_DIRECTIONS=["LEFT", "RIGHT"]
+    VERTICAL_DIRECTIONS=["UP", "DOWN"]
     WRAP_DIRECTIONS=[
         "HORIZONTAL",
         "VERTICAL",
@@ -73,8 +79,82 @@ class PyGameMakerAction(object):
         "nest_until_block_end",
         "block_end"
     ]
+    COMMON_DATA_YAML="""
+common_parameters:
+    common_apply_to:
+        type: from_list
+        default: self
+        accepted_list:
+            - self
+            - other
+            - object_name
+    common_relative:
+        type: bool
+        default: False
+    common_speed:
+        type: float
+        default: '0.0'
+    common_position:
+        type: int
+        default: '0'
+    common_compass_direction:
+        type: from_list
+        default: none
+        accepted_list:
+            - none
+            - stop
+            - upleft
+            - up
+            - upright
+            - right
+            - downright
+            - down
+            - downleft
+            - left
+    common_collision_type:
+        type: from_list
+        default: solid
+        accepted_list:
+            - solid
+            - any
+    common_object:
+        type: str
+        default: ''
+    common_transition:
+        type: from_list
+        default: None
+        accepted_list:
+            - none
+            - create_from_left
+            - create_from_right
+            - create_from_top
+            - create_from_bottom
+            - create_from_center
+            - shift_from_left
+            - shift_from_right
+            - shift_from_top
+            - shift_from_bottom
+            - interlaced_from_left
+            - interlaced_from_right
+            - interlaced_from_top
+            - interlaced_from_bottom
+    common_invert:
+        type: bool
+        default: False
+    common_test:
+        type: from_list
+        default: equals
+        accepted_list:
+            - equals
+            - not_equals
+            - less_than
+            - less_than_or_equals
+            - greater_than
+            - greater_than_or_equals
+"""
     IF_STATEMENT_RE=re.compile("^if_")
     TUPLE_RE=re.compile("\(([^)]+)\)")
+    COMMON_RE=re.compile("^common_")
 
     action_type_registry = []
 
@@ -87,22 +167,31 @@ class PyGameMakerAction(object):
         cls.action_type_registry.append(actiontype)
 
     @classmethod
-    def get_action_instance_by_action_name(cls, action_name, **kwargs):
+    def get_action_instance_by_action_name(cls, action_name, settings_dict={},
+        **kwargs):
         if len(cls.action_type_registry) > 0:
             for atype in cls.action_type_registry:
                 if action_name in atype.HANDLED_ACTIONS:
-                    return atype(action_name, **kwargs)
+                    return atype(action_name, settings_dict, **kwargs)
         # no action type handles the named action
         raise PyGameMakerActionException("Action '{}' is unknown".format(action_name))
 
-    def __init__(self, action_name="", action_data={}, **kwargs):
+    def __init__(self, action_name, action_yaml, settings_dict={}, **kwargs):
         """
             Supply the basic properties for all actions
         """
         self.name = action_name
         self.action_data = {}
+        self.action_constraints = {}
         self.runtime_data = {}
-        self.action_data.update(action_data)
+        args = {}
+        args.update(settings_dict)
+        args.update(kwargs)
+        data_map, data_constraints = self.collect_parameter_yaml_info(action_yaml+self.COMMON_DATA_YAML)
+        if action_name in data_map:
+            self.action_data.update(data_map[action_name])
+        if action_name in data_constraints:
+            self.action_constraints.update(data_constraints[action_name])
         # default: don't nest subsequent action(s)
         minfo = self.IF_STATEMENT_RE.search(action_name)
         if minfo or (action_name == "else"):
@@ -112,14 +201,106 @@ class PyGameMakerAction(object):
                 self.action_result = True
         else:
             self.nest_adjustment = None
-        for param in kwargs:
+        for param in args:
             if param in self.action_data:
-                self.action_data[param] = kwargs[param]
+                self.action_data[param] = args[param]
+
+    def check_value_vs_constraint(self, value, constraint):
+        fall_back_to_code_block = False
+        typed_val = None
+        if constraint['type'] == 'int':
+            try:
+                typed_val = int(value)
+            except:
+                fall_back_to_code_block = True
+        elif constraint['type'] == 'float':
+            try:
+                typed_val = float(value)
+            except:
+                fall_back_to_code_block = True
+        elif constraint['type'] == 'bool':
+            typed_val = bool(value)
+        elif constraint['type'] == 'from_list':
+            if not value in constraint['accepted_list']:
+                print("WARNING: default value '{}' is not in the list of accepted values '{}'".format(par_val['default'], par_val['accepted_list']))
+
+    def collect_parameter_yaml_info(self, yaml_str):
+        action_map = {}
+        action_constraints = {}
+        yaml_obj = yaml.load(yaml_str)
+        common_params = yaml_obj['common_parameters']
+        #print("Got common params:\n{}".format(common_params))
+        for action in yaml_obj['actions'].keys():
+            action_map[action] = {}
+            for par in yaml_obj['actions'][action]:
+                par_val = yaml_obj['actions'][action][par]
+                if not isinstance(par_val, dict):
+                    minfo = self.COMMON_RE.search(par_val)
+                    if minfo:
+                        action_map[action][par] = common_params[par_val]['default']
+                        action_constraints[action] = common_params[par_val]
+                elif len(par_val.keys()) > 0:
+                    if par_val['type'] == "from_list":
+                        if not par_val['default'] in par_val['accepted_list']:
+                            print("WARNING: default value '{}' is not in the list of accepted values '{}'".format(par_val['default'], par_val['accepted_list']))
+                    action_map[action][par] = par_val['default']
+                    action_constraints[action] = par_val
+        #print("Got action_map:\n{}".format(action_map))
+        #print("Got action_constraints:\n{}".format(action_constraints))
+        parm_info = (action_map, action_constraints)
+        return parm_info
+
+    def get_parameter_expression_result(self, field_name, symbols,
+        language_engine):
+        """
+            get_parameter_expression_result():
+            Given a field name possibly containing an expression, register the
+            expression with the language engine and execute the code, and
+            return the result. Using spreadsheet formula scheme for indication
+            an expression to execute: first char is '='.
+             Parameters:
+              field_name (string): The field containing the expression
+              symbols (PyGameMakerSymbolTable): The symbols available to the
+               code block
+              language_engine (PyGameMakerLanguageEngine): The language engine
+               instance
+             Returns:
+              The result from the expression
+        """
+        result = None
+        if (not isinstance(self.action_data[field_name], str) or
+            (self.action_data[field_name][0] != '=')):
+            # not an expression, so just return the contents of the field
+            return self.action_data[field_name]
+        exp_name = "{}_block".format(field_name)
+        #print("check for code block {}".format(exp_name))
+        # create a hopefully unique symbol to store the expression result in
+        sym_name = "intern_{}_{}".format(field_name, hash(field_name))
+        #print("sym_name: {}".format(sym_name))
+        if not exp_name in self.runtime_data.keys():
+            # create an entry in the action data that points to a
+            #  hopefully unique name that will be registered with the language
+            #  engine
+            exp_id = "{}_{}_{}".format(self.name,
+                re.sub("\.", "_", field_name), id(self))
+            #print("register new code block {}".format(exp_id))
+            expression_code = "{} = {}".format(sym_name,
+                self.action_data[field_name][1:])
+            language_engine.register_code_block(exp_id, expression_code)
+            self.runtime_data[exp_name] = exp_id
+        # execute the expression and collect its result
+        local_symbols = PyGameMakerSymbolTable(symbols)
+        language_engine.execute_code_block(self.runtime_data[exp_name],
+            local_symbols)
+        #print("{} = {}".format(sym_name, local_symbols[sym_name]))
+        return local_symbols[sym_name]
 
     def to_yaml(self, indent=0):
         indent_str=" "*indent
         yaml_str = "{}{}:\n".format(indent_str, self.name)
-        for act_key in self.action_data.keys():
+        keylist = self.action_data.keys()
+        keylist.sort()
+        for act_key in keylist:
             value = self.action_data[act_key]
             value_str = "{}".format(value)
             minfo = self.TUPLE_RE.search(value_str)
@@ -199,72 +380,155 @@ class PyGameMakerMotionAction(PyGameMakerAction):
         "step_toward_point_around_objects"
     ]
     HANDLED_ACTIONS=MOVE_ACTIONS + JUMP_ACTIONS + PATH_ACTIONS + STEP_ACTIONS
-    MOTION_ACTION_DATA_MAP={
-        "set_velocity_compass": {"apply_to": "self", "compass_directions":"NONE",
-            "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
-        "set_velocity_degrees": {"apply_to": "self",
-            "direction": PyGameMakerAction.DEFAULT_DIRECTION,
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "relative": False},
-        "move_toward_point": {"apply_to": "self",
-            "destination": PyGameMakerAction.DEFAULT_POINT_XY,
-            "speed": PyGameMakerAction.DEFAULT_SPEED, "relative": False},
-        "set_horizontal_speed": {"apply_to": "self",
-            "horizontal_direction": "RIGHT",
-            "horizontal_speed": PyGameMakerAction.DEFAULT_SPEED,
-            "relative": False},
-        "set_vertical_speed": {"apply_to": "self", "vertical_direction": "DOWN",
-            "vertical_speed": PyGameMakerAction.DEFAULT_SPEED,
-            "relative": False},
-        "apply_gravity": {"apply_to": "self", "gravity_direction": "DOWN",
-            "gravity": PyGameMakerAction.DEFAULT_GRAVITY, "relative": False},
-        "reverse_horizontal_speed": {"apply_to": "self"},
-        "reverse_vertical_speed": {"apply_to": "self"},
-        "set_friction": {"apply_to": "self",
-            "friction": PyGameMakerAction.DEFAULT_FRICTION,
-            "relative": False},
-        "jump_to": {"apply_to": "self",
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "relative": False},
-        "jump_to_start": {"apply_to": "self"},
-        "jump_random": {"apply_to": "self", "snapxy": (0,0) },
-        "snap_to_grid": {"apply_to": "self",
-            "gridxy": PyGameMakerAction.DEFAULT_GRID_SNAP_XY},
-        "wrap_around": {"apply_to": "self",
-            "wrap_direction": PyGameMakerAction.DEFAULT_WRAP_DIRECTION},
-        "move_until_collision": {"apply_to": "self",
-            "direction": PyGameMakerAction.DEFAULT_DIRECTION,
-            "max_distance": -1,
-            "stop_at_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
-        "bounce_off_collider": {"apply_to": "self", "precision": "imprecise",
-            "bounce_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE},
-        "set_path": {"apply_to": "self", "path": PyGameMakerAction.DEFAULT_PATH,
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "at_end": "stop", "relative": True},
-        "end_path": {"apply_to": "self"},
-        "set_location_on_path": {"apply_to": "self",
-            "location": PyGameMakerAction.DEFAULT_PATH_LOCATION,
-            "relative": False},
-        "set_path_speed": {"apply_to": "self",
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "relative": False},
-        "step_toward_point": {"apply_to": "self",
-            "destination": PyGameMakerAction.DEFAULT_POINT_XY,
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "stop_at_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
-            "relative": False },
-        "step_toward_point_around_objects": {"apply_to": "self",
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "avoid_collision_type": PyGameMakerAction.DEFAULT_COLLISION_TYPE,
-            "relative": False }
-    }
+    MOTION_ACTION_DATA_YAML="""
+actions:
+    set_velocity_compass:
+        apply_to: common_apply_to
+        compass_directions: common_compass_direction
+        speed: common_speed
+    set_velocity_degrees:
+        apply_to: common_apply_to
+        direction:
+            type: float
+            default: '0.0'
+        speed: common_speed
+        relative: common_relative
+    move_toward_point:
+        apply_to: common_apply_to
+        destination.x: common_position
+        destination.y: common_position
+        speed: common_speed
+        relative: common_relative
+    set_horizontal_speed:
+        apply_to: common_apply_to
+        horizontal_direction:
+            type: from_list
+            default: right
+            accepted_list:
+                - right
+                - left
+        horizontal_speed: common_speed
+        relative: common_relative
+    set_vertical_speed:
+        apply_to: common_apply_to
+        vertical_direction:
+            type: from_list
+            default: up
+            accepted_list:
+                - up
+                - down
+        vertical_speed: common_speed
+        relative: common_relative
+    apply_gravity:
+        apply_to: common_apply_to
+        gravity_direction: common_compass_direction
+        relative: common_relative
+    reverse_horizontal_speed:
+        apply_to: common_apply_to
+    reverse_vertical_speed:
+        apply_to: common_apply_to
+    set_friction:
+        apply_to: common_apply_to
+        friction:
+            type: float
+            default: '0.0'
+        relative: common_relative
+    jump_to:
+        apply_to: common_apply_to
+        position.x: common_position
+        position.y: common_position
+        relative: common_relative
+    jump_to_start:
+        apply_to: common_apply_to
+    jump_random:
+        apply_to: common_apply_to
+        snap.x: common_position
+        snap.y: common_position
+    snap_to_grid:
+        apply_to: common_apply_to
+        grid.x: common_position
+        grid.y: common_position
+    wrap_around:
+        apply_to: common_apply_to
+        wrap_direction:
+            type: from_list
+            default: horizontal
+            accepted_list:
+                - horizontal
+                - vertical
+                - both
+    move_until_collision:
+        apply_to: common_apply_to
+        direction:
+            type: float
+            default: '0.0'
+        max_distance:
+            type: int
+            default: '-1'
+        stop_at_collision_type:
+            common_collision_type
+    bounce_off_collider:
+        apply_to: common_apply_to
+        precision:
+            type: from_list
+            default: imprecise
+            accepted_list:
+                - precise
+                - imprecise
+        bounce_collision_type: common_collision_type
+    set_path:
+        apply_to: common_apply_to
+        path:
+            type: str
+            default: ''
+        speed:
+            common_speed
+        at_end:
+            type: from_list
+            default: stop
+            accepted_list:
+                - stop
+                - continue_from_start
+                - continue_from_here
+                - reverse
+        relative: common_relative
+    end_path:
+        apply_to: common_apply_to
+    set_location_on_path:
+        apply_to: common_apply_to
+        location:
+            type: str
+            default: '0'
+        relative:
+            common_relative
+    set_path_speed:
+        apply_to: common_apply_to
+        speed: common_speed
+        relative: common_relative
+    step_toward_point:
+        apply_to: common_apply_to
+        destination.x: common_position
+        destination.y: common_position
+        speed: common_speed
+        stop_at_collision_type: common_collision_type
+        relative: common_relative
+    step_toward_point_around_objects:
+        apply_to: common_apply_to
+        position.x: common_position
+        position.y: common_position
+        speed: common_speed
+        avoid_collision_type: common_collision_type
+        relative: common_relative
 
-    def __init__(self, action_name, **kwargs):
+"""
+
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerMotionAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.MOTION_ACTION_DATA_MAP[action_name], **kwargs)
+            self.MOTION_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
+        #print("Created new action {}".format(self))
         # self.action_data = self.MOTION_ACTION_DATA_MAP[action_name]
 
 class PyGameMakerObjectAction(PyGameMakerAction):
@@ -282,37 +546,85 @@ class PyGameMakerObjectAction(PyGameMakerAction):
         "color_sprite"
     ]
     HANDLED_ACTIONS=OBJECT_ACTIONS + SPRITE_ACTIONS
-    OBJECT_ACTION_DATA_MAP={
-        "create_object": {"object": None,
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "relative": False},
-        "create_object_with_velocity": {"object": None,
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "speed": PyGameMakerAction.DEFAULT_SPEED,
-            "direction": PyGameMakerAction.DEFAULT_DIRECTION,
-            "relative": False},
-        "create_random_object": {
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "object_list": [], "relative": False},
-        "transform_object": {"apply_to": "self", "object": None,
-            "new_object": None, "perform_events": "no"},
-        "destroy_object": {"apply_to": "self"},
-        "destroy_instances_at_location": {"apply_to": "self",
-            "position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "relative": False},
-        "set_sprite": {"apply_to": "self", "sprite": None, "subimage": 0,
-            "speed": 1},
-        "transform_sprite": {"apply_to": "self", "horizontal_scale": 1.0,
-            "vertical_scale": 1.0, "rotation": 0.0, "mirror": False },
-        "color_sprite": {"apply_to": "self", "color": "#000000",
-            "opacity": 1.0}
-    }
+    OBJECT_ACTION_DATA_YAML="""
+actions:
+    create_object:
+        object: common_object
+        position.x: common_position
+        position.y: common_position
+        relative: common_relative
+    create_object_with_velocity:
+        object: common_object
+        position.x: common_position
+        position.y: common_position
+        speed: common_speed
+        direction:
+            type: float
+            default: 0.0
+        relative: common_relative
+    create_random_object:
+        position.x: common_position
+        position.y: common_position
+        object_1: common_object
+        object_2: common_object
+        object_3: common_object
+        object_4: common_object
+        relative: common_relative
+    transform_object:
+        apply_to: common_apply_to
+        object: common_object
+        new_object: common_object
+        perform_events:
+            type: bool
+            default: False
+    destroy_object:
+        apply_to: common_apply_to
+    destroy_instances_at_location:
+        apply_to: common_apply_to
+        position.x: common_position
+        position.y: common_position
+        relative: common_relative
+    set_sprite:
+        apply_to: common_apply_to
+        sprite:
+            type: str
+            default: ''
+        subimage:
+            type: int
+            default: 0
+        speed:
+            type: int
+            default: 1
+    transform_sprite:
+        apply_to: common_apply_to
+        horizontal_scale:
+            type: float
+            default: 1.0
+        vertical_scale:
+            type: float
+            default: 1.0
+        rotation:
+            type: float
+            default: 0.0
+        mirror:
+            type: bool
+            default: False
+    color_sprite:
+        apply_to: common_apply_to
+        color:
+            type: str
+            default: '#000000'
+        opacity:
+            type: float
+            default: 1.0
+"""
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerObjectAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.OBJECT_ACTION_DATA_MAP[action_name], **kwargs)
+            self.OBJECT_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerSoundAction(PyGameMakerAction):
     SOUND_ACTIONS=[
@@ -322,17 +634,32 @@ class PyGameMakerSoundAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=SOUND_ACTIONS
 
-    SOUND_ACTION_DATA_MAP={
-        "play_sound": {"sound": None, "loop": False},
-        "stop_sound": {"sound": None},
-        "if_sound_is_playing": {"sound": None, "invert": False}
-    }
+    SOUND_ACTION_DATA_YAML="""
+actions:
+    play_sound:
+        sound:
+            type: str
+            default: ''
+        loop:
+            type: bool
+            default: False
+    stop_sound:
+        sound:
+            type: str
+            default: ''
+    if_sound_is_playing:
+        sound:
+            type: str
+            default: ''
+        invert: common_invert
+"""
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerSoundAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.SOUND_ACTION_DATA_MAP[action_name], **kwargs)
+            self.SOUND_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerRoomAction(PyGameMakerAction):
     ROOM_ACTIONS=[
@@ -345,11 +672,31 @@ class PyGameMakerRoomAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=ROOM_ACTIONS
     DEFAULT_ROOM=0
+    ROOM_ACTION_DATA_YAML="""
+actions:
+    goto_previous_room:
+        transition: common_transition
+    goto_next_room:
+        transition: common_transition
+    restart_current_room:
+        transition: common_transition
+    goto_room:
+        new_room:
+            type: str
+            default: ''
+        transition: common_transition
+    if_previous_room_exists:
+        invert: common_invert
+    if_next_room_exists:
+        invert: common_invert
+"""
 
-    def __init__(self, action_name):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerRoomAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+            self.ROOM_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerTimingAction(PyGameMakerAction):
     TIMING_ACTIONS=[
@@ -357,6 +704,7 @@ class PyGameMakerTimingAction(PyGameMakerAction):
         "sleep",
         "set_timeline",
         "set_timeline_location",
+        "set_timeline_speed",
         "start_resume_timeline",
         "pause_timeline",
         "stop_timeline"
@@ -366,11 +714,62 @@ class PyGameMakerTimingAction(PyGameMakerAction):
     DEFAULT_SLEEP=0.1
     DEFAULT_TIMELINE=0
     DEFAULT_TIMELINE_STEP=0
+    TIMING_ACTION_DATA_YAML="""
+actions:
+    set_alarm:
+        apply_to: common_apply_to
+        steps:
+            type: int
+            default: 0
+        alarm:
+            type: int
+            default: 0
+    sleep:
+        milliseconds:
+            type: int
+            default: 1000
+        redraw:
+            type: bool
+            default: True
+    set_timeline:
+        timeline:
+            type: str
+            default: ''
+        position:
+            type: int
+            default: 0
+        start:
+            type: bool
+            default: True
+        loop:
+            type: bool
+            default: False
+    set_timeline_location:
+        apply_to: common_apply_to
+        position:
+            type: int
+            default: 0
+        relative: common_relative
+    set_timeline_speed:
+        apply_to: common_apply_to
+        speed:
+            type: int
+            default: 1
+        relative: common_relative
+    start_resume_timeline:
+        apply_to: common_apply_to
+    pause_timeline:
+        apply_to: common_apply_to
+    stop_timeline:
+        apply_to: common_apply_to
+"""
 
-    def __init__(self, action_name):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerTimingAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+            self.TIMING_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerInfoAction(PyGameMakerAction):
     INFO_ACTIONS=[
@@ -379,11 +778,31 @@ class PyGameMakerInfoAction(PyGameMakerAction):
         "show_video"
     ]
     HANDLED_ACTIONS=INFO_ACTIONS
+    INFO_ACTION_DATA_YAML="""
+actions:
+    display_message:
+        message:
+            type: str
+            default: ''
+    show_game_info: {}
+    show_video:
+        filename:
+            type: str
+            default: ''
+        full_screen:
+            type: bool
+            default: False
+        loop:
+            type: bool
+            default: False
+"""
 
-    def __init__(self, action_name):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerInfoAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+            self.INFO_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerGameAction(PyGameMakerAction):
     GAME_ACTIONS=[
@@ -393,11 +812,26 @@ class PyGameMakerGameAction(PyGameMakerAction):
         "load_game"
     ]
     HANDLED_ACTIONS=GAME_ACTIONS
+    GAME_ACTION_DATA_YAML="""
+actions:
+    restart_game: {}
+    end_game: {}
+    save_game:
+        filename:
+            type: str
+            default: savegame
+    load_game:
+        filename:
+            type: str
+            default: savegame
+"""
 
-    def __init__(self, action_name):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerGameAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name,
+            self.GAME_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerResourceAction(PyGameMakerAction):
     RESOURCE_ACTIONS=[
@@ -407,10 +841,11 @@ class PyGameMakerResourceAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=RESOURCE_ACTIONS
 
-    def __init__(self, action_name):
+    def __init__(self, action_name, settings_dict={}):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerResourceAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name, {}, {},
+            settings_dict, **kwargs)
 
 class PyGameMakerQuestionAction(PyGameMakerAction):
     QUESTION_ACTIONS=[
@@ -426,10 +861,11 @@ class PyGameMakerQuestionAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=QUESTION_ACTIONS
 
-    def __init__(self, action_name):
+    def __init__(self, action_name ,settings_dict={}):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerQuestionAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name, {}, {},
+            settings_dict, **kwargs)
 
 class PyGameMakerOtherAction(PyGameMakerAction):
     OTHER_ACTIONS=[
@@ -448,11 +884,12 @@ class PyGameMakerOtherAction(PyGameMakerAction):
         "repeat_next_action": {} 
     }
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerOtherAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-		self.OTHER_ACTION_DATA_MAP[action_name], **kwargs)
+		self.OTHER_ACTION_DATA_MAP[action_name], {},
+                settings_dict, **kwargs)
         # handle blocks
         if action_name == "start_of_block":
             self.nest_adjustment = "nest_until_block_end"
@@ -466,17 +903,29 @@ class PyGameMakerCodeAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=CODE_ACTIONS
 
-    CODE_ACTION_DATA_MAP={
-        "execute_code": {"apply_to": "self", "code": ""},
-        "execute_script": {"apply_to": "self", "script": None,
-            "parameter_list": []}
-    }
+    CODE_ACTION_DATA_YAML="""
+actions:
+    execute_code:
+        apply_to: common_apply_to
+        code:
+            type: str
+            default: ''
+    execute_script:
+        apply_to: common_apply_to
+        script:
+            type: str
+            default: ''
+        parameters:
+            type: str
+            default: ''
+"""
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerCodeAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.CODE_ACTION_DATA_MAP[action_name], **kwargs)
+            self.CODE_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerVariableAction(PyGameMakerAction):
     VARIABLE_ACTIONS=[
@@ -485,17 +934,46 @@ class PyGameMakerVariableAction(PyGameMakerAction):
         "draw_variable_value"
     ]
     HANDLED_ACTIONS=VARIABLE_ACTIONS
-    VARIABLE_ACTION_DATA_MAP={
-        "set_variable_value": {"variable": "test", "value": 0, "global": False},
-        "if_variable_value": {"variable": "test", "test": "equals", "value": 0},
-        "draw_variable_value": {"variable": "test", "x": 0, "y": 0}
-    }
+    VARIABLE_ACTION_DATA_YAML="""
+actions:
+    set_variable_value:
+        apply_to: common_apply_to
+        variable:
+            type: str
+            default: test
+        value:
+            type: str
+            default: '0'
+        is_global:
+            type: bool
+            default: False
+        relative: common_relative
+    if_variable_value:
+        apply_to: common_apply_to
+        variable:
+            type: str
+            default: test
+        test: common_test
+        value:
+            type: str
+            default: '0'
+        invert: common_invert
+    draw_variable_value:
+        apply_to: common_apply_to
+        variable:
+            type: str
+            default: test
+        position.x: common_position
+        position.y: common_position
+        relative: common_relative
+"""
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerVariableAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.VARIABLE_ACTION_DATA_MAP[action_name], **kwargs)
+            self.VARIABLE_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerAccountingAction(PyGameMakerAction):
     SCORE_ACTIONS=[
@@ -526,36 +1004,129 @@ class PyGameMakerAccountingAction(PyGameMakerAction):
         "is_greater_than_or_equal",
     ]
 
-    ACCOUNTING_ACTION_DATA_MAP={
-        "set_score_value": {"score": 0, "relative": False},
-        "if_score_value": {"score": 0, "operation": "is_equal", "invert": False},
-        "draw_score_value": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "caption": "Score:", "relative": False},
-        "show_highscore_table": {"background": None, "border": True,
-            "new_color": "#ff0000", "other_color": "#ffffff",
-            "font": None},
-        "clear_highscore_table": {},
-        "set_lives_value": {"lives": 0, "relative": False},
-        "if_lives_value": {"lives": 0, "operation": "is_equal", "invert": False},
-        "draw_lives_value": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "caption": "Lives:", "relative": False},
-        "draw_lives_image": {"position": PyGameMakerAction.DEFAULT_POINT_XY,
-            "sprite": None, "relative": False},
-        "set_health_value": {"value": 0, "relative": False},
-        "if_health_value": {"value": 0, "operation": "is_equal", "invert": False},
-        "draw_health_bar": {"rectangle": pygame.Rect(0,0,0,0),
-            "background_color": "clear",
-            "bar_color_gradient": ("#00ff00", "#ff0000")},
-        "set_window_caption": {"show_score": True, "score_caption": "score:",
-            "show_lives": False, "lives_caption": "lives:",
-            "show_health": False, "health_caption": "health:"}
-    }
+    ACCOUNTING_ACTION_DATA_YAML="""
+actions:
+    set_score_value:
+        score:
+            type: int
+            default: 0
+        relative: common_relative
+    if_score_value:
+        score:
+            type: int
+            default: 0
+        test: common_test
+        invert: common_invert
+    draw_score_value:
+        position.x: common_position
+        position.y: common_position
+        caption:
+            type: str
+            default: 'Score:'
+        relative: common_relative
+    show_highscore_table:
+        background:
+            type: str
+            default: ''
+        border:
+            type: bool
+            default: True
+        new_color:
+            type: str
+            default: '#ff0000'
+        other_color:
+            type: str
+            default: '#ffffff'
+        font:
+            type: str
+            default: ''
+    clear_highscore_table: {}
+    set_lives_value:
+        lives:
+            type: int
+            default: 0
+        relative: common_relative
+    if_lives_value:
+        lives:
+            type: int
+            default: 0
+        test: common_test
+        invert: common_invert
+    draw_lives_value:
+        position.x: common_position
+        position.y: common_position
+        caption:
+            type: str
+            default: 'Lives:'
+        relative: common_relative
+    draw_lives_image:
+        position.x: common_position
+        position.y: common_position
+        sprite:
+            type: str
+            default: ''
+        relative: common_relative
+    set_health_value:
+        value:
+            type: int
+            default: 0
+        relative: common_relative
+    if_health_value:
+        value:
+            type: int
+            default: 0
+        test: common_test
+        invert: common_invert
+    draw_health_bar:
+        x1:
+            type: int
+            default: 0
+        y1:
+            type: int
+            default: 0
+        x2:
+            type: int
+            default: 0
+        y2:
+            type: int
+            default: 0
+        back_color:
+            type: str
+            default: ''
+        bar_color_min:
+            type: str
+            default: "#ff0000"
+        bar_color_max:
+            type: str
+            default: "#00ff00"
+        relative: common_relative
+    set_window_caption:
+        show_score:
+            type: bool
+            default: True
+        score_caption:
+            type: str
+            default: 'score:'
+        show_lives:
+            type: bool
+            default: True
+        lives_caption:
+            type: str
+            default: 'lives:'
+        show_health:
+            type: bool
+            default: True
+        health_caption:
+            type: str
+            default: 'health:'
+"""
 
-    def __init__(self, action_name, **kwargs):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerAccountingAction: Unknown action '{}'".format(action_name))
         PyGameMakerAction.__init__(self, action_name,
-            self.ACCOUNTING_ACTION_DATA_MAP[action_name], **kwargs)
+            self.ACCOUNTING_ACTION_DATA_YAML,
+            settings_dict, **kwargs)
 
 class PyGameMakerParticleAction(PyGameMakerAction):
     PARTICLE_ACTIONS=[
@@ -575,10 +1146,11 @@ class PyGameMakerParticleAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=PARTICLE_ACTIONS
 
-    def __init__(self):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerParticleAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name, {}, {},
+            settings_dict, **kwargs)
 
 class PyGameMakerDrawAction(PyGameMakerAction):
     DRAW_ACTIONS=[
@@ -606,10 +1178,11 @@ class PyGameMakerDrawAction(PyGameMakerAction):
     ]
     HANDLED_ACTIONS=DRAW_ACTIONS + DRAW_SETTINGS_ACTIONS + OTHER_DRAW_ACTIONS
 
-    def __init__(self):
+    def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
             raise PyGameMakerActionException("PyGameMakerDrawAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name)
+        PyGameMakerAction.__init__(self, action_name, {}, {},
+            settings_dict, **kwargs)
 
 # make it possible to request an action from any action type
 PyGameMakerAction.register_new_action_type(PyGameMakerMotionAction)
@@ -630,7 +1203,6 @@ PyGameMakerAction.register_new_action_type(PyGameMakerDrawAction)
 
 if __name__ == "__main__":
     import unittest
-    import yaml
 
     class TestPyGameMakerAction(unittest.TestCase):
 
@@ -649,8 +1221,9 @@ if __name__ == "__main__":
 
         def test_010valid_object_action(self):
             object_action = PyGameMakerObjectAction("create_object",
-                position=(250,250))
-            self.assertEqual(object_action["position"], (250,250))
+                { 'position.x':250, 'position.y':250 } )
+            self.assertEqual(object_action["position.x"], 250)
+            self.assertEqual(object_action["position.y"], 250)
             print("action: {}".format(object_action))
 
         def test_015valid_sound_action(self):
@@ -684,7 +1257,8 @@ if __name__ == "__main__":
             test_action = PyGameMakerMotionAction('jump_to', relative=True)
             test_yaml="""  jump_to:
     apply_to: self
-    position: [0, 0]
+    position.x: 0
+    position.y: 0
     relative: True
 """
             self.assertEqual(test_action.to_yaml(2), test_yaml)
@@ -711,6 +1285,37 @@ code line 3"""
             yaml_in2 = yaml.load(test_action2.to_yaml())
             print("{}".format(yaml_in2))
             print("{}".format(test_action2.to_yaml(2)))
+
+        def test_040valid_room_action(self):
+            room_action = PyGameMakerRoomAction("goto_next_room",
+                transition="create_from_top")
+            self.assertEqual(room_action.name, "goto_next_room")
+            self.assertEqual(room_action["transition"], "create_from_top")
+            print("action {}".format(room_action))
+
+        def test_045valid_timing_action(self):
+            timing_action = PyGameMakerTimingAction("set_alarm",
+                steps=30, alarm=1)
+            self.assertEqual(timing_action.name, "set_alarm")
+            self.assertEqual(timing_action["steps"], 30)
+            self.assertEqual(timing_action["alarm"], 1)
+
+        def test_050valid_info_action(self):
+            info_action = PyGameMakerInfoAction("show_game_info")
+            self.assertEqual(info_action.name, "show_game_info")
+
+        def test_055valid_game_action(self):
+            game_action = PyGameMakerGameAction("load_game", filename="game0")
+            self.assertEqual(game_action.name, "load_game")
+            self.assertEqual(game_action["filename"], "game0")
+
+        def test_060valid_variable_action(self):
+            variable_action = PyGameMakerVariableAction("set_variable_value",
+                value='20', variable='ammo', is_global=True)
+            self.assertEqual(variable_action.name, "set_variable_value")
+            self.assertEqual(variable_action["value"], "20")
+            self.assertEqual(variable_action["variable"], 'ammo')
+            self.assertTrue(variable_action["is_global"])
 
     unittest.main()
 
