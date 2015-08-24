@@ -42,7 +42,7 @@ class PyGameMakerEventEngine(object):
             Add the given event along with a possible keyword-argument hash
             to the event queue.
         """
-        ename = event.event_name
+        ename = event.name
         if not ename in self.event_queues.keys():
             self.event_queues[ename] = [event]
         else:

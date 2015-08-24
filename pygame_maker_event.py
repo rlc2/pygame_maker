@@ -42,7 +42,7 @@ class PyGameMakerEvent(object):
         raise PyGameMakerEventException("Event '{}' is unknown".format(event_name))
 
     def __init__(self, event_name="", event_params={}):
-        self.event_name = event_name
+        self.name = event_name
         self.event_params = event_params
 
     def __getitem__(self, item_name):
@@ -68,7 +68,7 @@ class PyGameMakerEvent(object):
 
     def __repr__(self):
         return("<{} \"{}\"{}>".format(self.__class__.__name__,
-            self.event_name, self.repr_event_strings()))
+            self.name, self.repr_event_strings()))
 
 class PyGameMakerObjectStateEvent(PyGameMakerEvent):
     OBJECT_STATE_EVENTS=[
@@ -110,9 +110,9 @@ class PyGameMakerMouseEvent(PyGameMakerEvent):
         "mouse_button_left",
         "mouse_button_right",
         "mouse_button_middle",
-        "mouse_button_6"
-        "mouse_button_7"
-        "mouse_button_8"
+        "mouse_button_6",
+        "mouse_button_7",
+        "mouse_button_8",
         "mouse_nobutton",
         "mouse_left_pressed",
         "mouse_right_pressed",
@@ -123,13 +123,13 @@ class PyGameMakerMouseEvent(PyGameMakerEvent):
         "mouse_enter",
         "mouse_leave",
         "mouse_wheelup",
-        "mouse_wheeldown"
+        "mouse_wheeldown",
         "mouse_global_button_left",
         "mouse_global_button_right",
         "mouse_global_button_middle",
-        "mouse_global_button_6"
-        "mouse_global_button_7"
-        "mouse_global_button_8"
+        "mouse_global_button_6",
+        "mouse_global_button_7",
+        "mouse_global_button_8",
         "mouse_global_nobutton",
         "mouse_global_left_pressed",
         "mouse_global_right_pressed",
@@ -414,12 +414,12 @@ class PyGameMakerKeyEvent(PyGameMakerEvent):
         self.key_event_type = "up"
         PyGameMakerEvent.__init__(self, event_name, event_params)
         ev_info = self.find_key_event(event_name)
-        self.event_name = ev_info[0]
+        self.name = ev_info[0]
         self.key_event_type = ev_info[1]
 
     def __repr__(self):
         return("<{} '{}' when {}{}>".format(self.__class__.__name__,
-            self.event_name, self.key_event_type, self.repr_event_strings()))
+            self.name, self.key_event_type, self.repr_event_strings()))
 
 class PyGameMakerCollisionEvent(PyGameMakerEvent):
     HANDLED_EVENTS=["collision"]
@@ -454,7 +454,7 @@ class PyGameMakerCollisionEvent(PyGameMakerEvent):
         """
         PyGameMakerEvent.__init__(self, event_name, event_params)
         ev_info = PyGameMakerCollisionEvent.find_collision_event(event_name)
-        #self.event_name = ev_info[0]
+        #self.name = ev_info[0]
         self.collision_object_name = ev_info[1]
 
     def __repr__(self):
@@ -490,16 +490,16 @@ if __name__ == "__main__":
         def test_005valid_object_state_events(self):
             good_event1 = PyGameMakerObjectStateEvent("create")
             print(good_event1)
-            self.assertEqual(good_event1.event_name, "create")
+            self.assertEqual(good_event1.name, "create")
 
         def test_010valid_key_events(self):
             good_event2 = PyGameMakerKeyEvent("kb_F1_keyup")
             print(good_event2)
-            self.assertEqual(good_event2.event_name, "kb_F1")
+            self.assertEqual(good_event2.name, "kb_F1")
             self.assertEqual(good_event2.key_event_type, "up")
             good_event3 = PyGameMakerKeyEvent("kb_npenter_keydn")
             print(good_event3)
-            self.assertEqual(good_event3.event_name, "kb_npenter")
+            self.assertEqual(good_event3.name, "kb_npenter")
             self.assertEqual(good_event3.key_event_type, "down")
             good_event4 = PyGameMakerEvent.get_event_instance_by_event_name("kb_/_keydn")
             print(good_event4)
@@ -508,33 +508,33 @@ if __name__ == "__main__":
         def test_012valid_collision_events(self):
             good_event5 = PyGameMakerCollisionEvent("collision_obj1")
             print(good_event5)
-            self.assertEqual(good_event5.event_name, "collision_obj1")
+            self.assertEqual(good_event5.name, "collision_obj1")
             self.assertEqual(good_event5.collision_object_name, "obj1")
 
         def test_015valid_mouse_events(self):
             good_event6 = PyGameMakerMouseEvent("mouse_button_middle")
             print(good_event6)
-            self.assertEqual(good_event6.event_name, "mouse_button_middle")
+            self.assertEqual(good_event6.name, "mouse_button_middle")
 
         def test_020valid_alarm_events(self):
             good_event7 = PyGameMakerAlarmEvent("alarm0")
             print(good_event7)
-            self.assertEqual(good_event7.event_name, "alarm0")
+            self.assertEqual(good_event7.name, "alarm0")
 
         def test_025valid_step_events(self):
             good_event8 = PyGameMakerStepEvent("begin_step")
             print(good_event8)
-            self.assertEqual(good_event8.event_name, "begin_step")
+            self.assertEqual(good_event8.name, "begin_step")
 
         def test_030valid_other_events(self):
             good_event9 = PyGameMakerOtherEvent("user_defined_0")
             print(good_event9)
-            self.assertEqual(good_event9.event_name, "user_defined_0")
+            self.assertEqual(good_event9.name, "user_defined_0")
 
         def test_035valid_draw_events(self):
             good_event10 = PyGameMakerDrawEvent("gui")
             print(good_event10)
-            self.assertEqual(good_event10.event_name, "gui")
+            self.assertEqual(good_event10.name, "gui")
 
         def test_040event_parameters(self):
             good_event11 = PyGameMakerMouseEvent("mouse_button_left",
