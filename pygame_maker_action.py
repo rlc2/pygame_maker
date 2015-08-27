@@ -465,8 +465,7 @@ actions:
         max_distance:
             type: int
             default: '-1'
-        stop_at_collision_type:
-            common_collision_type
+        stop_at_collision_type: common_collision_type
     bounce_off_collider:
         apply_to: common_apply_to
         precision:
