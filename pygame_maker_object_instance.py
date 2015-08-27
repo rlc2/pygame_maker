@@ -136,7 +136,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
          o produce collision events
          o draws itself
     """
-    def __init__(self, kind, screen_dims, id, **kwargs):
+    def __init__(self, kind, screen_dims, id, settings={}, **kwargs):
         """
             PyGameMakerObjectInstance.__init__():
             Constructor for object instances. As a pygame.sprite.DirtySprite
@@ -147,7 +147,9 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              screen_dims (list of int): Width, height of the surface this
               instance will be drawn to. Allows boundary collisions to be
               detected.
-             **kwargs: Supply alternatives to instance defaults
+             id (int): A unique integer ID for this instance
+             settings (dict): Like kwargs for setting attributes
+             **kwargs: Supply alternatives to instance attributes
               position (list of float or pygame.Rect): Upper left XY coordinate.
                If not integers, each will be rounded to the next highest
                integer [(0,0)]
@@ -161,6 +163,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
               friction (float): Strength of friction vs direction of motion in
                pixels/sec [0.0]
         """
+        # call the superclass __init__
         pygame.sprite.DirtySprite.__init__(self)
         self.id = id
         self._symbols = {
@@ -172,13 +175,12 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             "hspeed"            : 0.0,
             "vspeed"            : 0.0,
             "position"          : Coordinate(0.0, 0.0,
-                                  self.round_position_x_to_rect_x,
-                                  self.round_position_y_to_rect_y)
+                                  self.update_position_x,
+                                  self.update_position_y)
         }
         self.symbols = PyGameMakerSymbolTable()
         for sym in self._symbols.keys():
             self.symbols[sym] = self._symbols[sym]
-        self.last_adjustment = [0.0, 0.0]
         self.delay_motion_updates = False
         self.kind = kind
         self.game_engine = kind.game_engine
@@ -202,9 +204,10 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # use the instance type's 'depth' parameter as the layer for this
         #  instance
         self.layer = kind.depth
-        # call the superclass __init__
-        if kwargs:
-            self.apply_kwargs(kwargs)
+        attr_values = dict(settings)
+        attr_values.update(kwargs)
+        if kwargs or (len(settings) > 0):
+            self.apply_kwargs(attr_values)
         #print("Initial symbols:")
         #self.symbols.dumpVars()
 
@@ -246,21 +249,17 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         xadj, yadj = get_vector_xy_from_speed_direction(self.symbols['speed'],
             self.symbols['direction'])
         #print("new inst {} xyadj {}, {}".format(self.id, xadj, yadj))
-        self.last_adjustment[0] = xadj
-        self.last_adjustment[1] = yadj
+        self.symbols['hspeed'] = xadj
+        self.symbols['vspeed'] = yadj
 
-    def change_hspeed_vspeed(self):
-        """
-            change_hspeed_vspeed():
-            Horizontal and vertical speed components can be read or changed
-             directly. These are cached to reduce the number of times math
-             functions will be called for object instances with constant
-             velocity.
-        """
-        motion_vec = get_vector_xy_from_speed_direction(self.speed,
-            self.direction)
-        self.symbols['hspeed'], self.symbols['vspeed'] = motion_vec
-
+    def update_position_x(self):
+        self.round_position_x_to_rect_x()
+        self.symbols['position.x'] = self.position.x
+        
+    def update_position_y(self):
+        self.round_position_y_to_rect_y()
+        self.symbols['position.y'] = self.position.y
+        
     def round_position_x_to_rect_x(self):
         """
             round_position_x_to_rect_x():
@@ -302,7 +301,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.symbols['direction'] = new_value
         if not self.delay_motion_updates:
             self.change_motion_x_y()
-            self.change_hspeed_vspeed()
 
     @property
     def speed(self):
@@ -314,7 +312,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.symbols['speed'] = value
         if not self.delay_motion_updates:
             self.change_motion_x_y()
-            self.change_hspeed_vspeed()
 
     @property
     def position(self):
@@ -373,7 +370,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.speed, self.direction = get_speed_direction_from_xy(value,
             self.vspeed)
         self.delay_motion_updates = False
-        self.change_motion_x_y()
         self.symbols['hspeed'] = value
 
     @property
@@ -388,7 +384,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.speed, self.direction = get_speed_direction_from_xy(self.hspeed,
             value)
         self.delay_motion_updates = False
-        self.change_motion_x_y()
         self.symbols['vspeed'] = value
 
     def get_center_point(self):
@@ -444,8 +439,8 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         """
         event_queued = None
         if (self.speed > 0.0):
-            self.position[0] += self.last_adjustment[0]
-            self.position[1] += self.last_adjustment[1]
+            self.position[0] += self.symbols['hspeed']
+            self.position[1] += self.symbols['vspeed']
             self.rect.x = int(math.floor(self.position[0] + 0.5))
             self.rect.y = int(math.floor(self.position[1] + 0.5))
             # check for boundary collisions
@@ -486,7 +481,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         if event_queued:
             self.game_engine.event_engine.queue_event(event_queued)
             #print("{} transmitting {} event".format(self, event_queued))
-            self.game_engine.event_engine.transmit_event(event_queued.event_name)
+            self.game_engine.event_engine.transmit_event(event_queued.name)
 
     def apply_gravity(self):
         """
@@ -554,7 +549,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             self.apply_kwargs({"speed": action.action_data['speed']})
             self.delay_motion_updates = False
             self.change_motion_x_y()
-            self.change_hspeed_vspeed()
 
     def set_horizontal_speed(self, action):
         """
@@ -662,7 +656,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         else:
             self.symbols[action['variable']] = action['value']
 
-    def execute_action(self, action):
+    def execute_action(self, action, event):
         """
             execute_action():
             Perform the actions instances can do.
@@ -672,8 +666,13 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
-        kwargs = dict(action.action_data)
-        del(kwargs['apply_to'])
+        action_params = {}
+        # check for expressions that need to be executed
+        for param in action.action_data.keys():
+            if param == 'apply_to':
+                continue
+            action_params[param] = action.get_parameter_expression_result(
+                param, self.symbols, self.game_engine.language_engine)
         if action.name in self.action_name_to_method_map.keys():
             self.action_name_to_method_map[action.name](action)
         elif action.name == "jump_to_start":
@@ -694,8 +693,24 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             )
             self.game_engine.event_engine.transmit_event("destroy")
             self.kind.add_instance_to_delete_list(self)
+        elif action.name == "bounce_off_collider":
+            #print("bounce event: {}".format(event))
+            if ((action_params['precision'] == 'imprecise') or (not 'normal' in
+                event.event_params.keys())):
+                self.direction = 180.0 + self.direction
+            else:
+                norm = np.array(event['normal'])
+                #print("Check normal {}".format(norm))
+                if abs(norm[0]) == abs(norm[1]):
+                    self.direction = 180.0 + self.direction
+                elif abs(norm[0]) > abs(norm[1]):
+                    # X component is greater; reverse X
+                    self.direction = -self.direction
+                else:
+                    # Y component is greater; reverse Y
+                    self.direction = 180.0 - self.direction
         else:
-            apply_kwargs(kwargs)
+            apply_kwargs(action_params)
 
     def __repr__(self):
         return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
