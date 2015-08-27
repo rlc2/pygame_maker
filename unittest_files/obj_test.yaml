@@ -9,8 +9,6 @@ obj_test:
           apply_to: self
           code: |
             # set random position, speed, and direction
-            position.x = randint(640)
-            position.y = randint(480)
             direction = randint(360)
             speed = randint(1000.0) / 1000.0
     destroy:
@@ -28,3 +26,9 @@ obj_test:
           sound: snd_explosion
       - destroy_object:
           apply_to: self
+    collision_obj_solid:
+      - bounce_off_collider:
+          apply_to: self
+          precision: precise
+          bounce_collision_type: solid
+

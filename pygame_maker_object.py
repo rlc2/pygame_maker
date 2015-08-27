@@ -8,6 +8,7 @@
 
 import pygame
 import math
+import random
 import re
 import yaml
 import pygame_maker_object_instance as pygm_instance
@@ -65,6 +66,7 @@ def get_collision_normal(instance_a, instance_b):
     """
     offset = get_offset_between_instances(instance_a, instance_b)
     overlap = get_mask_overlap(instance_a, instance_b)
+    #print("Solid collision overlap for normal: {}".format(overlap))
     if overlap == 0:
         # no collision here..
         return None
@@ -145,6 +147,7 @@ class PyGameMakerObject(object):
         "destroy": pygm_event.PyGameMakerObjectStateEvent,
         "collision": pygm_event.PyGameMakerCollisionEvent,
     }
+    GLOBAL_MOUSE_RE=re.compile("global")
 
     @staticmethod
     def load_obj_type_from_yaml_file(yaml_file_name, game_engine):
@@ -178,8 +181,7 @@ class PyGameMakerObject(object):
                 # hash of 1 key, the object name
                 obj_name = str(top_level)
                 break
-            # keys other than visible, solid, depth, sprite are assumed to be
-            #  event -> action sequence mappings
+            # 'events' key contains event -> action sequence mappings
             for kwarg in yaml_repr[top_level].keys():
                 if kwarg == "visible":
                     kwargs["visible"] = (yaml_repr[top_level]["visible"] == True)
@@ -314,7 +316,7 @@ class PyGameMakerObject(object):
         # a simple list manages deletions
         self.instance_delete_list.append(instance)
 
-    def create_instance(self, screen, **kwargs):
+    def create_instance(self, screen, settings={}, **kwargs):
         """
             create_instance():
             Create a new instance of this object type. Every instance is
@@ -330,9 +332,10 @@ class PyGameMakerObject(object):
               'direction', and/or 'position')
         """
         #print("Create new instance of {}".format(self))
+        #print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = pygm_instance.PyGameMakerObjectInstance(self,
-            screen_dims, self.id, **kwargs)
+            screen_dims, self.id, settings, **kwargs)
         self.group.add(new_instance)
         self.id += 1
         # queue the creation event for the new instance
@@ -361,28 +364,43 @@ class PyGameMakerObject(object):
             collision_map = pygame.sprite.groupcollide(self.group,
                 other_obj.group, 0, 0, collided=sprite_collision_test)
             for collider in collision_map.keys():
-                # in the event of a collision with a solid object (i.e.
-                #  stationary), kick the sprite outside of the other
-                #  object's collision mask
+                collision_normal = None
                 for other_inst in collision_map[collider]:
-                    if other_inst.kind.solid:
-                        overlap = get_mask_overlap(collider, other_inst)
-                        collision_normal = get_collision_normal(collider,
-                            other_inst)
-                        if collision_normal:
-                            distance = (overlap /
-                                dot_product(collision_normal,
-                                collision_normal))
-                            collider.position.x = distance * collision_normal[0]
-                            collider.position.y = distance * collision_normal[1]
+                    overlap = get_mask_overlap(collider, other_inst)
+                    #print("Solid collision overlap: {}".format(overlap))
+                    collision_normal = get_collision_normal(collider,
+                        other_inst)
+                    #print("Collision normal: {}".format(collision_normal))
+                    # in the event of a collision with a solid object (i.e.
+                    #  stationary), kick the sprite outside of the other
+                    #  object's collision mask
+                    if other_inst.kind.solid and collision_normal:
+                        divisor = float(dot_product(collision_normal,
+                            collision_normal))
+                        distance = 0
+                        if divisor != 0:
+                            distance = (float(overlap) / divisor + 0.5)
+                        #print("Distance: {}, divisor {}".format(distance, divisor))
+                        adj_x = math.floor(distance * collision_normal[0] +
+                            0.5)
+                        adj_y = math.floor(distance * collision_normal[1] +
+                            0.5)
+                        #print("Moving obj {}, {}".format(adj_x, adj_y))
+                        collider.position.x += adj_x
+                        collider.position.y += adj_y
                 collision_name = "collision_{}".format(other_obj.name)
                 if not collision_name in collision_types_queued:
                     collision_types_queued.append(collision_name)
                 #print("Queue collision {}".format(collision_name))
+                collision_event_info = {
+                    "type": self, "instance": collider,
+                    "others": collision_map[collider]
+                }
+                if collision_normal:
+                    collision_event_info['normal'] = collision_normal
                 self.game_engine.event_engine.queue_event(
                     self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
-                    { "type": self, "instance": collider,
-                    "others": collision_map[collider] })
+                    collision_event_info)
                 )
         return collision_types_queued
 
@@ -586,7 +604,7 @@ class PyGameMakerObject(object):
                 apply_to_instances = list(self.game_engine.objects[action["apply_to"]].group)
         return apply_to_instances
 
-    def execute_action_sequence(self, event):
+    def execute_action_sequence(self, event, targets=[]):
         """
             execute_action_sequence():
             The sausage factory method. When an event comes in the event handler
@@ -598,20 +616,23 @@ class PyGameMakerObject(object):
              of the game engine, so those actions need to be routed properly
              as well.
         """
-        if event.event_name in self.event_action_sequences:
-            for action in self.event_action_sequences[event.event_name].get_next_action():
+        if event.name in self.event_action_sequences:
+            for action in self.event_action_sequences[event.name].get_next_action():
                 #print("Action {}".format(action))
                 # forward instance actions to instance(s)
-                if "apply_to" in action.action_data:
+                if len(targets) > 0:
+                    for target in targets:
+                        target.execute_action(action, event)
+                elif "apply_to" in action.action_data:
                     affected_instance_list = self.get_applied_instance_list(action,
                         event)
                     #print("Action {} applies to {}".format(action, affected_instance_list))
                     for target in affected_instance_list:
                         #print("applying to {}".format(target))
-                        target.execute_action(action)
+                        target.execute_action(action, event)
                 else:
                     #print("calling game engine execute_action for {}".format(action))
-                    self.game_engine.execute_action(action)
+                    self.game_engine.execute_action(action, event)
 
     def handle_instance_event(self, event):
         """
@@ -632,7 +653,13 @@ class PyGameMakerObject(object):
              press/release). mouse_global_* events are handled by instances
              watching for them at any location.
         """
-        pass
+        gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
+        if gl_minfo:
+            self.execute_action_sequence(event)
+        else:
+            clicked=self.group.get_sprites_at(event['position'])
+            if len(clicked) > 0:
+                self.execute_action_sequence(event, clicked)
 
     def handle_keyboard_event(self, event):
         """
@@ -644,16 +671,16 @@ class PyGameMakerObject(object):
         #print("Received event {}".format(event))
         matched_seq = None
         for ev_seq in self.event_action_sequences.keys():
-            #print("match {} vs {}".format(ev_seq, event.event_name))
-            if ev_seq.find(event.event_name) == 0:
+            #print("match {} vs {}".format(ev_seq, event.name))
+            if ev_seq.find(event.name) == 0:
                 # found this event in the list, find out if it's the right type
-                if (ev_seq == event.event_name) or ev_seq.endswith('_keydn'):
+                if (ev_seq == event.name) or ev_seq.endswith('_keydn'):
                     if event.key_event_type == "down":
-                        matched_seq = event.event_name
+                        matched_seq = event.name
                         break
                 elif (ev_seq.endswith('_keyup') and 
                     (event.key_event_type == "up")):
-                    matched_seq = event.event_name
+                    matched_seq = event.name
                     break
         if matched_seq:
             #print("executing {} event sequence")
@@ -776,15 +803,50 @@ if __name__ == "__main__":
     OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 
     class GameEngine(object):
+        MOUSE_EVENT_TABLE=[
+            {"instance_event_name": "mouse_nobutton",
+             "global_event_name": "mouse_global_nobutton"},
+            {"instance_event_name": "mouse_button_left",
+             "global_event_name": "mouse_global_button_left",
+             "instance_pressed_name": "mouse_left_pressed",
+             "global_pressed_name": "mouse_global_left_pressed",
+             "instance_released_name": "mouse_left_released",
+             "global_released_name": "mouse_global_left_released"},
+            {"instance_event_name": "mouse_button_middle",
+             "global_event_name": "mouse_global_button_middle",
+             "instance_pressed_name": "mouse_middle_pressed",
+             "global_pressed_name": "mouse_global_middle_pressed",
+             "instance_released_name": "mouse_middle_released",
+             "global_released_name": "mouse_global_middle_released"},
+            {"instance_event_name": "mouse_button_right",
+             "global_event_name": "mouse_global_button_right",
+             "instance_pressed_name": "mouse_right_pressed",
+             "global_pressed_name": "mouse_global_right_pressed",
+             "instance_released_name": "mouse_right_released",
+             "global_released_name": "mouse_global_right_released"},
+            {"instance_event_name": "mouse_wheelup",
+             "global_event_name": "mouse_global_wheelup"},
+            {"instance_event_name": "mouse_wheeldown",
+             "global_event_name": "mouse_global_wheeldown"},
+            {"instance_event_name": "mouse_button_6",
+             "global_event_name": "mouse_global_button_6"},
+            {"instance_event_name": "mouse_button_7",
+             "global_event_name": "mouse_global_button_7"},
+            {"instance_event_name": "mouse_button_8",
+             "global_event_name": "mouse_global_button_8"},
+        ]
         def __init__(self):
             self.event_engine = pgmee.PyGameMakerEventEngine()
             self.language_engine = pgmle.PyGameMakerLanguageEngine()
+            self.symbols = pgmle.PyGameMakerSymbolTable()
             self.sprites = {}
             self.sounds = {}
             self.objects = {}
             self.mask_surface = None
             self.last_key_down = None
             self.screen = None
+            self.mouse_pos = [0,0]
+            self.action_blocks = {}
 
         def draw_mask(self, surf, objtype):
             if not self.mask_surface and objtype.mask:
@@ -802,34 +864,130 @@ if __name__ == "__main__":
             if self.mask_surface:
                 surf.blit(self.mask_surface, (5,5))
 
-        def execute_action(self, action):
+        def execute_action(self, action, event):
+            action_params = {}
+            for param in action.action_data.keys():
+                if param == 'apply_to':
+                    continue
+                action_params[param] = action.get_parameter_expression_result(
+                    param, self.symbols, self.language_engine)
+
             #print("Engine recieved action: {}".format(action))
             if action.name == "play_sound":
-                if (len(action['sound']) > 0) and (action['sound'] in self.sounds.keys()):
-                    self.sounds[action['sound']].play_sound()
+                if ((len(action_params['sound']) > 0) and
+                    (action_params['sound'] in self.sounds.keys())):
+                    self.sounds[action_params['sound']].play_sound()
             if action.name == "create_object":
-                if (self.screen and (len(action['object']) > 0) and
-                    (action['object'] in self.objects.keys())):
-                    self.objects[action['object']].create_instance(self.screen)
+                if (self.screen and (len(action_params['object']) > 0) and
+                    (action_params['object'] in self.objects.keys())):
+                    self.objects[action_params['object']].create_instance(
+                        self.screen, action_params)
 
-        def send_key_event(self, pygame_key, up_down):
+        def send_key_event(self, key_event):
             pk_map = pygm_event.PyGameMakerKeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
             key_event_init_name = None
             key_event_name = None
-            if not pygame_key:
+            if not key_event:
                 key_event_init_name = "kb_no_key"
                 key_event_name = key_event_init_name
-            elif pygame_key in pk_map:
-                key_event_name = str(pk_map[pygame_key])
-                if up_down == pygame.KEYDOWN:
-                    key_event_init_name = "{}_keydn".format(pk_map[pygame_key])
-                elif up_down == pygame.KEYUP:
-                    key_event_init_name = "{}_keyup".format(pk_map[pygame_key])
+            elif key_event.key in pk_map:
+                key_event_name = str(pk_map[key_event.key])
+                if key_event.type == pygame.KEYDOWN:
+                    key_event_init_name = "{}_keydn".format(pk_map[key_event.key])
+                elif key_event.type == pygame.KEYUP:
+                    key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
             ev = pygm_event.PyGameMakerKeyEvent(key_event_init_name)
             #print("queue event: {}".format(ev))
             self.event_engine.queue_event(ev)
             #print("xmit event: {}".format(key_event_name))
             self.event_engine.transmit_event(key_event_name)
+
+        def send_mouse_event(self, mouse_event):
+            if mouse_event:
+                self.mouse_pos[0] = mouse_event.pos[0]
+                self.mouse_pos[1] = mouse_event.pos[1]
+                self.language_engine.global_symbol_table['mouse.x'] = self.mouse_pos[0]
+                self.language_engine.global_symbol_table['mouse.y'] = self.mouse_pos[1]
+                if mouse_event.type == pygame.MOUSEMOTION:
+                    return
+            event_names = []
+            if mouse_event:
+                mouse_button = mouse_event.button
+                if len(self.MOUSE_EVENT_TABLE) > mouse_button:
+                    ev_table_entry = self.MOUSE_EVENT_TABLE[mouse_button]
+                    #print("select mouse entries {}".format(ev_table_entry))
+                    # queue the instance version of the event (each object type
+                    #  listening for this kind of event only passes it on
+                    #  to instances that intersect with the mouse position)
+                    self.event_engine.queue_event(
+                        pygm_event.PyGameMakerMouseEvent(
+                            ev_table_entry["instance_event_name"],
+                            {"position": mouse_event.pos}
+                        )
+                    )
+                    event_names.append(ev_table_entry["instance_event_name"])
+                    #print("queue {}".format(event_names[-1]))
+                    self.event_engine.queue_event(
+                        pygm_event.PyGameMakerMouseEvent(
+                            ev_table_entry["global_event_name"],
+                            {"position": mouse_event.pos}
+                        )
+                    )
+                    event_names.append(ev_table_entry["global_event_name"])
+                    #print("queue {}".format(event_names[-1]))
+                    # press/release events exist only for a subset
+                    if mouse_event.type == pygame.MOUSEBUTTONDOWN:
+                        if 'instance_pressed_name' in ev_table_entry:
+                            self.event_engine.queue_event(
+                                pygm_event.PyGameMakerMouseEvent(
+                                    ev_table_entry["instance_pressed_name"],
+                                    {"position": mouse_event.pos}
+                                )
+                            )
+                            event_names.append(ev_table_entry["instance_pressed_name"])
+                            #print("queue {}".format(event_names[-1]))
+                            self.event_engine.queue_event(
+                                pygm_event.PyGameMakerMouseEvent(
+                                    ev_table_entry["global_pressed_name"],
+                                    {"position": mouse_event.pos}
+                                )
+                            )
+                            event_names.append(ev_table_entry["global_pressed_name"])
+                            #print("queue {}".format(event_names[-1]))
+                    if mouse_event.type == pygame.MOUSEBUTTONUP:
+                        if 'instance_released_name' in ev_table_entry:
+                            self.event_engine.queue_event(
+                                pygm_event.PyGameMakerMouseEvent(
+                                    ev_table_entry["instance_released_name"],
+                                    {"position": mouse_event.pos}
+                                )
+                            )
+                            event_names.append(ev_table_entry["instance_released_name"])
+                            #print("queue {}".format(event_names[-1]))
+                            self.event_engine.queue_event(
+                                pygm_event.PyGameMakerMouseEvent(
+                                    ev_table_entry["global_released_name"],
+                                    {"position": mouse_event.pos}
+                                )
+                            )
+                            event_names.append(ev_table_entry["global_released_name"])
+                            #print("queue {}".format(event_names[-1]))
+            else:
+                self.event_engine.queue_event(
+                    pygm_event.PyGameMakerMouseEvent("mouse_nobutton",
+                        {"position": self.mouse_pos})
+                )
+                event_names.append("mouse_nobutton")
+                self.event_engine.queue_event(
+                    pygm_event.PyGameMakerMouseEvent("mouse_global_nobutton",
+                        {"position": self.mouse_pos})
+                )
+                event_names.append("mouse_global_nobutton")
+            # transmit all queued event types
+            for ev_name in event_names:
+                #if not ev_name in ['mouse_nobutton', 'mouse_global_nobutton']:
+                #    print("xmit ev {}".format(ev_name))
+                self.event_engine.transmit_event(ev_name)
 
     class TestGameManager(object):
         LEFT_MARGIN = 10
@@ -846,7 +1004,7 @@ if __name__ == "__main__":
             self.screen = screen
             self.game_engine.screen = screen
             self.game_engine.sprites['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
-            self.game_engine.sprites['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="rectangle")
+            self.game_engine.sprites['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
             self.game_engine.sounds['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
             self.game_engine.sounds['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
             self.game_engine.objects['obj_test'] = PyGameMakerObject.load_obj_type_from_yaml_file(OBJ_TEST_FILE, self.game_engine)
@@ -857,27 +1015,45 @@ if __name__ == "__main__":
             self.game_engine.objects['obj_solid']['kb_enter'] = pygm_sequence.PyGameMakerEventActionSequence()
             self.game_engine.objects['obj_solid']['kb_enter'].append_action(
                 pygm_action.PyGameMakerObjectAction("create_object",
-                    object='obj_test')
+                    {
+                        'object': 'obj_test',
+                        'position.x':"=randint({})".format(self.screen.get_width()),
+                        'position.y':"=randint({})".format(self.screen.get_height())
+                    })
+            )
+            self.game_engine.objects['obj_solid']['mouse_global_left_pressed'] = pygm_sequence.PyGameMakerEventActionSequence()
+            self.game_engine.objects['obj_solid']['mouse_global_left_pressed'].append_action(
+                pygm_action.PyGameMakerObjectAction("create_object",
+                    {
+                        'object': 'obj_test',
+                        'position.x':"=mouse.x".format(self.screen.get_width()),
+                        'position.y':"=mouse.y".format(self.screen.get_height())
+                    })
             )
             print("Setup complete")
         def collect_event(self, event):
             self.current_events.append(event)
         def update(self):
+            key_pressed = False
+            mouse_button = False
             for ev in self.current_events:
-                if ev.type == pygame.KEYDOWN:
+                if ev.type in (pygame.KEYDOWN, pygame.KEYUP):
+                    key_pressed = True
                     if ev.key == pygame.K_ESCAPE:
                         self.done = True
                         break
                     else:
-                        self.game_engine.send_key_event(ev.key, pygame.KEYDOWN)
-#                    elif ev.key == pygame.K_RETURN:
-#                        # create a new object instance
-#                        posn = (float(random.randint(0, self.screen.get_width())),
-#                            float(random.randint(0, self.screen.get_height())))
-#                        self.game_engine.objects['obj_test'].create_instance(self.screen,
-#                            speed=random.random(),
-#                            direction=(360.0 * random.random()),
-#                            position=posn)
+                        self.game_engine.send_key_event(ev)
+                #elif ev.type in (pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN):
+                if ev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                    pygame.MOUSEMOTION]:
+                    self.game_engine.send_mouse_event(ev)
+                    if ev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
+                        mouse_button = True
+            if not key_pressed:
+                self.game_engine.send_key_event(None)
+            if not mouse_button:
+                self.game_engine.send_mouse_event(None)
             # done with event handling
             self.current_events = []
             for obj_name in self.game_engine.objects.keys():
