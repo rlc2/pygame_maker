@@ -30,8 +30,8 @@ class PyGameMakerSprite(object):
 
     DEFAULT_SPRITE_PREFIX="spr_"
 
-    @classmethod
-    def load_sprite(cls, sprite_yaml_file):
+    @staticmethod
+    def load_from_yaml(sprite_yaml_file, unused=None):
         """Create a new sprite from a YAML-formatted file
             sprite_yaml_file: name of the file
             Check each key against known PyGameMakerSprite parameters, and use only those parameters
@@ -41,7 +41,7 @@ class PyGameMakerSprite(object):
                 o a new sprite, if the YAML fields pass basic checks
         """
         yaml_info = None
-        sprite_name = cls.DEFAULT_SPRITE_PREFIX
+        sprite_name = PyGameMakerSprite.DEFAULT_SPRITE_PREFIX
         sprite_args = {}
         new_sprite = None
         if (os.path.exists(sprite_yaml_file)):
@@ -364,7 +364,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], "w")
             tmp_file.write(self.sprite_yaml)
             tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_sprite(tmpf_info[1])
+            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])
             os.unlink(tmpf_info[1])
             self.assertEqual(self.yaml_sprite, new_sprite)
 
@@ -377,7 +377,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], "w")
             tmp_file.write(bad_yaml)
             tmp_file.close()
-            self.assertRaises(PyGameMakerSpriteException, PyGameMakerSprite.load_sprite, tmpf_info[1])
+            self.assertRaises(PyGameMakerSpriteException, PyGameMakerSprite.load_from_yaml, tmpf_info[1])
             os.unlink(tmpf_info[1])
 
         def test_030to_and_from_yaml(self):
@@ -386,7 +386,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], "w")
             tmp_file.write(good_sprite_yaml)
             tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_sprite(tmpf_info[1])
+            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])
             os.unlink(tmpf_info[1])
             self.assertEqual(self.good_sprite, new_sprite)
 

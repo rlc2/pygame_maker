@@ -150,9 +150,9 @@ class PyGameMakerObject(object):
     GLOBAL_MOUSE_RE=re.compile("global")
 
     @staticmethod
-    def load_obj_type_from_yaml_file(yaml_file_name, game_engine):
+    def load_from_yaml(yaml_file_name, game_engine):
         """
-            load_obj_type_from_yaml_file():
+            load_from_yaml():
             Create an object type from a YAML-formatted file.
             Expected format:
             <obj_name>:
@@ -235,8 +235,6 @@ class PyGameMakerObject(object):
         self._visible = self.DEFAULT_VISIBLE
         self.solid = self.DEFAULT_SOLID
         self.depth = self.DEFAULT_DEPTH
-        # begin inside a collection containing only our own type
-        self.object_type_collection = {self.name: self}
         self.group = pygame.sprite.LayeredDirty()
         self.event_action_sequences = {}
         self.id = 0
@@ -261,8 +259,8 @@ class PyGameMakerObject(object):
                 if kw == "depth":
                     self.depth = int(kwargs["depth"])
                 if (kw == "sprite") and kwargs[kw]:
-                    if kwargs['sprite'] in self.game_engine.sprites.keys():
-                        assigned_sprite = self.game_engine.sprites[kwargs['sprite']]
+                    if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
+                        assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
                         if not (isinstance(assigned_sprite,
                             pygm_sprite.PyGameMakerSprite)):
                             raise PyGameMakerObjectException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]))
@@ -600,8 +598,8 @@ class PyGameMakerObject(object):
         elif action["apply_to"] != "self":
             # applies to an object type; this means apply it to all instances
             #  of that object
-            if action["apply_to"] in self.game_engine.objects.keys():
-                apply_to_instances = list(self.game_engine.objects[action["apply_to"]].group)
+            if action["apply_to"] in self.game_engine.resources['objects'].keys():
+                apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
         return apply_to_instances
 
     def execute_action_sequence(self, event, targets=[]):
@@ -839,9 +837,11 @@ if __name__ == "__main__":
             self.event_engine = pgmee.PyGameMakerEventEngine()
             self.language_engine = pgmle.PyGameMakerLanguageEngine()
             self.symbols = pgmle.PyGameMakerSymbolTable()
-            self.sprites = {}
-            self.sounds = {}
-            self.objects = {}
+            self.resources = {
+                'sprites': {},
+                'sounds': {},
+                'objects': {}
+            }
             self.mask_surface = None
             self.last_key_down = None
             self.screen = None
@@ -875,12 +875,12 @@ if __name__ == "__main__":
             #print("Engine recieved action: {}".format(action))
             if action.name == "play_sound":
                 if ((len(action_params['sound']) > 0) and
-                    (action_params['sound'] in self.sounds.keys())):
-                    self.sounds[action_params['sound']].play_sound()
+                    (action_params['sound'] in self.resources['sounds'].keys())):
+                    self.resources['sounds'][action_params['sound']].play_sound()
             if action.name == "create_object":
                 if (self.screen and (len(action_params['object']) > 0) and
-                    (action_params['object'] in self.objects.keys())):
-                    self.objects[action_params['object']].create_instance(
+                    (action_params['object'] in self.resources['objects'].keys())):
+                    self.resources['objects'][action_params['object']].create_instance(
                         self.screen, action_params)
 
         def send_key_event(self, key_event):
@@ -1003,17 +1003,17 @@ if __name__ == "__main__":
         def setup(self, screen):
             self.screen = screen
             self.game_engine.screen = screen
-            self.game_engine.sprites['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
-            self.game_engine.sprites['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
-            self.game_engine.sounds['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
-            self.game_engine.sounds['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
-            self.game_engine.objects['obj_test'] = PyGameMakerObject.load_obj_type_from_yaml_file(OBJ_TEST_FILE, self.game_engine)
-            self.game_engine.objects['obj_solid'] = PyGameMakerObject("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
+            self.game_engine.resources['sprites']['spr_test'] = pygm_sprite.PyGameMakerSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
+            self.game_engine.resources['sprites']['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
+            self.game_engine.resources['sounds']['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
+            self.game_engine.resources['sounds']['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
+            self.game_engine.resources['objects']['obj_test'] = PyGameMakerObject.load_from_yaml(OBJ_TEST_FILE, self.game_engine)
+            self.game_engine.resources['objects']['obj_solid'] = PyGameMakerObject("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
             # this doubles as a solid object and as the manager object
-            self.game_engine.objects['obj_solid'].create_instance(self.screen,
+            self.game_engine.resources['objects']['obj_solid'].create_instance(self.screen,
                 position=(308,228))
-            self.game_engine.objects['obj_solid']['kb_enter'] = pygm_sequence.PyGameMakerEventActionSequence()
-            self.game_engine.objects['obj_solid']['kb_enter'].append_action(
+            self.game_engine.resources['objects']['obj_solid']['kb_enter'] = pygm_sequence.PyGameMakerEventActionSequence()
+            self.game_engine.resources['objects']['obj_solid']['kb_enter'].append_action(
                 pygm_action.PyGameMakerObjectAction("create_object",
                     {
                         'object': 'obj_test',
@@ -1021,8 +1021,8 @@ if __name__ == "__main__":
                         'position.y':"=randint({})".format(self.screen.get_height())
                     })
             )
-            self.game_engine.objects['obj_solid']['mouse_global_left_pressed'] = pygm_sequence.PyGameMakerEventActionSequence()
-            self.game_engine.objects['obj_solid']['mouse_global_left_pressed'].append_action(
+            self.game_engine.resources['objects']['obj_solid']['mouse_global_left_pressed'] = pygm_sequence.PyGameMakerEventActionSequence()
+            self.game_engine.resources['objects']['obj_solid']['mouse_global_left_pressed'].append_action(
                 pygm_action.PyGameMakerObjectAction("create_object",
                     {
                         'object': 'obj_test',
@@ -1056,23 +1056,23 @@ if __name__ == "__main__":
                 self.game_engine.send_mouse_event(None)
             # done with event handling
             self.current_events = []
-            for obj_name in self.game_engine.objects.keys():
-                self.game_engine.objects[obj_name].update()
+            for obj_name in self.game_engine.resources['objects'].keys():
+                self.game_engine.resources['objects'][obj_name].update()
             # check for object instance collisions
-            obj_types = self.game_engine.objects.values()
+            obj_types = self.game_engine.resources['objects'].values()
             collision_types = []
-            for obj_name in self.game_engine.objects.keys():
-                collision_types += self.game_engine.objects[obj_name].collision_check(obj_types)
+            for obj_name in self.game_engine.resources['objects'].keys():
+                collision_types += self.game_engine.resources['objects'][obj_name].collision_check(obj_types)
             if len(collision_types) > 0:
                 for coll_type in collision_types:
                     self.game_engine.event_engine.transmit_event(coll_type)
         def draw_objects(self):
-            for obj_name in self.game_engine.objects.keys():
-                self.game_engine.objects[obj_name].draw(self.screen)
+            for obj_name in self.game_engine.resources['objects'].keys():
+                self.game_engine.resources['objects'][obj_name].draw(self.screen)
             self.game_engine.draw_mask(self.screen,
-                self.game_engine.objects['obj_test'])
-            if self.game_engine.objects['obj_test'].image:
-                self.screen.blit(self.game_engine.objects['obj_test'].image,
+                self.game_engine.resources['objects']['obj_test'])
+            if self.game_engine.resources['objects']['obj_test'].image:
+                self.screen.blit(self.game_engine.resources['objects']['obj_test'].image,
                     (5,5))
         def draw_background(self):
             self.screen.fill(pg_template.PygameTemplate.BLACK)
