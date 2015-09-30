@@ -35,26 +35,36 @@ class PyGameMakerSound(object):
             Returns:
                 o None, if the yaml-formatted sound is invalid
                 o a new sound, if the YAML fields pass basic checks
+            
+            Expected YAML format:
+            - sound_name1:
+                sound_file: <sound_file_path>
+                sound_type: <type>
+                preload: true|false
+            - sound_name2:
+                ...
         """
         yaml_info = None
         sound_name = PyGameMakerSound.DEFAULT_SOUND_PREFIX
-        sound_args = {}
-        new_sound = None
+        new_sound_list = []
         if os.path.exists(sound_yaml_file):
             with open(sound_yaml_file, "r") as yaml_f:
                 yaml_info = yaml.load(yaml_f)
             if yaml_info:
-                if 'sound_name' in yaml_info:
-                    sound_name = yaml_info['sound_name']
-                if 'sound_file' in yaml_info:
-                    sound_args['sound_file'] = yaml_info['sound_file']
-                if 'sound_type' in yaml_info:
-                    sound_args['sound_type'] = yaml_info['sound_type']
-                if 'preload' in yaml_info:
-                    sound_args['preload'] = yaml_info['preload']
-                new_sound = PyGameMakerSound(sound_name, **sound_args)
-                new_sound.check()
-        return new_sound
+                for top_level in yaml_info:
+                    sound_args = {}
+                    sound_name = top_level.keys()[0]
+                    yaml_info_hash = top_level[sound_name]
+                    if 'sound_file' in yaml_info_hash.keys():
+                        sound_args['sound_file'] = yaml_info_hash['sound_file']
+                    if 'sound_type' in yaml_info_hash.keys():
+                        sound_args['sound_type'] = yaml_info_hash['sound_type']
+                    if 'preload' in yaml_info_hash.keys():
+                        sound_args['preload'] = yaml_info_hash['preload']
+                    new_sound_list.append(PyGameMakerSound(sound_name,
+                        **sound_args))
+                    new_sound_list[-1].check()
+        return new_sound_list
 
     def __init__(self, sound_name=None, **kwargs):
         if sound_name:
@@ -100,11 +110,11 @@ class PyGameMakerSound(object):
         return (playing_sound == self.audio)
 
     def to_yaml(self):
-        ystr = "sound_name: {}\n".format(self.name)
+        ystr = "- {}:\n".format(self.name)
         if self.sound_file:
-            ystr += "sound_file: {}\n".format(self.sound_file)
-        ystr += "sound_type: {}\n".format(self.sound_type)
-        ystr += "preload: {}\n".format(self.preload)
+            ystr += "    sound_file: {}\n".format(self.sound_file)
+        ystr += "    sound_type: {}\n".format(self.sound_type)
+        ystr += "    preload: {}\n".format(self.preload)
         return(ystr)
 
     def check_type(self):
@@ -132,7 +142,7 @@ if __name__ == "__main__":
 
         def setUp(self):
             self.sound_test_file = "unittest_files/Pop.wav"
-            self.valid_sound_yaml = "sound_name: yaml_sound\nsound_file: {}\nsound_type: music\npreload: False\n".format(self.sound_test_file)
+            self.valid_sound_yaml = "- yaml_sound:\n    sound_file: {}\n    sound_type: music\n    preload: False\n".format(self.sound_test_file)
             self.valid_sound_object = PyGameMakerSound("yaml_sound",
                 sound_file=self.sound_test_file, sound_type="music",
                 preload=False)
@@ -171,7 +181,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], 'w')
             tmp_file.write(self.valid_sound_yaml)
             tmp_file.close()
-            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])
+            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])[0]
             os.unlink(tmpf_info[1])
             self.assertEqual(self.valid_sound_object, loaded_sound1)
 
@@ -181,7 +191,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], 'w')
             tmp_file.write(generated_sound_yaml)
             tmp_file.close()
-            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])
+            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])[0]
             os.unlink(tmpf_info[1])
             self.assertEqual(self.valid_sound_object, loaded_sound1)
 

@@ -37,38 +37,54 @@ class PyGameMakerSprite(object):
             Check each key against known PyGameMakerSprite parameters, and use only those parameters
             to initialize a new sprite.
             Returns:
-                o None, if the YAML-defined sprite is invalid
-                o a new sprite, if the YAML fields pass basic checks
+                o Empty list, if the YAML-defined sprite(s) is (are) invalid
+                o a list of new sprites, for those with YAML fields that pass
+                  basic checks
+
+            Expected YAML object format:
+            - spr_name1:
+                filename: <filename>
+                smooth_edges: true|false
+                manual_bounding_box_rect:
+                  top: 0
+                  bottom: 32
+                  left: 0
+                  right: 32
+                ...
+            - spr_name2:
+                ...
         """
         yaml_info = None
         sprite_name = PyGameMakerSprite.DEFAULT_SPRITE_PREFIX
-        sprite_args = {}
-        new_sprite = None
+        new_sprite_list = []
         if (os.path.exists(sprite_yaml_file)):
             with open(sprite_yaml_file, "r") as yaml_f:
                 yaml_info = yaml.load(yaml_f)
             if yaml_info:
-                if 'name' in yaml_info:
-                    sprite_name = yaml_info['name']
-                if 'filename' in yaml_info:
-                    sprite_args['filename'] = yaml_info['filename']
-                if 'smooth_edges' in yaml_info:
-                    sprite_args['smooth_edges'] = yaml_info['smooth_edges']
-                if 'preload_texture' in yaml_info:
-                    sprite_args['preload_texture'] = yaml_info['preload_texture']
-                if 'transparency_pixel' in yaml_info:
-                    sprite_args['transparency_pixel'] = yaml_info['transparency_pixel']
-                if 'origin' in yaml_info:
-                    sprite_args['origin'] = yaml_info['origin']
-                if 'collision_type' in yaml_info:
-                    sprite_args['collision_type'] = yaml_info['collision_type']
-                if 'bounding_box_type' in yaml_info:
-                    sprite_args['bounding_box_type'] = yaml_info['bounding_box_type']
-                if 'manual_bounding_box_rect' in yaml_info:
-                    sprite_args['manual_bounding_box_rect'] = yaml_info['manual_bounding_box_rect']
-                new_sprite = PyGameMakerSprite(sprite_name, **sprite_args)
-                new_sprite.check()
-        return new_sprite
+                for top_level in yaml_info:
+                    sprite_args = {}
+                    sprite_name = top_level.keys()[0]
+                    yaml_info_hash = top_level[sprite_name]
+                    if 'filename' in yaml_info_hash:
+                        sprite_args['filename'] = yaml_info_hash['filename']
+                    if 'smooth_edges' in yaml_info_hash:
+                        sprite_args['smooth_edges'] = yaml_info_hash['smooth_edges']
+                    if 'preload_texture' in yaml_info_hash:
+                        sprite_args['preload_texture'] = yaml_info_hash['preload_texture']
+                    if 'transparency_pixel' in yaml_info_hash:
+                        sprite_args['transparency_pixel'] = yaml_info_hash['transparency_pixel']
+                    if 'origin' in yaml_info_hash:
+                        sprite_args['origin'] = yaml_info_hash['origin']
+                    if 'collision_type' in yaml_info_hash:
+                        sprite_args['collision_type'] = yaml_info_hash['collision_type']
+                    if 'bounding_box_type' in yaml_info_hash:
+                        sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
+                    if 'manual_bounding_box_rect' in yaml_info_hash:
+                        sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
+                    new_sprite_list.append(PyGameMakerSprite(sprite_name,
+                        **sprite_args))
+                    new_sprite_list[-1].check()
+        return new_sprite_list
 
     def __init__(self, name=None, **kwargs):
         """Create a new sprite
@@ -252,20 +268,20 @@ class PyGameMakerSprite(object):
         return True
 
     def to_yaml(self):
-        ystr = "name: {}\n".format(self.name)
-        ystr += "filename: {}\n".format(self.filename)
-        ystr += "smooth_edges: {}\n".format(self.smooth_edges)
-        ystr += "preload_texture: {}\n".format(self.preload_texture)
-        ystr += "transparency_pixel: {}\n".format(self.transparency_pixel)
-        ystr += "origin: {}\n".format(list(self.origin))
-        ystr += "collision_type: {}\n".format(self.collision_type)
-        ystr += "bounding_box_type: {}\n".format(self.bounding_box_type)
+        ystr = "- {}:\n".format(self.name)
+        ystr += "    filename: {}\n".format(self.filename)
+        ystr += "    smooth_edges: {}\n".format(self.smooth_edges)
+        ystr += "    preload_texture: {}\n".format(self.preload_texture)
+        ystr += "    transparency_pixel: {}\n".format(self.transparency_pixel)
+        ystr += "    origin: {}\n".format(list(self.origin))
+        ystr += "    collision_type: {}\n".format(self.collision_type)
+        ystr += "    bounding_box_type: {}\n".format(self.bounding_box_type)
         bounding_dict = {"left": self.manual_bounding_box_rect.left,
             "right": self.manual_bounding_box_rect.right,
             "top": self.manual_bounding_box_rect.top,
             "bottom": self.manual_bounding_box_rect.bottom
         }
-        ystr += "manual_bounding_box_rect: {}".format(bounding_dict)
+        ystr += "    manual_bounding_box_rect: {}".format(bounding_dict)
         return(ystr)
 
     def __eq__(self, other):
@@ -296,16 +312,16 @@ if __name__ == "__main__":
             }
             self.good_sprite = PyGameMakerSprite("spr_good", **self.base_good_sprite_info)
             self.sprite_yaml = """
-                name: spr_yaml
-                filename: unittest_files/Ball.png
-                smooth_edges: true
-                preload_texture: false
-                transparency_pixel: true
-                origin: [10,10]
-                collision_type: disk
-                bounding_box_type: manual
-                manual_bounding_box_rect: {left: 5, right: 10, top: 5, bottom: 10}
-            """
+- spr_yaml:
+    filename: unittest_files/Ball.png
+    smooth_edges: true
+    preload_texture: false
+    transparency_pixel: true
+    origin: [10,10]
+    collision_type: disk
+    bounding_box_type: manual
+    manual_bounding_box_rect: {left: 5, right: 10, top: 5, bottom: 10}
+"""
             self.yaml_sprite = PyGameMakerSprite("spr_yaml",
                 filename="unittest_files/Ball.png",
                 smooth_edges=True,
@@ -364,14 +380,14 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], "w")
             tmp_file.write(self.sprite_yaml)
             tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])
+            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])[0]
             os.unlink(tmpf_info[1])
             self.assertEqual(self.yaml_sprite, new_sprite)
 
         def test_026load_bad_yaml(self):
             bad_yaml = """
-                name: foo
-                filename: foo
+                - foo:
+                    filename: foo
             """
             tmpf_info = tempfile.mkstemp(dir="/tmp")
             tmp_file = os.fdopen(tmpf_info[0], "w")
@@ -386,7 +402,7 @@ if __name__ == "__main__":
             tmp_file = os.fdopen(tmpf_info[0], "w")
             tmp_file.write(good_sprite_yaml)
             tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])
+            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])[0]
             os.unlink(tmpf_info[1])
             self.assertEqual(self.good_sprite, new_sprite)
 

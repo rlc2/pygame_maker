@@ -1,34 +1,34 @@
-obj_test:
-  visible: True
-  solid: False
-  depth: 0
-  sprite: spr_test
-  events:
-    create:
-      - execute_code:
-          apply_to: self
-          code: |
-            # set random position, speed, and direction
-            direction = randint(360)
-            speed = randint(1000.0) / 1000.0
-    destroy:
-      - if_sound_is_playing:
-          sound: snd_explosion
-          invert: True
-      - play_sound:
-          sound: snd_test
-          loop: False
-    outside_room:
-      - destroy_object:
-          apply_to: self
-    collision_obj_test:
-      - play_sound:
-          sound: snd_explosion
-      - destroy_object:
-          apply_to: self
-    collision_obj_solid:
-      - bounce_off_collider:
-          apply_to: self
-          precision: precise
-          bounce_collision_type: solid
+- obj_test:
+    visible: True
+    solid: False
+    depth: 0
+    sprite: spr_test
+    events:
+      create:
+        - execute_code:
+            apply_to: self
+            code: |
+              # set random position, speed, and direction
+              direction = randint(360)
+              speed = randint(1000.0) / 1000.0
+      destroy:
+        - if_sound_is_playing:
+            sound: snd_explosion
+            invert: True
+        - play_sound:
+            sound: snd_test
+            loop: False
+      outside_room:
+        - destroy_object:
+            apply_to: self
+      collision_obj_test:
+        - play_sound:
+            sound: snd_explosion
+        - destroy_object:
+            apply_to: self
+      collision_obj_solid:
+        - bounce_off_collider:
+            apply_to: self
+            precision: precise
+            bounce_collision_type: solid
 

@@ -155,51 +155,55 @@ class PyGameMakerObject(object):
             load_from_yaml():
             Create an object type from a YAML-formatted file.
             Expected format:
-            <obj_name>:
-              visible: True | False
-              solid: True | False
-              depth: <int>
-              sprite: <sprite resource name>
-              <event1_name>:
-                <yaml representation for event action sequence>
-              <...>
-              <eventN_name>:
-                <yaml representation for event action sequence>
+            - obj_name1:
+                visible: True | False
+                solid: True | False
+                depth: <int>
+                sprite: <sprite resource name>
+                events:
+                  <event1_name>:
+                    <yaml representation for event action sequence>
+                  ...
+                  <eventN_name>:
+                    <yaml representation for event action sequence>
+            - obj_name2:
+                ...
         """
         yaml_repr = None
+        new_object_list = []
         with open(yaml_file_name, "r") as yaml_f:
             yaml_repr = yaml.load(yaml_f)
         if yaml_repr:
-            kwargs = {
-                "visible": PyGameMakerObject.DEFAULT_VISIBLE,
-                "solid": PyGameMakerObject.DEFAULT_SOLID,
-                "depth": PyGameMakerObject.DEFAULT_DEPTH,
-                "sprite": PyGameMakerObject.DEFAULT_SPRITE_RESOURCE,
-                "event_action_sequences": {}
-            }
-            for top_level in yaml_repr.keys():
+            for top_level in yaml_repr:
+                kwargs = {
+                    "visible": PyGameMakerObject.DEFAULT_VISIBLE,
+                    "solid": PyGameMakerObject.DEFAULT_SOLID,
+                    "depth": PyGameMakerObject.DEFAULT_DEPTH,
+                    "sprite": PyGameMakerObject.DEFAULT_SPRITE_RESOURCE,
+                    "event_action_sequences": {}
+                }
                 # hash of 1 key, the object name
-                obj_name = str(top_level)
-                break
-            # 'events' key contains event -> action sequence mappings
-            for kwarg in yaml_repr[top_level].keys():
-                if kwarg == "visible":
-                    kwargs["visible"] = (yaml_repr[top_level]["visible"] == True)
-                elif kwarg == "solid":
-                    kwargs["solid"] = (yaml_repr[top_level]["solid"] == True)
-                elif kwarg == "depth":
-                    kwargs["depth"] = int(yaml_repr[top_level]["depth"])
-                elif kwarg == "sprite":
-                    kwargs["sprite"] = str(yaml_repr[top_level]["sprite"])
-                elif kwarg == "events":
-                    #print("Found '{}', passing {} to load..".format(kwarg, yaml_repr[top_level][kwarg]))
-                    for ev_seq in yaml_repr[top_level]["events"]:
-                        print("create sequence from '{}'".format(yaml_repr[top_level]['events'][ev_seq]))
-                        kwargs["event_action_sequences"][ev_seq] = pygm_sequence.PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(yaml_repr[top_level]['events'][ev_seq])
+                obj_name = top_level.keys()[0]
+                # 'events' key contains event -> action sequence mappings
+                obj_yaml = top_level[obj_name]
+                if "visible" in obj_yaml.keys():
+                    kwargs["visible"] = (obj_yaml["visible"] == True)
+                if "solid" in obj_yaml.keys():
+                    kwargs["solid"] = (obj_yaml["solid"] == True)
+                if "depth" in obj_yaml.keys():
+                    kwargs["depth"] = int(obj_yaml["depth"])
+                if "sprite" in obj_yaml.keys():
+                    kwargs["sprite"] = str(obj_yaml["sprite"])
+                if "events" in obj_yaml.keys():
+                    #print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
+                    for ev_seq in obj_yaml["events"]:
+                        print("create sequence from '{}'".format(obj_yaml['events'][ev_seq]))
+                        kwargs["event_action_sequences"][ev_seq] = pygm_sequence.PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
                         print("Loaded sequence {}:".format(ev_seq))
                         kwargs["event_action_sequences"][ev_seq].pretty_print()
-            return PyGameMakerObject(obj_name, game_engine, **kwargs)
-        return None
+                new_object_list.append(PyGameMakerObject(obj_name, game_engine,
+                    **kwargs))
+        return new_object_list
 
     def __init__(self, object_name, game_engine, **kwargs):
 
@@ -292,15 +296,15 @@ class PyGameMakerObject(object):
             to_yaml():
             Create the YAML representation for this object type.
         """
-        yaml_str = "{}:\n".format(self.name)
-        yaml_str += "  visible: {}\n".format(self.visible)
-        yaml_str += "  solid: {}\n".format(self.solid)
-        yaml_str += "  depth: {}\n".format(self.depth)
-        yaml_str += "  sprite: {}\n".format(self.sprite_resource.name)
-        yaml_str += "  events:\n"
+        yaml_str = "- {}:\n".format(self.name)
+        yaml_str += "    visible: {}\n".format(self.visible)
+        yaml_str += "    solid: {}\n".format(self.solid)
+        yaml_str += "    depth: {}\n".format(self.depth)
+        yaml_str += "    sprite: {}\n".format(self.sprite_resource.name)
+        yaml_str += "    events:\n"
         for event_name in self.event_action_sequences:
-            yaml_str += "    {}:\n".format(event_name)
-            yaml_str += self.event_action_sequences[event_name].to_yaml(6)
+            yaml_str += "      {}:\n".format(event_name)
+            yaml_str += self.event_action_sequences[event_name].to_yaml(8)
         return yaml_str
 
     def add_instance_to_delete_list(self, instance):
@@ -789,7 +793,8 @@ class PyGameMakerObject(object):
             del(self.event_action_sequences[itemname])
 
     def __repr__(self):
-        rpr = "<{} '{}'>".format(type(self).__name__, self.name)
+        rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name,
+            self.sprite_resource)
         return rpr
 
 if __name__ == "__main__":
@@ -1007,7 +1012,7 @@ if __name__ == "__main__":
             self.game_engine.resources['sprites']['spr_solid'] = pygm_sprite.PyGameMakerSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
             self.game_engine.resources['sounds']['snd_test'] = pygm_sound.PyGameMakerSound("snd_test", sound_file="unittest_files/Pop.wav")
             self.game_engine.resources['sounds']['snd_explosion'] = pygm_sound.PyGameMakerSound("snd_explosion", sound_file="unittest_files/explosion.wav")
-            self.game_engine.resources['objects']['obj_test'] = PyGameMakerObject.load_from_yaml(OBJ_TEST_FILE, self.game_engine)
+            self.game_engine.resources['objects']['obj_test'] = PyGameMakerObject.load_from_yaml(OBJ_TEST_FILE, self.game_engine)[0]
             self.game_engine.resources['objects']['obj_solid'] = PyGameMakerObject("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
             # this doubles as a solid object and as the manager object
             self.game_engine.resources['objects']['obj_solid'].create_instance(self.screen,
@@ -1026,8 +1031,8 @@ if __name__ == "__main__":
                 pygm_action.PyGameMakerObjectAction("create_object",
                     {
                         'object': 'obj_test',
-                        'position.x':"=mouse.x".format(self.screen.get_width()),
-                        'position.y':"=mouse.y".format(self.screen.get_height())
+                        'position.x':"=mouse.x",
+                        'position.y':"=mouse.y"
                     })
             )
             print("Setup complete")
