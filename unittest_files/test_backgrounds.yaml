@@ -1,0 +1,67 @@
+- bkg_red:
+    background_color: '#FF0000'
+- bkg_green:
+    background_color: [0, 255, 0]
+- bkg_blue:
+    background_color: [0, 0, 255]
+- bkg_image_normal:
+    background_color: '#000000'
+    filename: unittest_files/rose1.jpg
+- bkg_tiled_normal:
+    background_color: '#888888'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    filename: unittest_files/solid.png
+- bkg_tiled_transparent:
+    background_color: '#888888'
+    transparent: True
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    filename: unittest_files/solid.png
+- bkg_tiled_hoffset50:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    horizontal_offset: 50
+    filename: unittest_files/solid.png
+- bkg_tiled_voffset100:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    vertical_offset: 100
+    filename: unittest_files/solid.png
+- bkg_tiled_hpadding20:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    horizontal_padding: 20
+    filename: unittest_files/solid.png
+- bkg_tiled_vpadding40:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    vertical_padding: 40
+    filename: unittest_files/solid.png
+- bkg_tiled_everything:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 32
+    tile_height: 32
+    horizontal_padding: 20
+    vertical_padding: 40
+    horizontal_offset: 50
+    vertical_offset: 100
+    filename: unittest_files/solid.png
+- bkg_tiled_truncated:
+    background_color: '#444444'
+    tileset: True
+    tile_width: 16
+    tile_height: 16
+    filename: unittest_files/solid.png
+
