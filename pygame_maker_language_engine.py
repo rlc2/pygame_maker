@@ -953,7 +953,6 @@ class PyGameMakerLanguageEngine(object):
              using its name as the key.
         """
         code_block_runnable = None
-        code_block_id = -1
         if block_name in self.code_blocks:
             raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name)))
         module_context = imp.new_module('{}_module'.format(block_name))
@@ -976,6 +975,14 @@ class PyGameMakerLanguageEngine(object):
         symtables = { 'globals': self.global_symbol_table,
             'locals': local_symbol_table }
         self.code_blocks[block_name].module_context.run(symtables)
+
+    def unregister_code_block(self, block_name):
+        """
+            unregister_code_block():
+            Remove a code block that is no longer needed.
+        """
+        if block_name in self.code_blocks.keys():
+            del(self.code_blocks[block_name])
 
 bnf = None
 def BNF(code_block_obj):
@@ -1319,6 +1326,17 @@ circumference = 2.0 * pi * radius
                 "circumference": 2 * math.pi * 2 }
             self.assertEqual(testa_locals.vars, testa_answers)
             self.assertEqual(testb_locals.vars, testb_answers)
+
+        def test_050unregister_code_blocks(self):
+            language_engine = PyGameMakerLanguageEngine()
+            language_engine.register_code_block("testA", "a = 1")
+            language_engine.register_code_block("testB", "b = 2")
+            self.assertEqual(['testA', 'testB'],
+                language_engine.code_blocks.keys())
+            language_engine.unregister_code_block("testA")
+            self.assertEqual(['testB'], language_engine.code_blocks.keys())
+            language_engine.unregister_code_block("testB")
+            self.assertEqual([], language_engine.code_blocks.keys())
 
     unittest.main()
 
