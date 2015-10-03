@@ -130,8 +130,13 @@ class PyGameMakerBackground(object):
                 self.transparent = (kwargs['transparent'] == True)
             if 'tileset' in kwargs:
                 self.tileset = (kwargs['tileset'] == True)
-        # load the graphic immediately instead of waiting until the room is
-        #  loaded, if preload_texture is set
+
+    def setup(self):
+        """
+            setup():
+            Preload the image if preload_texture is set. Must be done after
+             pygame.init().
+        """
         if self.filename and self.preload_texture and self.check_filename():
             self.load_graphic()
 
