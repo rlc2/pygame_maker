@@ -48,7 +48,6 @@ class PyGameMakerTileProperties(object):
 
 class PyGameMakerBackground(object):
     DEFAULT_NAME="bkg_"
-    COLOR_STRING_RE=re.compile("#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
 
     @staticmethod
     def load_from_yaml(yaml_file_name, unused=None):
