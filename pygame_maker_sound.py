@@ -84,6 +84,13 @@ class PyGameMakerSound(object):
             self.sound_type = kwargs["sound_type"]
         if "preload" in kwargs:
             self.preload = (kwargs["preload"] == True) # convert to boolean
+
+    def setup(self):
+        """
+            setup():
+            Preload the sound if preload is set. Must be done after
+             pygame.init().
+        """
         if self.sound_file and self.preload:
             self.load_file()
 
@@ -164,11 +171,13 @@ if __name__ == "__main__":
             self.assertEqual(sound_with_file.sound_file, self.sound_test_file)
 
         def test_015missing_sound_file(self):
+            missing_music1 = PyGameMakerSound("missing1",
+                sound_type="music", sound_file="unittest/missing1.wav")
             with self.assertRaises(PyGameMakerSoundException):
-                missing_music1 = PyGameMakerSound("missing1",
-                    sound_type="music", sound_file="unittest/missing1.wav")
+                missing_music1.setup()
             missing_sound1 = PyGameMakerSound("missing2",
                 preload=False, sound_file="unittest/missing2.wav")
+            missing_sound1.setup()
             with self.assertRaises(PyGameMakerSoundException):
                 missing_sound1.play_sound()
 
