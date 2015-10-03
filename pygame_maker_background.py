@@ -62,7 +62,6 @@ class PyGameMakerBackground(object):
                 preload_texture: True|False
                 transparent: True|False
                 tileset: True|False
-                background_color: #RRGGBB | (R, G, B)
                 tile_width: <# >= 0>
                 tile_height: <# >= 0>
                 horizontal_offset: <# >= 0>
@@ -90,8 +89,6 @@ class PyGameMakerBackground(object):
                     kwargs['transparent'] = (bkg_yaml['transparent'] == True)
                 if 'tileset' in bkg_yaml.keys():
                     kwargs['tileset'] = (bkg_yaml['tileset'] == True)
-                if 'background_color' in bkg_yaml.keys():
-                    kwargs['background_color'] = bkg_yaml['background_color']
                 if 'tile_width' in bkg_yaml.keys():
                     kwargs['tile_width'] = bkg_yaml['tile_width']
                 if 'tile_height' in bkg_yaml.keys():
@@ -118,7 +115,6 @@ class PyGameMakerBackground(object):
         self.tileset = False
         self.image = None
         self.image_size = (0,0)
-        self.background_color = (0,0,0)
         self.tile_rect = None
         self.tile_row_spacing = -1
         self.max_tile_rows = -1
@@ -135,23 +131,6 @@ class PyGameMakerBackground(object):
                 self.transparent = (kwargs['transparent'] == True)
             if 'tileset' in kwargs:
                 self.tileset = (kwargs['tileset'] == True)
-            if 'background_color' in kwargs:
-                if isinstance(kwargs['background_color'], str):
-                    # accept background colors in #RRGGBB format
-                    minfo = self.COLOR_STRING_RE.match(kwargs['background_color'])
-                    if minfo:
-                        red = int(minfo.group(1), base=16)
-                        green = int(minfo.group(2), base=16)
-                        blue = int(minfo.group(3), base=16)
-                        self.background_color = (red, green, blue)
-                    else:
-                        raise(PyGameMakerBackgroundException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, kwargs['background_color'])))
-                else:
-                    clist = list(kwargs['background_color'])
-                    if len(clist) >= 3:
-                        self.background_color = (clist[0], clist[1], clist[2])
-                    else:
-                        raise(PyGameMakerBackgroundException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, kwargs['background_color'])))
         # load the graphic immediately instead of waiting until the room is
         #  loaded, if preload_texture is set
         if self.filename and self.preload_texture and self.check_filename():
@@ -187,7 +166,6 @@ class PyGameMakerBackground(object):
               the image/tileset (in addition to the background's configured
               horizontal/vertical offsets if it's a tileset)
         """
-        screen.fill(self.background_color)
         if (len(self.filename) > 0) and self.check_filename():
             if not self.image:
                 self.load_graphic()
@@ -248,15 +226,13 @@ class PyGameMakerBackground(object):
             (self.preload_texture == other.preload_texture) and
             (self.transparent == other.transparent) and
             (self.tileset == other.tileset) and
-            (self.tile_properties == other.tile_properties) and
-            (self.background_color == other.background_color))
+            (self.tile_properties == other.tile_properties))
 
     def __repr__(self):
         return("<{} name='{}'>".format(type(self).__name__, self.name))
 
 if __name__ == "__main__":
     import pg_template
-    import unittest
     import tempfile
     import os
 
@@ -325,6 +301,7 @@ if __name__ == "__main__":
                 self.draw_text(ob, line)
 
         def draw_background(self):
+            self.screen.fill( (64,64,64) ) # grey background color
             if self.background_idx < len(self.backgrounds):
                 self.backgrounds[self.background_idx].draw_background(self.screen)
 
