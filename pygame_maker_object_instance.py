@@ -588,7 +588,29 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                 new_vspeed += self.vspeed
             self.vspeed = new_vspeed
 
-    def execute_code(self, action):
+    def symbol_change_callback(self, sym, new_value):
+        if sym == 'speed':
+            self.speed = new_value
+        elif sym == 'direction':
+            self.direction = new_value
+        elif sym == 'hspeed':
+            self.hspeed = new_value
+        elif sym == 'vspeed':
+            self.vspeed = new_value
+        elif sym == 'position.x':
+            self.position.x = new_value
+        elif sym == 'position.y':
+            self.position.y = new_value
+        elif sym == 'position':
+            self.position = new_value
+        elif sym == 'friction':
+            self.friction = new_value
+        elif sym == 'gravity_direction':
+            self.gravity_direction = new_value
+        elif sym == 'gravity':
+            self.gravity = new_value
+
+    def execute_code(self, action, keep_code_block=True):
         """
             execute_code():
             Handle the execute_code action. Puts local variables into the
@@ -599,18 +621,21 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
             if not 'language_engine_handle' in action.runtime_data:
                 action['language_engine_handle'] = instance_handle_name
-                print("action {} runtime: '{}'".format(action, action.runtime_data))
+                #print("action {} runtime: '{}'".format(action, action.runtime_data))
                 self.game_engine.language_engine.register_code_block(
                     instance_handle_name, action.action_data['code']
                 )
-            local_symbols = PyGameMakerSymbolTable(self.symbols)
+            local_symbols = PyGameMakerSymbolTable(self.symbols, lambda s, v: self.symbol_change_callback(s, v))
             #print("syms before code block: {}".format(local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
                 action['language_engine_handle'], local_symbols
             )
-            # apply any local variables contributed by the code block
-            #print("Code block vars: {}".format(local_symbols.vars))
-            self.apply_kwargs(dict(local_symbols.vars))
+            if not keep_code_block:
+                # support one-shot actions
+                self.game_engine.language_engine.unregister_code_block(
+                    action['language_engine_handle']
+                )
+                del(action.runtime_data['language_engine_handle'])
 
     def if_variable_value(self, action):
         """
