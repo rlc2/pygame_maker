@@ -24,6 +24,10 @@ class PyGameMakerObjectException(Exception):
 def sprite_collision_test(sprite_a, sprite_b):
     if sprite_a == sprite_b:
         return False
+    if not sprite_a or not sprite_b:
+        return False
+    if not sprite_a.image or not sprite_b.image:
+        return False
     coll_types = (sprite_a.kind.sprite_resource.collision_type,
         sprite_b.kind.sprite_resource.collision_type)
     # simple cases first: both rectangular or disk collision types
@@ -343,6 +347,7 @@ class PyGameMakerObject(object):
         # queue the creation event for the new instance
         self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create", { "type": self, "instance": new_instance }))
         self.game_engine.event_engine.transmit_event('create')
+        return new_instance
 
     def collision_check(self, other_obj_types):
         """
@@ -532,6 +537,7 @@ class PyGameMakerObject(object):
         if self.sprite_resource:
             if not self.sprite_resource.image:
                 self.sprite_resource.load_graphic()
+            if not self.mask:
                 original_image = self.sprite_resource.image
                 precise_mask = mask_from_surface(original_image)
                 bound_rect = self.sprite_resource.bounding_box_rect
