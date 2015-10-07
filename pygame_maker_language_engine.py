@@ -61,12 +61,32 @@ class PyGameMakerCodeBlockException(Exception):
 class PyGameMakerSymbolTable(object):
     DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
-    def __init__(self, initial_symbols={}):
+    def __init__(self, initial_symbols={}, sym_change_callback=None):
+        """
+            PyGameMakerSymbolTable __init__():
+            The language engine makes use of symbol tables when running the
+             interpreted language code. Symbol tables support both constants
+             and variables. An initial set of variables can be passed into
+             initial_symbols. A callback, if specified in sym_change_callback,
+             will be called whenever a symbol changes. The callback will be
+             expected to have the signature callback(sym_name, new_value).
+            Parameters:
+             sym_change_callback (method ref): The callback to execute whenever
+              the interpreted language changes a symbol's value.
+             initial_symbols (dict): The initial contents to place in the
+              variables portion of the symbol table.
+        """
         self.vars = {}
         self.vars.update(initial_symbols)
+        self.sym_change_callback = sym_change_callback
         self.consts = {}
 
     def dumpVars(self):
+        """
+            dumpVars():
+            For debugging, dump the contents of the symbol table. List
+             constants and variables separately.
+        """
         constlist = list(self.consts.keys())
         constlist.sort()
         print("constants:")
@@ -86,6 +106,8 @@ class PyGameMakerSymbolTable(object):
         # don't allow constants to be written this way
         if not item in self.consts:
             self.vars[item] = val
+            if self.sym_change_callback:
+                self.sym_change_callback(item, val)
 
     def __getitem__(self, item):
         new_val = self.DEFAULT_UNINITIALIZED_VALUE
@@ -850,9 +872,8 @@ class PyGameMakerCodeBlock(object):
              sym_tables (dict): A mapping of 'globals' => global symbol table,
                                 'locals' => local symbol table
         """
-        # @@@@ implement dual symbol tables: global, local
         if "run" in self.module_context.__dict__:
-            self.module_context.run(sym_tables)
+            return(self.module_context.run(sym_tables))
 
     def copyTo(self, other):
         """
@@ -1098,6 +1119,9 @@ if __name__ == "__main__":
             print("locals:")
             symtables['locals'].dumpVars()
 
+        def symChangeCallback(self, item, val):
+            self.symbol_change_list.append( {item: val} )
+
         def setUp(self):
 
             self.functionmap = {
@@ -1116,6 +1140,7 @@ if __name__ == "__main__":
             self.sym_tables = { "globals": PyGameMakerSymbolTable(),
                 "locals": PyGameMakerSymbolTable() }
             self.module_context = imp.new_module('game_functions')
+            self.symbol_change_list = []
 
         def test_005valid_assignment(self):
             simple_line = "x = 49"
@@ -1337,6 +1362,21 @@ circumference = 2.0 * pi * radius
             self.assertEqual(['testB'], language_engine.code_blocks.keys())
             language_engine.unregister_code_block("testB")
             self.assertEqual([], language_engine.code_blocks.keys())
+
+        def test_055symbol_change_callback(self):
+            language_engine = PyGameMakerLanguageEngine()
+            code_block = """
+sym1 = 24
+sym3 = 25
+global sym2 = 36
+sym4 = 42
+            """
+            language_engine.register_code_block("testA", code_block)
+            test_locals = PyGameMakerSymbolTable({}, sym_change_callback=lambda s, v: self.symChangeCallback(s, v))
+            test_locals.setConstant('sym2', 64)
+            language_engine.execute_code_block("testA", test_locals)
+            expected_changes = [{'sym1': 24}, {'sym3': 25}, {'sym4': 42}]
+            self.assertEqual(self.symbol_change_list, expected_changes)
 
     unittest.main()
 
