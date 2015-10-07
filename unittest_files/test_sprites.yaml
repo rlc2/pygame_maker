@@ -1,0 +1,8 @@
+- spr_test:
+    filename: unittest_files/ball2.png
+    preload_texture: false
+    collision_type: precise
+- spr_solid:
+    filename: unittest_files/solid.png
+    collision_type: precise
+

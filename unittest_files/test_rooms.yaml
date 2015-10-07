@@ -1,0 +1,102 @@
+- rm_red:
+    width: 1024
+    height: 768
+    background_color: '#FF0000'
+- rm_green:
+    width: 1024
+    height: 768
+    background_color: '#00FF00'
+- rm_blue:
+    width: 1024
+    height: 768
+    background_color: [0, 0, 255]
+- rm_background_normal:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    tile_horizontal: False
+    tile_vertical: False
+- rm_background_tile_x:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    tile_horizontal: True
+    tile_vertical: False
+- rm_background_tile_y:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    tile_horizontal: False
+    tile_vertical: True
+- rm_background_tile_both:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+- rm_background_offset_x:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    background_horizontal_offset: 100
+    tile_horizontal: False
+    tile_vertical: False
+- rm_background_offset_y:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    background_vertical_offset: 80
+    tile_horizontal: False
+    tile_vertical: False
+- rm_background_offset_both:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_image_normal
+    background_horizontal_offset: 100
+    background_vertical_offset: 80
+    tile_horizontal: False
+    tile_vertical: False
+- rm_background_tiled_normal:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_tiled_normal
+- rm_background_tiled_transparent:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_tiled_transparent
+- rm_background_tiled_all_options:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_tiled_everything
+- rm_background_tiled_all_options_with_offsets:
+    width: 1024
+    height: 768
+    background_color: '#444444'
+    background: bkg_tiled_everything
+    background_horizontal_offset: 50
+    background_vertical_offset: 40
+- rm_with_objects:
+    width: 1024
+    height: 768
+    object_instances:
+      - obj_test:
+          position: [400,20]
+          init_code: |
+            direction = 90.0
+            speed = 0.5
+      - obj_test:
+          position: [800,20]
+          init_code: |
+            direction = 270.0
+            speed = 0.5
+      - obj_solid:
+          position: [516, 380]
+

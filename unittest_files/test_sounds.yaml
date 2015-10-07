@@ -1,0 +1,5 @@
+- snd_test:
+    sound_file: unittest_files/Pop.wav
+- snd_explosion:
+    sound_file: unittest_files/explosion.wav
+
