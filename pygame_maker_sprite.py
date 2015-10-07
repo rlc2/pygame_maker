@@ -296,6 +296,10 @@ class PyGameMakerSprite(object):
             (self.bounding_box_type == other.bounding_box_type) and
             (self.manual_bounding_box_rect == other.manual_bounding_box_rect))
 
+    def __repr__(self):
+        return("<{} {} file={}>".format(type(self).__name__, self.name,
+            self.filename))
+
 if __name__ == "__main__":
     import unittest
     import tempfile
