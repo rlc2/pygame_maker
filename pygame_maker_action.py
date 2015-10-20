@@ -268,6 +268,8 @@ common_parameters:
               The result from the expression
         """
         result = None
+        #print("{}: get expression for field {}: {}".format(self, field_name,
+        #    self.action_data[field_name]))
         if (not isinstance(self.action_data[field_name], str) or
             (self.action_data[field_name][0] != '=')):
             # not an expression, so just return the contents of the field
@@ -275,7 +277,7 @@ common_parameters:
         exp_name = "{}_block".format(field_name)
         #print("check for code block {}".format(exp_name))
         # create a hopefully unique symbol to store the expression result in
-        sym_name = "intern_{}_{}".format(field_name, hash(field_name))
+        sym_name = "intern_{}_{}".format(field_name, abs(hash(field_name)))
         #print("sym_name: {}".format(sym_name))
         if not exp_name in self.runtime_data.keys():
             # create an entry in the action data that points to a
@@ -283,9 +285,9 @@ common_parameters:
             #  engine
             exp_id = "{}_{}_{}".format(self.name,
                 re.sub("\.", "_", field_name), id(self))
-            #print("register new code block {}".format(exp_id))
             expression_code = "{} = {}".format(sym_name,
                 self.action_data[field_name][1:])
+            #print("register new code block {}: {}".format(exp_id, expression_code))
             language_engine.register_code_block(exp_id, expression_code)
             self.runtime_data[exp_name] = exp_id
         # execute the expression and collect its result
