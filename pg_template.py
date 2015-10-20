@@ -20,6 +20,7 @@ class PygameTemplate:
     #  update()
     #  draw_background()
     #  draw_objects()
+    #  final_pass()
     #  is_done()
     def __init__(self, size_tuple, caption, game_manager):
 
@@ -53,6 +54,7 @@ class PygameTemplate:
             self.game_manager.draw_objects()
         
             # update screen
+            self.game_manager.final_pass()
             pygame.display.flip()
         
             # find out whether the game manager is done
@@ -105,6 +107,8 @@ if __name__ == "__main__":
         def draw_objects(self):
             for line, ob in enumerate(self.objects):
                 self.draw_text(ob, line)
+        def final_pass(self):
+            pass
         def draw_background(self):
             self.screen.fill(PygameTemplate.BLACK)
         def is_done(self):
