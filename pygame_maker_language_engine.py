@@ -228,6 +228,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              to expect. Later, the arg type list can be checked to make sure
              that supplied argument types match the function call signature.
         """
+        self.debug("addToFuncMap({})".format(func_map))
         self.functionmap.update(func_map)
 
     def pushAssignment(self, parsestr, loc, toks):
@@ -241,7 +242,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              can precede the asignee, to make it part of the global symbol
              table.
         """
-        self.debug("pushAssignment():")
+        self.debug("pushAssignment(<code str>, loc={}, toks={}):".format(loc, toks))
         assign_list = []
         global_prefix = ""
         for assign_tok in toks.asList():
@@ -269,7 +270,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              outer block. Push a copy of the child inner node onto its parent's
              stack. This method changes the stack reference.
         """
-        self.debug("pushConditionalBlock():")
+        self.debug("pushConditionalBlock(<code str>, loc={}, toks={}):".format(loc, toks))
         if (self.inner_block_count > 1):
             #print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
             self.inner_block_count -= 1
@@ -301,7 +302,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              This method changes the stack reference.
         """
         #print("push {}".format(toks.asList()))
-        self.debug("pushIfCond():")
+        self.debug("pushIfCond(<code str>, loc={}, toks={}):".format(loc, toks))
         if_statement = ""
         for tok in toks:
             if_statement = "_{}".format(tok)
@@ -327,7 +328,8 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             When the parser matches a comparison, push it onto the current
              stack.
         """
-        self.debug("append comparison {} to stack".format(self.scratch))
+        self.debug("pushComparison(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("  append comparison {} to stack".format(self.scratch))
         self.stack.append(list(self.scratch))
         self.scratch = []
 
@@ -353,7 +355,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
         #print("function w/ args: {}".format(toks))
         # assume embedded function calls have been validated, just skip
         #  them to count the args in the outer function call
-        self.debug("countFunctionArgs():")
+        self.debug("countFunctionArgs(<code str>, loc={}, toks={}):".format(loc, toks))
         func_call = False
         func_name = ""
         skip_count = 0
@@ -368,15 +370,16 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     continue
                 else:
                     # unknown function encountered
+                    self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
                     raise(ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok)))
                     break
             if func_call:
                 if arg_count == 0:
                     arg_count = 1
                 # if this function takes no arguments, we shouldn't be here..
-                self.debug("  check {} call vs map {}".format(tok,
-                    self.functionmap))
+                self.debug("  check {} call vs function map".format(tok))
                 if len(self.functionmap[func_name]["arglist"]) == 0:
+                    self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
                     raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
                 # check whether an embedded function call should be skipped
                 #print("checking {}..".format(tok))
@@ -398,8 +401,10 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
 
         if func_call:
             if arg_count < len(self.functionmap[func_name]["arglist"]):
+                self.error("{} at {}: Too few arguments to function \"{}\"".format(parsestr, loc, func_name))
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too few arguments to function \"{}\"".format(func_name)))
             elif arg_count > len(self.functionmap[func_name]["arglist"]):
+                self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
 
     def pushFuncArgs(self, parsestr, loc, toks):
@@ -410,7 +415,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             functionmap and point the frame at it, so future constructs will be
             placed in the function.
         """
-        self.debug("pushFuncArgs():")
+        self.debug("pushFunctionArgs(<code str>, loc={}, toks={}):".format(loc, toks))
         func_name = None
         arg_with_type = None
         arg_list = []
@@ -422,18 +427,21 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     func_name = str(item)
                     self.debug("  New function: {}".format(func_name))
                     if func_name in self.functionmap:
+                        self.error("{} at {}: Redefinition of existing function '{}'".format(parsestr, loc, func_name))
                         raise(ParseFatalException(parsestr, loc=loc, msg="Redefinition of existing function '{}'".format(func_name)))
                     continue
                 if func_name:
                     if not arg_with_type:
                         typename = str(item)
                         if not typename in ["void", "number", "string"]:
+                            self.error("{} at {}: Missing type name in declaration of function '{}'".format(parsestr, loc, func_name))
                             raise(ParseFatalException(parsestr, loc=loc, msg="Missing type name in declaration of function '{}'".format(func_name)))
                         arg_with_type = {"type": typename }
                         if typename == "void":
                             arg_list.append(dict(arg_with_type))
                     else:
                         if arg_with_type["type"] == "void":
+                            self.error("{} at {}: Extraneous token following void in declaration of function '{}'".format(parsestr, loc, func_name))
                             raise(ParseFatalException(parsestr, loc=loc, msg="Extraneous token following void in declaration of function '{}'".format(func_name)))
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
@@ -455,7 +463,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             switching the frame back to the outer_block.
         """
         # reduce the function source
-        self.debug("pushFuncBlock():")
+        self.debug("pushFuncBlock(<code str>, loc={}, toks={}):".format(loc, toks))
         self.reduceBlock(self.frame)
         func_loc = [0,0]
         param_list = [ fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
@@ -491,6 +499,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             onto the current stack reference when a grouping is found
             (an assignment or conditional block).
         """
+        self.debug("pushAtom(<code str>, loc={}, toks={}):".format(loc, toks))
         tok_n = 0
         add_not = False
         add_tok = None
@@ -517,7 +526,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                 self.scratch.append("operator.not_")
         else:
             if add_not:
-                print("not tokens:".format(toks.asList()))
+                self.debug("  not tokens:".format(toks.asList()))
             self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
                 self.OPERATOR_REPLACEMENTS)
         #print("scratch is now: {}".format(self.scratch))
@@ -531,7 +540,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             method.
         """
         #print("pre-op: {}".format(toks.asList()))
-        self.debug("pushFirst():")
+        self.debug("pushFirst(<code str>, loc={}, toks={}):".format(loc, toks))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
             self.OPERATOR_REPLACEMENTS)
         self.debug("  op + scratch is now: {}".format(self.scratch))
@@ -542,6 +551,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             From the original fourFn.py demo. Push 'unary -' to keep track
              of any terms that have been negated.
         """
+        self.debug("pushUMinus(<code str>, loc={}, toks={}):".format(loc, toks))
         for t in toks:
             if t == '-': 
                 self.scratch.append( 'unary -' )
@@ -554,6 +564,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             Push the stack containing the arguments for a return keyword,
             followed by "_return"
         """
+        self.debug("pushReturn(<code str>, loc={}, toks={}):".format(loc, toks))
         self.stack.append(list(self.scratch) + ["_return"])
         self.scratch = []
 
@@ -564,6 +575,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              simple numeric operations and replacing the operands and operator
              with the result. Repeat until no more changes are made.
         """
+        self.debug("    reduceLine(code_line={}):".format(code_line))
         marker_list = []
         changed_line = True
         while (changed_line):
@@ -608,6 +620,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             expressions and recursively through sub-blocks, reducing numeric
             operations when found.
         """
+        self.debug("  reduceBlock(block={}):".format(block))
         block_idx = 0
         while block_idx < len(block):
             code_line = block[block_idx]
@@ -628,6 +641,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             Perform as much argument reduction as possible. Operations on
             numeric values can be replaced with the results.
         """
+        self.debug("reduce():")
         self.reduceBlock(self.outer_block)
 
     def toPythonLine(self, code_line, loc=[0,0], func_name=None):
@@ -640,7 +654,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             and this effectively isolates and sanitizes user-written code to
             prevent it from adversely affecting the game engine.
         """
-        self.debug("toPythonLine():")
+        self.debug("    toPythonLine(code_line={}, loc={}, func_name={}):".format(code_line, loc, func_name))
         op_stack = []
         current_value = 0
         symbol = None
@@ -677,6 +691,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
+                        self.error("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
                         raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
                     res_type = "int"
                     last_type = None
@@ -721,6 +736,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
+                        self.error("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
                         raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
                     params = list(op_stack[id_start:id_end])
                     for dead_idx in range(2):
@@ -752,9 +768,10 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                             "val": "{}".format(opname)})
             #print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
+            self.error("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
             raise(PyGameMakerCodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
         # apply the (possibly upgraded) result type to the remaining item
-        self.debug("  Result of {}: {}".format(code_line, op_stack))
+        self.debug("      Result of {}: {}".format(code_line, op_stack))
         python_code_line = "{}{}".format(' '*loc[1], op_stack[-1]['val'])
         loc[0] += 1
         return python_code_line
@@ -766,6 +783,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             representations for contained conditionals and assignments using
             appropriate indentation.
         """
+        self.debug("  toPythonBlock(block={}, loc={}, func_name={}):".format(block, loc, func_name))
         python_code_lines=[]
         loc[1] += 2
         #print("block start: col is now: {}".format(loc[1]))
@@ -794,6 +812,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             by a condition (e.g. if, elseif), then a list of all the lines
             (and/or other conditionals) within its code block.
         """
+        self.debug("  toPythonConditional(conditional_name={}, loc={}, func_name={}):".format(conditional_name, loc, func_name))
         python_code_lines=[]
         #print("{} {{{}}} to python".format(conditional_name, block))
         conditional_code = self.toPythonLine(block[0], [loc[0],0], func_name)
@@ -818,6 +837,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             Convert the postfix code representation into executable Python
             code, then compile it.
         """
+        self.debug("toPython():")
         code_loc = [0, 0]
         python_code = ""
         # the code block has to have SOMETHING in it, but if it only contains
@@ -835,6 +855,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             Given a valid Python operation and a list containing its args,
             convert them into a string and eval() it.
         """
+        self.debug("executeOperation(op_name={}, args={}):".format(op_name, args))
         eval_str = ""
         res = None
         stargs = [str(a) for a in args]
@@ -861,7 +882,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             load():
             Place all functions and executable code into the module's __dict__
         """
-        self.debug("load():")
+        self.debug("load(import_list={}):".format(import_list))
         for userfunc in self.functionmap:
             #print("exec {}".format(userfunc))
             if 'compiled' in self.functionmap[userfunc]:
@@ -883,6 +904,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
              sym_tables (dict): A mapping of 'globals' => global symbol table,
                                 'locals' => local symbol table
         """
+        self.debug("run(sym_tables={}):".format(sym_tables))
         if "run" in self.module_context.__dict__:
             return(self.module_context.run(sym_tables))
 
@@ -891,6 +913,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             copyTo():
             Perform a deep copy to another code block object.
         """
+        self.debug("copyTo():")
         #other.stack = list(self.stack)
         #other.frame = list(self.frame)
         #other.scratch = list(self.scratch)
@@ -906,6 +929,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             clear():
             Clear out all lists in preparation for a new parsing operation.
         """
+        self.debug("clear():")
         self.name = ""
         self.scratch = []
         self.inner_blocks = []
@@ -985,9 +1009,11 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
             The executable code block will be placed in the code block hash,
              using its name as the key.
         """
-        self.info("Register handle '{}' with code block:\n{}".format(block_name, code_string))
+        self.info("Register handle '{}'".format(block_name))
+        self.debug("  code block:\n{}".format(code_string))
         code_block_runnable = None
         if block_name in self.code_blocks:
+            self.error("Attempt to register another code block named '{}'".format(block_name))
             raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name)))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = PyGameMakerCodeBlockGenerator.wrap_code_block(
@@ -1002,6 +1028,7 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
         """
         self.info("Execute code with handle '{}'".format(block_name))
         if not block_name in self.code_blocks:
+            self.error("Attempt to execute unknown code block named '{}'".format(block_name))
             raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name)))
         if local_symbol_table:
             if not block_name in self.local_tables:
@@ -1126,13 +1153,19 @@ if __name__ == "__main__":
     import unittest
     import logging
 
-    #cblogger = logging.getLogger("PyGameMakerCodeBlock")
-    #cblogger.addHandler(logging.StreamHandler())
-    #cblogger.setLevel(logging.INFO)
+    cblogger = logging.getLogger("PyGameMakerCodeBlock")
+    cbhandler = logging.StreamHandler()
+    cbformatter = logging.Formatter("%(levelname)s: %(message)s")
+    cbhandler.setFormatter(cbformatter)
+    cblogger.addHandler(cbhandler)
+    cblogger.setLevel(logging.INFO)
 
-    #lelogger = logging.getLogger("PyGameMakerLanguageEngine")
-    #lelogger.addHandler(logging.StreamHandler())
-    #lelogger.setLevel(logging.INFO)
+    lelogger = logging.getLogger("PyGameMakerLanguageEngine")
+    lehandler = logging.StreamHandler()
+    leformatter = logging.Formatter("%(levelname)s: %(message)s")
+    lehandler.setFormatter(leformatter)
+    lelogger.addHandler(lehandler)
+    lelogger.setLevel(logging.INFO)
 
     class TestPyGameMakerLanguageEngine(unittest.TestCase):
 
