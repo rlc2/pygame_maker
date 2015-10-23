@@ -8,13 +8,14 @@
 
 import pygame
 import yaml
+import pygame_maker_logging_object as pgm_logging
 import pygame_maker_action as pgm_action
 import pygame_maker_color as pgm_color
 
 class PyGameMakerRoomException(Exception):
     pass
 
-class PyGameMakerRoom(object):
+class PyGameMakerRoom(pgm_logging.PyGameMakerLoggingObject):
     """
         class PyGameMakerRoom:
         Represent "rooms" in PyGame Maker, which are where all actions happen.
@@ -97,6 +98,7 @@ class PyGameMakerRoom(object):
             return new_room_list
 
     def __init__(self, name, game_engine, **kwargs):
+        super(PyGameMakerRoom, self).__init__(type(self).__name__)
         self.name = name
         self.game_engine = game_engine
         self.width = self.DEFAULT_DIMENSIONS[0]
@@ -156,6 +158,7 @@ class PyGameMakerRoom(object):
                             err_msg = "Invalid code block '{}' for object '{}'".format(obj_check[obj_name]['init_code'], obj_name)
                         init_code = obj_check[obj_name]['init_code']
                     if not obj_ok:
+                        self.error("{}: Failed to create room: {}".format(type(self).__name__, err_msg))
                         raise(PyGameMakerRoomException("{}: Failed to create room: {}".format(type(self).__name__, err_msg)))
                     self.add_init_object_instance_at(obj_name,
                         obj_check[obj_name]['position'], init_code)
@@ -200,6 +203,7 @@ class PyGameMakerRoom(object):
               init_code (str): Source code to execute when the instance is
                created
         """
+        self.debug("add_init_object_instance_at({}, {}, {}):".format(object_type_name, locationxy, init_code))
         loc = []
         loc.append(int(locationxy[0]))
         loc.append(int(locationxy[1]))
@@ -217,10 +221,11 @@ class PyGameMakerRoom(object):
               init_code (str or None): Optional source code block to run after
                creating the instance
         """
+        self.debug("add_object_instance_at({}, {}, {}, {}):".format(surface, object_type_name, locationxy, init_code))
         if object_type_name in self.game_engine.resources['objects'].keys():
             self.object_instances.append(self.game_engine.resources['objects'][object_type_name].create_instance(surface, position=locationxy))
             new_obj = self.object_instances[-1]
-            print("Room {}: Created obj {} id {}".format(self.name,
+            self.info("  Room {}: Created obj {} id {}".format(self.name,
                 object_type_name, new_obj.id))
             if init_code:
                 # Create a throw-away code action, and send it to the new
@@ -239,6 +244,7 @@ class PyGameMakerRoom(object):
               language_engine (PyGameMakerLanguageEngine): Language engine
               code_block_string: Source code string in toy language
         """
+        self.debug("set_init_code_block({}):".format(code_block_string))
         self.init_code_block = self.game_engine.language_engine.register_code_block("{}_init".format(self.name), code_block_string)
 
     def set_background(self, background):
@@ -248,6 +254,7 @@ class PyGameMakerRoom(object):
             Parameters:
               background: An instance of PyGameMakerBackground
         """
+        self.debug("set_background({}):".format(background))
         self.background = background
 
     def load_room(self, surface):
@@ -258,6 +265,8 @@ class PyGameMakerRoom(object):
             Parameters:
              surface (pygame.Surface): Usually the game screen
         """
+        self.debug("load_room({}):".format(surface))
+        self.info("  load room named '{}'".format(self.name))
         if (self.background and (self.background in
             self.game_engine.resources['backgrounds'].keys())):
             self.game_engine.resources['backgrounds'][self.background].load_graphic()
@@ -276,6 +285,7 @@ class PyGameMakerRoom(object):
             Parameters:
               surface (pygame.Surface): Usually the game screen
         """
+        self.debug("draw_room_background({}):".format(surface))
         if self.draw_background_color:
             surface.fill(self.background_color.color)
         # draw the background
@@ -287,7 +297,8 @@ class PyGameMakerRoom(object):
                     (self.disp_height != surface.get_height())):
                     if self.cached_background:
                         # What happened here?!
-                        raise(PyGameMakerRoomException("{}.draw_room_background: display surface changed dimensions!".format(type(self).__name__)))
+                        self.error("room {} draw_room_background(): display surface changed dimensions!".format(name))
+                        raise(PyGameMakerRoomException("room {} draw_room_background(): display surface changed dimensions!".format(name)))
                     self.disp_width = surface.get_width()
                     self.disp_height = surface.get_height()
                 if self.cached_background:
@@ -347,6 +358,7 @@ class PyGameMakerRoom(object):
 if __name__ == "__main__":
     import pg_template
     import tempfile
+    import logging
     import os
     import pygame_maker_background as pgm_background
     import pygame_maker_language_engine as pgm_language_engine
@@ -356,13 +368,27 @@ if __name__ == "__main__":
     import pygame_maker_event as pgm_event
     import pygame_maker_event_engine as pgm_event_engine
 
+    rlogger = logging.getLogger("PyGameMakerRoom")
+    rhandler = logging.StreamHandler()
+    rformatter = logging.Formatter("%(levelname)s: %(message)s")
+    rhandler.setFormatter(rformatter)
+    rlogger.addHandler(rhandler)
+    rlogger.setLevel(logging.INFO)
+
+    gmlogger = logging.getLogger("MyGameManager")
+    gmhandler = logging.StreamHandler()
+    gmformatter = logging.Formatter("%(levelname)s: %(message)s")
+    gmhandler.setFormatter(gmformatter)
+    gmlogger.addHandler(gmhandler)
+    gmlogger.setLevel(logging.INFO)
+
     TEST_BACKGROUND_LIST_YAML_FILE="unittest_files/test_backgrounds.yaml"
     TEST_ROOM_LIST_YAML_FILE="unittest_files/test_rooms.yaml"
     TEST_SPRITE_LIST_YAML_FILE="unittest_files/test_sprites.yaml"
     TEST_OBJECT_LIST_YAML_FILE="unittest_files/test_objects.yaml"
     TEST_SOUND_LIST_YAML_FILE="unittest_files/test_sounds.yaml"
 
-    class MyGameManager:
+    class MyGameManager(pgm_logging.PyGameMakerLoggingObject):
         LEFT_MARGIN = 10
         TOP_MARGIN  = 8
         LINE_HEIGHT = 18
@@ -401,6 +427,7 @@ if __name__ == "__main__":
              "global_event_name": "mouse_global_button_8"},
         ]
         def __init__(self):
+            super(MyGameManager, self).__init__(type(self).__name__)
             self.current_events = []
             self.resources = {
                 'rooms': [],
@@ -665,6 +692,9 @@ if __name__ == "__main__":
         def draw_background(self):
             if self.room_idx < len(self.resources['rooms']):
                 self.resources['rooms'][self.room_idx].draw_room_background(self.screen)
+
+        def final_pass(self):
+            pass
 
         def is_done(self):
             return self.done
