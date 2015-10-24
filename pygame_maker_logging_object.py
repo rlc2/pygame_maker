@@ -35,29 +35,26 @@ class PyGameMakerLoggingObject(object):
         if self.log_indent >= self.indent_size:
             self.log_indent -= self.indent_size
 
-    def get_name_field(self):
+    def get_format_string(self, message):
         name_field = ""
         if hasattr(self, 'name'):
             name_field = " [{}]".format(self.name)
-        return(name_field)
+        format_string = "{}{}{}".format(" "*self.log_indent, message,
+            name_field)
+        return(format_string)
 
     def debug(self, message):
-        self.logger.debug("{}{}{}".format(" "*self.log_indent, message,
-            self.get_name_field()))
+        self.logger.debug(self.get_format_string(message))
 
     def info(self, message):
-        self.logger.info("{}{}{}".format(" "*self.log_indent, message,
-            self.get_name_field()))
+        self.logger.info(self.get_format_string(message))
 
     def warn(self, message):
-        self.logger.warn("{}{}{}".format(" "*self.log_indent, message,
-            self.get_name_field()))
+        self.logger.warn(self.get_format_string(message))
 
     def error(self, message):
-        self.logger.error("{}{}{}".format(" "*self.log_indent, message,
-            self.get_name_field()))
+        self.logger.error(self.get_format_string(message))
 
     def critical(self, message):
-        self.logger.critical("{}{}{}".format(" "*self.log_indent, message,
-            self.get_name_field()))
+        self.logger.critical(self.get_format_string(message))
 
