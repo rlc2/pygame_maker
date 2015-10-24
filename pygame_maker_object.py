@@ -11,6 +11,8 @@ import math
 import random
 import re
 import yaml
+import logging
+import pygame_maker_logging_object as pgm_logging
 import pygame_maker_object_instance as pygm_instance
 import pygame_maker_event as pygm_event
 import pygame_maker_action as pygm_action
@@ -18,7 +20,7 @@ import pygame_maker_sprite as pygm_sprite
 import pygame_maker_sound as pygm_sound
 import pygame_maker_event_action_sequence as pygm_sequence
 
-class PyGameMakerObjectException(Exception):
+class PyGameMakerObjectException(pgm_logging.PyGameMakerLoggingException):
     pass
 
 def sprite_collision_test(sprite_a, sprite_b):
@@ -113,7 +115,7 @@ def get_mask_overlap(instance_a, instance_b):
 def dot_product(v1,v2):
     return v1[0]*v2[0]+v1[1]*v2[1]
 
-class PyGameMakerObject(object):
+class PyGameMakerObject(pgm_logging.PyGameMakerLoggingObject):
     """
         pygame maker objects have:
         o sprite reference
@@ -201,10 +203,11 @@ class PyGameMakerObject(object):
                 if "events" in obj_yaml.keys():
                     #print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
                     for ev_seq in obj_yaml["events"]:
-                        print("create sequence from '{}'".format(obj_yaml['events'][ev_seq]))
+                        game_engine.debug("{}: create event sequence from '{}'".format(obj_name, obj_yaml['events'][ev_seq]))
                         kwargs["event_action_sequences"][ev_seq] = pygm_sequence.PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
-                        print("Loaded sequence {}:".format(ev_seq))
-                        kwargs["event_action_sequences"][ev_seq].pretty_print()
+                        game_engine.debug("Loaded sequence {}:".format(ev_seq))
+                        if (game_engine.logger.level <= logging.DEBUG):
+                            kwargs["event_action_sequences"][ev_seq].pretty_print()
                 new_object_list.append(PyGameMakerObject(obj_name, game_engine,
                     **kwargs))
         return new_object_list
@@ -229,7 +232,9 @@ class PyGameMakerObject(object):
               sprite (PyGameMakerSprite): Sprite resource used as the
                image [None]
         """
-
+        super(PyGameMakerObject, self).__init__(type(self).__name__)
+        self.debug("New object {}, with args {}".format(object_name,
+            kwargs))
         if object_name:
             self.name = object_name
         else:
@@ -271,14 +276,14 @@ class PyGameMakerObject(object):
                         assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
                         if not (isinstance(assigned_sprite,
                             pygm_sprite.PyGameMakerSprite)):
-                            raise PyGameMakerObjectException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]))
+                            raise(PyGameMakerObjectException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]), self.error))
                         self.sprite_resource = assigned_sprite
                 if (kw == "event_action_sequences") and kwargs[kw]:
                     ev_dict = kwargs[kw]
                     for ev_name in ev_dict:
                         if not isinstance(ev_dict[ev_name],
                             pygm_sequence.PyGameMakerEventActionSequence):
-                            raise PyGameMakerObjectException("Event '{}' does not contain a PyGameMakerEventActionSequence")
+                            raise(PyGameMakerObjectException("Event '{}' does not contain a PyGameMakerEventActionSequence", self.error))
                         self[ev_name] = ev_dict[ev_name]
 
         #print("Finished setup of {}".format(self.name))
@@ -320,6 +325,7 @@ class PyGameMakerObject(object):
              without trying to remove them during iteration.
         """
         # a simple list manages deletions
+        self.debug("add_instance_to_delete_list(instance={}):".format(instance))
         self.instance_delete_list.append(instance)
 
     def create_instance(self, screen, settings={}, **kwargs):
@@ -337,8 +343,11 @@ class PyGameMakerObject(object):
               alternatives to object instance defaults (usually 'speed',
               'direction', and/or 'position')
         """
+        self.debug("create_instance(screen={}, settings={}, kwargs={}):".format(screen, settings, kwargs))
         #print("Create new instance of {}".format(self))
         #print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
+        self.info("  Create instance of {} with args {}, {}".format(self.name,
+          settings, kwargs))
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = pygm_instance.PyGameMakerObjectInstance(self,
             screen_dims, self.id, settings, **kwargs)
@@ -360,6 +369,7 @@ class PyGameMakerObject(object):
             Return value:
              A list of collision event names that were queued (empty if none).
         """
+        self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
         collision_types_queued = []
         for other_obj in other_obj_types:
             other_obj.group = other_obj.group
@@ -398,7 +408,8 @@ class PyGameMakerObject(object):
                 collision_name = "collision_{}".format(other_obj.name)
                 if not collision_name in collision_types_queued:
                     collision_types_queued.append(collision_name)
-                #print("Queue collision {}".format(collision_name))
+                self.info("{} inst {}: Queue collision {}".format(self.name,
+                    collider.id, collision_name))
                 collision_event_info = {
                     "type": self, "instance": collider,
                     "others": collision_map[collider]
@@ -417,6 +428,7 @@ class PyGameMakerObject(object):
             Call to perform position updates for all instances. After all
              instances have updated, handle any queued deletions.
         """
+        self.debug("update():")
         if len(self.group) > 0:
             self.group.update()
         # after all instances update(), check the delete list to see which
@@ -430,7 +442,8 @@ class PyGameMakerObject(object):
             draw():
             Call to draw all instances. The sprite group handles this for us.
         """
-        if len(self.group) > 0:
+        self.debug("draw(surface={}):".format(surface))
+        if (len(self.group) > 0) and self.visible:
             self.group.draw(surface)
 
     def create_rectangle_mask(self, orig_rect):
@@ -448,6 +461,7 @@ class PyGameMakerObject(object):
             Parameters:
              orig_rect (pygame.Rect): The Rect for the image
         """
+        self.debug("create_rectangle_mask(orig_rect={}):".format(orig_rect))
         self.mask = pygame.mask.Mask( (orig_rect.width, orig_rect.height) )
         self.mask.fill()
 
@@ -462,6 +476,7 @@ class PyGameMakerObject(object):
               aid in creating in a more accurate circular mask.
              orig_rect (pygame.Rect): The Rect for the image
         """
+        self.debug("get_disk_radius(precise_mask={}, orig_rect={}):".format(precise_mask, orig_rect))
         radius = 0
         # find the radius of a circle that contains bound_rect for the worst
         #  case
@@ -518,6 +533,7 @@ class PyGameMakerObject(object):
         #  will use this mask; the mask generated here won't fill the sprite's
         #  radius, but will be a circle with the correct radius that is clipped
         #  at the sprite's rect dimensions
+        self.debug("create_disk_mask(orig_rect={}):".format(orig_rect))
         disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
         disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height),
             depth=8)
@@ -534,47 +550,52 @@ class PyGameMakerObject(object):
              instance using this image is created. Also, handle the
              collision type and create a collision mask.
         """
+        self.debug("get_image():")
         if self.sprite_resource:
             if not self.sprite_resource.image:
                 self.sprite_resource.load_graphic()
             if not self.mask:
-                original_image = self.sprite_resource.image
-                precise_mask = mask_from_surface(original_image)
-                bound_rect = self.sprite_resource.bounding_box_rect
-                self.image = original_image.copy()
-                orig_rect = original_image.get_rect()
-                if (orig_rect.width == 0) or (orig_rect.height == 0):
-                    raise PyGameMakerObjectException("Found broken sprite resource when creating instance")
-                if (bound_rect.width == 0) or (bound_rect.height == 0):
-                    # use the dimensions of the loaded graphic for the bounding
-                    #  rect in case there's a problem with the sprite resources'
-                    #  bounding rect
-                    bound_rect = orig_rect
-                self.bounding_box_rect = bound_rect
-                max_r = 0
-                precise_mask_ctr = (orig_rect.width/2, orig_rect.height/2)
-                print("bounded dimensions: {}".format(bound_rect))
-                # create a mask based on the collision type
-                print("Sprite collision type: {}".format(self.sprite_resource.collision_type))
-                print("Sprite dimensions: {}".format(orig_rect))
-                # set a mask regardless of the collision type, to enable
-                #  collision checks between objects that have different types
-                if self.sprite_resource.collision_type == "precise":
-                    self.mask = precise_mask
-                elif self.sprite_resource.collision_type == "rectangle":
-                    self.create_rectangle_mask(orig_rect)
-                elif self.sprite_resource.collision_type == "disk":
-                    radius = self.get_disk_radius(precise_mask, orig_rect)
-                    self.create_disk_mask(orig_rect)
-                else:
-                    # other collision types are not supported, fall back to
-                    #  rectangle
-                    self.create_rectangle_mask(orig_rect, bound_rect)
-                # queue the image_loaded event
-                self.game_engine.event_engine.queue_event(
-                    self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
-                        { "type": self, "sprite": self.sprite_resource })
-                )
+                self.info("  {}: create collision mask".format(self.name))
+                with pgm_logging.Indented(self):
+                    original_image = self.sprite_resource.image
+                    precise_mask = mask_from_surface(original_image)
+                    bound_rect = self.sprite_resource.bounding_box_rect
+                    self.image = original_image.copy()
+                    orig_rect = original_image.get_rect()
+                    if (orig_rect.width == 0) or (orig_rect.height == 0):
+                        raise(PyGameMakerObjectException("Found broken sprite resource when creating instance", self.error))
+                    if (bound_rect.width == 0) or (bound_rect.height == 0):
+                        # use the dimensions of the loaded graphic for the bounding
+                        #  rect in case there's a problem with the sprite resources'
+                        #  bounding rect
+                        bound_rect = orig_rect
+                    self.bounding_box_rect = bound_rect
+                    max_r = 0
+                    precise_mask_ctr = (orig_rect.width/2, orig_rect.height/2)
+                    self.info("  bounded dimensions: {}".format(bound_rect))
+                    # create a mask based on the collision type
+                    self.info("  Sprite collision type: {}".format(self.sprite_resource.collision_type))
+                    self.info("  Sprite dimensions: {}".format(orig_rect))
+                    # set a mask regardless of the collision type, to enable
+                    #  collision checks between objects that have different
+                    #  types
+                    if self.sprite_resource.collision_type == "precise":
+                        self.mask = precise_mask
+                    elif self.sprite_resource.collision_type == "rectangle":
+                        self.create_rectangle_mask(orig_rect)
+                    elif self.sprite_resource.collision_type == "disk":
+                        radius = self.get_disk_radius(precise_mask, orig_rect)
+                        self.create_disk_mask(orig_rect)
+                    else:
+                        # other collision types are not supported, fall back to
+                        #  rectangle
+                        self.create_rectangle_mask(orig_rect, bound_rect)
+                    # queue the image_loaded event
+                    self.game_engine.event_engine.queue_event(
+                        self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
+                            { "type": self, "sprite": self.sprite_resource })
+                    )
+                    self.info("  Queued 'image_loaded' event")
             return self.image
         else:
             return None
@@ -595,6 +616,7 @@ class PyGameMakerObject(object):
              action (PyGameMakerAction): The action with an "apply_to" field
              event (PyGameMakerEvent): The received event
         """
+        self.debug("get_applied_instance_list(action={}, event={}):".format(action, event))
         apply_to_instances = []
         if (('instance' in event.event_params) and 
             (event.event_params['instance'] in self.group)):
@@ -624,23 +646,30 @@ class PyGameMakerObject(object):
              of the game engine, so those actions need to be routed properly
              as well.
         """
+        self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
         if event.name in self.event_action_sequences:
-            for action in self.event_action_sequences[event.name].get_next_action():
-                #print("Action {}".format(action))
-                # forward instance actions to instance(s)
-                if len(targets) > 0:
-                    for target in targets:
-                        target.execute_action(action, event)
-                elif "apply_to" in action.action_data:
-                    affected_instance_list = self.get_applied_instance_list(action,
-                        event)
-                    #print("Action {} applies to {}".format(action, affected_instance_list))
-                    for target in affected_instance_list:
-                        #print("applying to {}".format(target))
-                        target.execute_action(action, event)
-                else:
-                    #print("calling game engine execute_action for {}".format(action))
-                    self.game_engine.execute_action(action, event)
+            self.info("  {}: Execute action sequence for event '{}'".format(self.name, event))
+            with pgm_logging.Indented(self):
+                self.info("  Event args: {}".format(event.event_params))
+                for action in self.event_action_sequences[event.name].get_next_action():
+                    self.info("  Execute action {}".format(action))
+                    # forward instance actions to instance(s)
+                    if len(targets) > 0:
+                        self.info("  Apply to target(s) {}".format(targets))
+                        for target in targets:
+                            if not action.name in self.game_engine.GAME_ENGINE_ACTIONS:
+                                target.execute_action(action, event)
+                            else:
+                                self.game_engine.execute_action(action, event)
+                    elif "apply_to" in action.action_data:
+                        affected_instance_list = self.get_applied_instance_list(action, event)
+                        self.info("  Apply to: {}".format(action, affected_instance_list))
+                        for target in affected_instance_list:
+                            #print("applying to {}".format(target))
+                            target.execute_action(action, event)
+                    else:
+                        self.info("  call game engine execute_action for {}".format(action))
+                        self.game_engine.execute_action(action, event)
 
     def handle_instance_event(self, event):
         """
@@ -649,7 +678,7 @@ class PyGameMakerObject(object):
              intersect_boundary
              outside_room
         """
-        #print("Received event {}".format(event))
+        self.debug("handle_instance_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_mouse_event(self, event):
@@ -661,6 +690,7 @@ class PyGameMakerObject(object):
              press/release). mouse_global_* events are handled by instances
              watching for them at any location.
         """
+        self.debug("handle_mouse_event(event={}):".format(event))
         gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
         if gl_minfo:
             self.execute_action_sequence(event)
@@ -676,10 +706,10 @@ class PyGameMakerObject(object):
              if the exact key event is handled by this object (which key,
              press/release)
         """
-        #print("Received event {}".format(event))
+        self.debug("handle_keyboard_event(event={}):".format(event))
         matched_seq = None
         for ev_seq in self.event_action_sequences.keys():
-            #print("match {} vs {}".format(ev_seq, event.name))
+            self.debug("  match key event {} vs {}".format(event.name, ev_seq))
             if ev_seq.find(event.name) == 0:
                 # found this event in the list, find out if it's the right type
                 if (ev_seq == event.name) or ev_seq.endswith('_keydn'):
@@ -691,7 +721,6 @@ class PyGameMakerObject(object):
                     matched_seq = event.name
                     break
         if matched_seq:
-            #print("executing {} event sequence")
             self.execute_action_sequence(event)
 
     def handle_collision_event(self, event):
@@ -700,6 +729,7 @@ class PyGameMakerObject(object):
             Execute the action sequence associated with the collision event,
              if the name of the object collided with is part of the event's name
         """
+        self.debug("handle_collision_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_step_event(self, event):
@@ -709,7 +739,8 @@ class PyGameMakerObject(object):
              if the exact step event is handled by this object (begin, end,
              normal), on every instance
         """
-        pass
+        self.debug("handle_step_event(event={}):".format(event))
+        self.execute_action_sequence(event, targets=[inst for inst in self.group])
 
     def handle_alarm_event(self, event):
         """
@@ -717,6 +748,7 @@ class PyGameMakerObject(object):
             Execute the action sequence associated with the alarm event, if
              the exact alarm is handled by this object (0-11)
         """
+        self.debug("handle_alarm_event(event={}):".format(event))
         pass
 
     def handle_create_event(self, event):
@@ -725,7 +757,7 @@ class PyGameMakerObject(object):
             Execute the action sequence associated with the create event,
              passing it on to the instance recorded in the event
         """
-        #print("Received create event {}".format(event))
+        self.debug("handle_create_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_destroy_event(self, event):
@@ -733,7 +765,7 @@ class PyGameMakerObject(object):
             handle_destroy_event():
             Execute the action sequence associated with the destroy event.
         """
-        #print("Received destroy event {}".format(event))
+        self.debug("handle_destroy_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def select_event_handler(self, event_name):
@@ -741,6 +773,7 @@ class PyGameMakerObject(object):
             select_event_handler():
             Return an event type, given the name of the handled event.
         """
+        self.debug("select_event_handler(event_name={}):".format(event_name))
         hdlr = None
         for ev_re in self.handler_table.keys():
             minfo = ev_re.match(event_name)
@@ -753,6 +786,7 @@ class PyGameMakerObject(object):
             keys():
             Return the event names handled by this object type, in a list.
         """
+        self.debug("keys():")
         return self.event_action_sequences.keys()
 
     def __getitem__(self, itemname):
@@ -761,6 +795,7 @@ class PyGameMakerObject(object):
             PyGameMakerObject instances support obj[event_name] to directly
              access the action sequence for a particular event.
         """
+        self.debug("__getitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
             return self.event_action_sequences[itemname]
         else:
@@ -774,26 +809,31 @@ class PyGameMakerObject(object):
              After adding the event action sequence, register the event handler
              for the event.
         """
+        self.debug("__setitem__(itemname={}, val={}):".format(itemname, val))
         if not isinstance(itemname, str):
-            raise PyGameMakerObjectException("Event action sequence keys must be strings")
+            raise(PyGameMakerObjectException("Event action sequence keys must be strings", self.error))
         if not isinstance(val, pygm_sequence.PyGameMakerEventActionSequence):
-            raise PyGameMakerObjectException("Supplied event action sequence is not a PyGameMakerEventActionSequence instance")
+            raise(PyGameMakerObjectException("Supplied event action sequence is not a PyGameMakerEventActionSequence instance", self.error))
         self.event_action_sequences[itemname] = val
         # register our handler for this event
         new_handler = self.select_event_handler(itemname)
         if new_handler:
+            self.info("{}: Register handler for event '{}'".format(self.name,
+                itemname))
             self.game_engine.event_engine.register_event_handler(itemname, new_handler)
         else:
-            raise PyGameMakerObjectException("PyGameMakerObject does not yet handle '{}' events (NYI)".format(itemname))
+            raise(PyGameMakerObjectException("PyGameMakerObject does not yet handle '{}' events (NYI)".format(itemname), self.error))
 
     def __delitem__(self, itemname):
         """
             __delitem__():
             Stop handling the named event.
         """
+        self.debug("__delitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
             # stop handling the given event name
             old_handler = self.select_event_handler(itemname)
+            self.info("  {}: Unregister handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.unregister_event_handler(itemname, old_handler)
             # remove the event from the table
             del(self.event_action_sequences[itemname])
@@ -811,7 +851,7 @@ if __name__ == "__main__":
 
     OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 
-    class GameEngine(object):
+    class GameEngine(pgm_logging.PyGameMakerLoggingObject):
         MOUSE_EVENT_TABLE=[
             {"instance_event_name": "mouse_nobutton",
              "global_event_name": "mouse_global_nobutton"},
@@ -845,6 +885,7 @@ if __name__ == "__main__":
              "global_event_name": "mouse_global_button_8"},
         ]
         def __init__(self):
+            super(GameEngine, self).__init__(type(self).__name__)
             self.event_engine = pgmee.PyGameMakerEventEngine()
             self.language_engine = pgmle.PyGameMakerLanguageEngine()
             self.symbols = pgmle.PyGameMakerSymbolTable()
@@ -1087,6 +1128,8 @@ if __name__ == "__main__":
                     (5,5))
         def draw_background(self):
             self.screen.fill(pg_template.PygameTemplate.BLACK)
+        def final_pass(self):
+            pass
         def is_done(self):
             return self.done
 
