@@ -10,6 +10,7 @@ import pygame
 import math
 import random
 import numpy as np
+import pygame_maker_logging_object as pgm_logging
 import pygame_maker_action as pygm_action
 from pygame_maker_language_engine import PyGameMakerSymbolTable
 from numbers import Number
@@ -119,7 +120,8 @@ def direction_from_a_to_b(pointa, pointb):
     normal_vector = np.array(pointb[:2]) - np.array(pointa[:2])
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
 
-class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
+class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
+    pygame.sprite.DirtySprite):
     """
         PyGameMakerObjectInstance class:
         Fits the purpose of pygame's Sprite class
@@ -164,6 +166,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                pixels/sec [0.0]
         """
         # call the superclass __init__
+        pgm_logging.PyGameMakerLoggingObject.__init__(self, type(self).__name__)
         pygame.sprite.DirtySprite.__init__(self)
         self.id = id
         self._symbols = {
@@ -246,6 +249,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              number of times math functions will be called for object instances
              with constant velocity.
         """
+        self.debug("change_motion_x_y():")
         xadj, yadj = get_vector_xy_from_speed_direction(self.symbols['speed'],
             self.symbols['direction'])
         #print("new inst {} xyadj {}, {}".format(self.id, xadj, yadj))
@@ -253,10 +257,12 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         self.symbols['vspeed'] = yadj
 
     def update_position_x(self):
+        self.debug("update_position_x():")
         self.round_position_x_to_rect_x()
         self.symbols['position.x'] = self.position.x
         
     def update_position_y(self):
+        self.debug("update_position_y():")
         self.round_position_y_to_rect_y()
         self.symbols['position.y'] = self.position.y
         
@@ -267,6 +273,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              the floating-point value to the nearest integer and place it
              in rect.x for the draw() method.
         """
+        self.debug("round_position_x_to_rect_x():")
         self.rect.x = math.floor(self.position.x + 0.5)
 
     def round_position_y_to_rect_y(self):
@@ -276,6 +283,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              the floating-point value to the nearest integer and place it
              in rect.y for the draw() method.
         """
+        self.debug("round_position_y_to_rect_y():")
         self.rect.y = math.floor(self.position.y + 0.5)
 
     @property
@@ -391,6 +399,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             get_center_point():
             Return the approximate center pixel coordinate of the object.
         """
+        self.debug("get_center_point():")
         center_xy = (self.rect.x + self.rect.width / 2.0,
             self.rect.y + self.rect.height / 2.0)
 
@@ -402,6 +411,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              etc) will instead be tracked in the local symbol table to support
              code execution actions.
         """
+        self.debug("apply_kwargs(kwargs={}):".format(kwargs))
         relative = False
         if "relative" in kwargs.keys():
             relative = kwargs["relative"]
@@ -416,7 +426,6 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     if relative:
                         new_val += getattr(self, kwarg)
                     if (new_val != old_val):
-                        #print("apply_kwargs(): Set {} to {}".format(kwarg, new_val))
                         setattr(self, kwarg, new_val)
                 elif len(attrs) == 2:
                     main_attr = getattr(self, attrs[0])
@@ -437,6 +446,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              positions. Make friction and/or gravity changes to speed and/or
              direction for the next update().
         """
+        self.debug("update():")
         event_queued = None
         if (self.speed > 0.0):
             self.position[0] += self.symbols['hspeed']
@@ -472,15 +482,16 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                 ((self.rect.y + self.rect.height) < 0)):
                 if not event_queued:
                     event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
-            #print("inst {} new position: {} ({})".format(self.id,
-            #    self.position, self.rect))
+            self.debug("  {} inst {} new position: {} ({})".format(self.kind.name,
+                self.id, self.position, self.rect))
         # apply forces for next update
         self.apply_gravity()
         self.apply_friction()
         # transmit outside_room or intersect_boundary event last
         if event_queued:
             self.game_engine.event_engine.queue_event(event_queued)
-            #print("{} transmitting {} event".format(self, event_queued))
+            self.debug("  {} inst {} transmitting {} event".format(self.kind.name,
+                self.id, event_queued))
             self.game_engine.event_engine.transmit_event(event_queued.name)
 
     def apply_gravity(self):
@@ -495,6 +506,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             apply_friction():
             Adjust speed based on friction value
         """
+        self.debug("apply_friction():")
         if (self.friction) > 0.0 and (self.speed > 0.0):
             new_speed = self.speed - self.friction
             if new_speed < 0.0:
@@ -507,6 +519,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             Given an xy iteratable, change the direction of motion toward the
              given point.
         """
+        self.debug("aim_toward_point():")
         self.direction = direction_from_a_to_b(self.get_center_point(), pointxy)
 
     def set_velocity_compass(self, action):
@@ -518,6 +531,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             -or- '|' separated list of possible directions to be chosen at
              random: UP, UPLEFT, UPRIGHT, RIGHT, DOWN, DOWNLEFT, DOWNRIGHT, LEFT
         """
+        self.debug("set_velocity_compass(action={}):".format(action))
         # convert compass direction into degrees
         new_params = dict(action.action_data)
         new_params["direction"] = 0.0
@@ -541,6 +555,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             move_toward_point():
             Handle the move_toward_point action.
         """
+        self.debug("move_toward_point(action={}):".format(action))
         if "destination" in action.action_data:
             self.delay_motion_updates = True
             # change direction
@@ -555,6 +570,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             set_horizontal_speed():
             Handle the set_horizontal_speed action.
         """
+        self.debug("set_horizontal_speed(action={}):".format(action))
         relative = False
         if "relative" in action.action_data:
             relative = action.action_data["relative"]
@@ -574,6 +590,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             set_vertical_speed():
             Handle the set_vertical_speed action.
         """
+        self.debug("set_vertical_speed(action={}):".format(action))
         relative = False
         if "relative" in action.action_data:
             relative = action.action_data["relative"]
@@ -589,6 +606,8 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             self.vspeed = new_vspeed
 
     def symbol_change_callback(self, sym, new_value):
+        self.debug("symbol_change_callback(sym={}, new_value={}):".format(sym,
+            new_value))
         if sym == 'speed':
             self.speed = new_value
         elif sym == 'direction':
@@ -617,6 +636,8 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              symbols attribute, which is a symbol table. Applies any built-in
              local variable changes for the instance (speed, direction, etc.).
         """
+        self.debug("execute_code(action={}, keep_code_block={}):".format(action,
+            keep_code_block))
         if (len(action.action_data['code']) > 0):
             instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
             if not 'language_engine_handle' in action.runtime_data:
@@ -626,10 +647,11 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     instance_handle_name, action.action_data['code']
                 )
             local_symbols = PyGameMakerSymbolTable(self.symbols, lambda s, v: self.symbol_change_callback(s, v))
-            #print("syms before code block: {}".format(local_symbols.vars))
+            self.debug("{} inst {} syms before code block: {}".format(self.kind.name, self.id, local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
                 action['language_engine_handle'], local_symbols
             )
+            self.debug("  syms after code block: {}".format(local_symbols.vars))
             if not keep_code_block:
                 # support one-shot actions
                 self.game_engine.language_engine.unregister_code_block(
@@ -644,6 +666,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
              symbol table in self.symbols, and the global symbol table managed
              by the language engine.
         """
+        self.debug("if_variable_value(action={}):".format(action))
         # look in symbol tables for the answer, local table first
         var_val = self.symbols.DEFAULT_UNINITIALIZED_VALUE
         test_result = False
@@ -652,23 +675,26 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         elif action['variable'] in self.game_engine.language_engine.global_symbol_table.keys():
             var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
         if action['test'] == "equals":
-            if action['value'] == var_val:
+            if var_val == action['value']:
                 test_result = True
         if action['test'] == "not_equals":
-            if action['value'] != var_val:
+            if var_val == action['value']:
                 test_result = True
         if action['test'] == "less_than_or_equals":
-            if action['value'] <= var_val:
+            if var_val <= action['value']:
                 test_result = True
         if action['test'] == "less_than":
-            if action['value'] < var_val:
+            if var_val < action['value']:
                 test_result = True
         if action['test'] == "greater_than_or_equals":
-            if action['value'] >= var_val:
+            if var_val >= action['value']:
                 test_result = True
         if action['test'] == "greater_than":
-            if action['value'] > var_val:
+            if var_val > action['value']:
                 test_result = True
+        self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name,
+            self.id, action['variable'], action['test'], action['value'],
+            test_result))
         action.action_result = test_result
 
     def set_variable_value(self, action):
@@ -676,10 +702,18 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
             set_variable_value():
             Handle the set_variable_value action.
         """
-        if action['global']:
-            self.game_engine.language_engine.global_symbol_table[action['variable']] = action['value']
+        self.debug("set_variable_value(action={}):".format(action))
+        if action['is_global']:
+            value_result = action.get_parameter_expression_result('value',
+                self.game_engine.language_engine.global_symbol_table,
+                self.game_engine.language_engine)
+            self.debug("  {} inst {}: set global var {} to {}".format(self.kind.name, self.id, action['variable'], value_result))
+            self.game_engine.language_engine.global_symbol_table[action['variable']] = value_result
         else:
-            self.symbols[action['variable']] = action['value']
+            value_result = action.get_parameter_expression_result('value',
+                self.symbols, self.game_engine.language_engine)
+            self.debug("  {} inst {}: set local var '{}' to {}".format(self.kind.name, self.id, action['variable'], value_result))
+            self.symbols[action['variable']] = value_result
 
     def execute_action(self, action, event):
         """
@@ -691,6 +725,7 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
+        self.debug("execute_action(action={}, event={}):".format(action, event))
         action_params = {}
         # check for expressions that need to be executed
         for param in action.action_data.keys():
@@ -735,7 +770,8 @@ class PyGameMakerObjectInstance(pygame.sprite.DirtySprite):
                     # Y component is greater; reverse Y
                     self.direction = 180.0 - self.direction
         else:
-            apply_kwargs(action_params)
+            self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name, self.id, action.name))
+            self.apply_kwargs(action_params)
 
     def __repr__(self):
         return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
