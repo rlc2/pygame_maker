@@ -53,10 +53,10 @@ import sys
 import pygame_maker_logging_object as pgm_logging
 import pygame_maker_run_time_support as pgmrts
 
-class PyGameMakerLanguageEngineException(Exception):
+class PyGameMakerLanguageEngineException(pgm_logging.PyGameMakerLoggingException):
     pass
 
-class PyGameMakerCodeBlockException(Exception):
+class PyGameMakerCodeBlockException(pgm_logging.PyGameMakerLoggingException):
     pass
 
 class PyGameMakerSymbolTable(object):
@@ -691,8 +691,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        self.error("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
-                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -736,8 +735,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
-                        self.error("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
-                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     params = list(op_stack[id_start:id_end])
                     for dead_idx in range(2):
                         del(op_stack[-1])
@@ -768,8 +766,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                             "val": "{}".format(opname)})
             #print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            self.error("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line))
-            raise(PyGameMakerCodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line)))
+            raise(PyGameMakerCodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(code_line, op_stack))
         python_code_line = "{}{}".format(' '*loc[1], op_stack[-1]['val'])
@@ -1013,8 +1010,7 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
         self.debug("  code block:\n{}".format(code_string))
         code_block_runnable = None
         if block_name in self.code_blocks:
-            self.error("Attempt to register another code block named '{}'".format(block_name))
-            raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name)))
+            raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name), self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = PyGameMakerCodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
@@ -1028,8 +1024,7 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
         """
         self.info("Execute code with handle '{}'".format(block_name))
         if not block_name in self.code_blocks:
-            self.error("Attempt to execute unknown code block named '{}'".format(block_name))
-            raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name)))
+            raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name), self.error))
         if local_symbol_table:
             if not block_name in self.local_tables:
                 self.local_tables[block_name] = {}
