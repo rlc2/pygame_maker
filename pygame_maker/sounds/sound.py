@@ -4,16 +4,16 @@
 
 # Licensed under LGPL v2.1 (see file COPYING for details)
 
-# implement pygame_maker sounds
+# implement sound resources
 
 import pygame
 import os.path
 import yaml
 
-class PyGameMakerSoundException(Exception):
+class SoundException(Exception):
     pass
 
-class PyGameMakerSound(object):
+class Sound(object):
     """
         Implement simple sound effects or background music loaded from
         sound files.
@@ -30,7 +30,7 @@ class PyGameMakerSound(object):
         """
             Create a new sound from a YAML-formatted file
             sound_yaml_file: name of the file
-            Check each key against known PyGameMakerSound parameters, and use
+            Check each key against known Sound parameters, and use
             only those parameters to initalize a new sound.
             Returns:
                 o None, if the yaml-formatted sound is invalid
@@ -45,7 +45,7 @@ class PyGameMakerSound(object):
                 ...
         """
         yaml_info = None
-        sound_name = PyGameMakerSound.DEFAULT_SOUND_PREFIX
+        sound_name = Sound.DEFAULT_SOUND_PREFIX
         new_sound_list = []
         if os.path.exists(sound_yaml_file):
             with open(sound_yaml_file, "r") as yaml_f:
@@ -61,7 +61,7 @@ class PyGameMakerSound(object):
                         sound_args['sound_type'] = yaml_info_hash['sound_type']
                     if 'preload' in yaml_info_hash.keys():
                         sound_args['preload'] = yaml_info_hash['preload']
-                    new_sound_list.append(PyGameMakerSound(sound_name,
+                    new_sound_list.append(Sound(sound_name,
                         **sound_args))
                     new_sound_list[-1].check()
         return new_sound_list
@@ -96,7 +96,7 @@ class PyGameMakerSound(object):
 
     def load_file(self):
         if not os.path.exists(self.sound_file):
-            raise PyGameMakerSoundException("PyGameMakerSoundException: Sound file '{}' not found.".format(self.sound_file))
+            raise SoundException("SoundException: Sound file '{}' not found.".format(self.sound_file))
         if not self.loaded:
             self.audio = pygame.mixer.Sound(self.sound_file)
             self.loaded = True
@@ -126,83 +126,16 @@ class PyGameMakerSound(object):
 
     def check_type(self):
         if not self.sound_type in self.SOUND_TYPES:
-            raise PyGameMakerSoundException("PyGameMakerSound: Unknown sound type '{}'".format(self.sound_type))
+            raise SoundException("Sound: Unknown sound type '{}'".format(self.sound_type))
         return True
 
     def check(self):
         return self.check_type()
 
     def __eq__(self, other):
-        return(isinstance(other, PyGameMakerSound) and
+        return(isinstance(other, Sound) and
             (self.name == other.name) and
             (self.sound_file == other.sound_file) and
             (self.sound_type == other.sound_type) and
             (self.preload == other.preload))
-
-if __name__ == "__main__":
-    import unittest
-    import tempfile
-    import os
-    import time
-
-    class TestPyGameMakerSound(unittest.TestCase):
-
-        def setUp(self):
-            self.sound_test_file = "unittest_files/Pop.wav"
-            self.valid_sound_yaml = "- yaml_sound:\n    sound_file: {}\n    sound_type: music\n    preload: False\n".format(self.sound_test_file)
-            self.valid_sound_object = PyGameMakerSound("yaml_sound",
-                sound_file=self.sound_test_file, sound_type="music",
-                preload=False)
-
-        def test_005valid_sound(self):
-            sound1 = PyGameMakerSound("sound1")
-            self.assertEqual(sound1.name, "sound1")
-
-        def test_010sound_parameters(self):
-            pygame.init()
-            music1 = PyGameMakerSound("music1", sound_type="music")
-            self.assertEqual(music1.sound_type, "music")
-            sound_with_file = PyGameMakerSound("dontpanic",
-                sound_file=self.sound_test_file)
-            sound_with_file.play_sound()
-            self.assertTrue(sound_with_file.is_sound_playing())
-            time.sleep(2)
-            self.assertFalse(sound_with_file.is_sound_playing())
-            self.assertEqual(sound_with_file.sound_file, self.sound_test_file)
-
-        def test_015missing_sound_file(self):
-            missing_music1 = PyGameMakerSound("missing1",
-                sound_type="music", sound_file="unittest/missing1.wav")
-            with self.assertRaises(PyGameMakerSoundException):
-                missing_music1.setup()
-            missing_sound1 = PyGameMakerSound("missing2",
-                preload=False, sound_file="unittest/missing2.wav")
-            missing_sound1.setup()
-            with self.assertRaises(PyGameMakerSoundException):
-                missing_sound1.play_sound()
-
-        def test_020sound_to_yaml(self):
-            self.assertEqual(self.valid_sound_object.to_yaml(),
-                self.valid_sound_yaml)
-
-        def test_025yaml_to_sound(self):
-            tmpf_info = tempfile.mkstemp(dir="/tmp")
-            tmp_file = os.fdopen(tmpf_info[0], 'w')
-            tmp_file.write(self.valid_sound_yaml)
-            tmp_file.close()
-            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])[0]
-            os.unlink(tmpf_info[1])
-            self.assertEqual(self.valid_sound_object, loaded_sound1)
-
-        def test_030to_and_from_yaml(self):
-            generated_sound_yaml = self.valid_sound_object.to_yaml()
-            tmpf_info = tempfile.mkstemp(dir="/tmp")
-            tmp_file = os.fdopen(tmpf_info[0], 'w')
-            tmp_file.write(generated_sound_yaml)
-            tmp_file.close()
-            loaded_sound1 = PyGameMakerSound.load_from_yaml(tmpf_info[1])[0]
-            os.unlink(tmpf_info[1])
-            self.assertEqual(self.valid_sound_object, loaded_sound1)
-
-    unittest.main()
 

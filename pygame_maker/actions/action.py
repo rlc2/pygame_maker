@@ -4,21 +4,21 @@
 
 # Licensed under LGPL v2.1 (see file COPYING for details)
 
-# represent a PyGameMaker action that executes following an event
+# represent an action that executes following an event
 
 import pygame
 import yaml
 import re
 import sys
-from pygame_maker_language_engine import PyGameMakerSymbolTable
+from pygame_maker.scripts.language_engine import SymbolTable
 
-class PyGameMakerActionException(Exception):
+class ActionException(Exception):
     pass
 
-class PyGameMakerActionParameterException(Exception):
+class ActionParameterException(Exception):
     pass
 
-class PyGameMakerAction(object):
+class Action(object):
     """Base class for actions"""
     DEFAULT_POINT_XY=(0,0)
     DEFAULT_SPEED=0
@@ -93,10 +93,10 @@ common_parameters:
         default: False
     common_speed:
         type: float
-        default: '0.0'
+        default: 0.0
     common_position:
         type: int
-        default: '0'
+        default: 0
     common_compass_direction:
         type: from_list
         default: none
@@ -174,7 +174,7 @@ common_parameters:
                 if action_name in atype.HANDLED_ACTIONS:
                     return atype(action_name, settings_dict, **kwargs)
         # no action type handles the named action
-        raise PyGameMakerActionException("Action '{}' is unknown".format(action_name))
+        raise ActionException("Action '{}' is unknown".format(action_name))
 
     def __init__(self, action_name, action_yaml, settings_dict={}, **kwargs):
         """
@@ -260,9 +260,9 @@ common_parameters:
             an expression to execute: first char is '='.
              Parameters:
               field_name (string): The field containing the expression
-              symbols (PyGameMakerSymbolTable): The symbols available to the
+              symbols (SymbolTable): The symbols available to the
                code block
-              language_engine (PyGameMakerLanguageEngine): The language engine
+              language_engine (LanguageEngine): The language engine
                instance
              Returns:
               The result from the expression
@@ -291,7 +291,7 @@ common_parameters:
             language_engine.register_code_block(exp_id, expression_code)
             self.runtime_data[exp_name] = exp_id
         # execute the expression and collect its result
-        local_symbols = PyGameMakerSymbolTable(symbols)
+        local_symbols = SymbolTable(symbols)
         language_engine.execute_code_block(self.runtime_data[exp_name],
             local_symbols)
         #print("{} = {}".format(sym_name, local_symbols[sym_name]))
@@ -320,7 +320,7 @@ common_parameters:
 
     def __getitem__(self, itemname):
         """
-            Forward PyGameMakerAction[key] to the action_data member for
+            Forward Action[key] to the action_data member for
             convenience
         """
         val = None
@@ -346,11 +346,11 @@ common_parameters:
             self.action_data)
 
     def __eq__(self, other):
-        return(isinstance(other, PyGameMakerAction) and
+        return(isinstance(other, Action) and
             (self.name == other.name) and
             (self.action_data == other.action_data))
 
-class PyGameMakerMotionAction(PyGameMakerAction):
+class MotionAction(Action):
     MOVE_ACTIONS=[
         "set_velocity_compass",
         "set_velocity_degrees",
@@ -392,7 +392,7 @@ actions:
         apply_to: common_apply_to
         direction:
             type: float
-            default: '0.0'
+            default: 0.0
         speed: common_speed
         relative: common_relative
     move_toward_point:
@@ -463,10 +463,10 @@ actions:
         apply_to: common_apply_to
         direction:
             type: float
-            default: '0.0'
+            default: 0.0
         max_distance:
             type: int
-            default: '-1'
+            default: -1
         stop_at_collision_type: common_collision_type
     bounce_off_collider:
         apply_to: common_apply_to
@@ -499,7 +499,7 @@ actions:
         apply_to: common_apply_to
         location:
             type: str
-            default: '0'
+            default: 0
         relative:
             common_relative
     set_path_speed:
@@ -525,14 +525,14 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerMotionAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("MotionAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.MOTION_ACTION_DATA_YAML,
             settings_dict, **kwargs)
         #print("Created new action {}".format(self))
         # self.action_data = self.MOTION_ACTION_DATA_MAP[action_name]
 
-class PyGameMakerObjectAction(PyGameMakerAction):
+class ObjectAction(Action):
     OBJECT_ACTIONS=[
         "create_object",
         "create_object_with_velocity",
@@ -622,12 +622,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerObjectAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("ObjectAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.OBJECT_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerSoundAction(PyGameMakerAction):
+class SoundAction(Action):
     SOUND_ACTIONS=[
         "play_sound",
         "stop_sound",
@@ -657,12 +657,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerSoundAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("SoundAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.SOUND_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerRoomAction(PyGameMakerAction):
+class RoomAction(Action):
     ROOM_ACTIONS=[
         "goto_previous_room",
         "goto_next_room",
@@ -694,12 +694,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerRoomAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("RoomAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.ROOM_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerTimingAction(PyGameMakerAction):
+class TimingAction(Action):
     TIMING_ACTIONS=[
         "set_alarm",
         "sleep",
@@ -767,12 +767,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerTimingAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("TimingAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.TIMING_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerInfoAction(PyGameMakerAction):
+class InfoAction(Action):
     INFO_ACTIONS=[
         "display_message",
         "show_game_info",
@@ -800,12 +800,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerInfoAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("InfoAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.INFO_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerGameAction(PyGameMakerAction):
+class GameAction(Action):
     GAME_ACTIONS=[
         "restart_game",
         "end_game",
@@ -829,12 +829,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerGameAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("GameAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.GAME_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerResourceAction(PyGameMakerAction):
+class ResourceAction(Action):
     RESOURCE_ACTIONS=[
         "replace_sprite_with_file",
         "replace_sound_with_file",
@@ -844,11 +844,12 @@ class PyGameMakerResourceAction(PyGameMakerAction):
 
     def __init__(self, action_name, settings_dict={}):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerResourceAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name, {}, {},
+            raise ActionException("ResourceAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
+            "",
             settings_dict, **kwargs)
 
-class PyGameMakerQuestionAction(PyGameMakerAction):
+class QuestionAction(Action):
     QUESTION_ACTIONS=[
         "if_collision_at_location",
         "if_collision_at_location",
@@ -864,11 +865,12 @@ class PyGameMakerQuestionAction(PyGameMakerAction):
 
     def __init__(self, action_name ,settings_dict={}):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerQuestionAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name, {}, {},
+            raise ActionException("QuestionAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
+            "",
             settings_dict, **kwargs)
 
-class PyGameMakerOtherAction(PyGameMakerAction):
+class OtherAction(Action):
     OTHER_ACTIONS=[
         "start_of_block",
         "else",
@@ -884,12 +886,20 @@ class PyGameMakerOtherAction(PyGameMakerAction):
         "end_of_block": {},
         "repeat_next_action": {} 
     }
+    OTHER_ACTION_DATA_YAML="""
+actions:
+    start_of_block: {}
+    else: {}
+    exit_event: {}
+    end_of_block: {}
+    repeat_next_action: {}
+"""
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerOtherAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
-		self.OTHER_ACTION_DATA_MAP[action_name], {},
+            raise ActionException("OtherAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
+		self.OTHER_ACTION_DATA_YAML,
                 settings_dict, **kwargs)
         # handle blocks
         if action_name == "start_of_block":
@@ -897,7 +907,7 @@ class PyGameMakerOtherAction(PyGameMakerAction):
         elif action_name == "end_of_block":
             self.nest_adjustment = "block_end"
 
-class PyGameMakerCodeAction(PyGameMakerAction):
+class CodeAction(Action):
     CODE_ACTIONS=[
         "execute_code",
         "execute_script"
@@ -923,12 +933,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerCodeAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("CodeAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.CODE_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerVariableAction(PyGameMakerAction):
+class VariableAction(Action):
     VARIABLE_ACTIONS=[
         "set_variable_value",
         "if_variable_value",
@@ -971,12 +981,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerVariableAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("VariableAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.VARIABLE_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerAccountingAction(PyGameMakerAction):
+class AccountingAction(Action):
     SCORE_ACTIONS=[
         "set_score_value",
         "if_score_value",
@@ -1124,12 +1134,12 @@ actions:
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerAccountingAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name,
+            raise ActionException("AccountingAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name,
             self.ACCOUNTING_ACTION_DATA_YAML,
             settings_dict, **kwargs)
 
-class PyGameMakerParticleAction(PyGameMakerAction):
+class ParticleAction(Action):
     PARTICLE_ACTIONS=[
         "create_particle_system",
         "destroy_particle_system",
@@ -1149,11 +1159,11 @@ class PyGameMakerParticleAction(PyGameMakerAction):
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerParticleAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name, {}, {},
+            raise ActionException("ParticleAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name, {}, {},
             settings_dict, **kwargs)
 
-class PyGameMakerDrawAction(PyGameMakerAction):
+class DrawAction(Action):
     DRAW_ACTIONS=[
         "draw_self",
         "draw_sprite_at_location",
@@ -1181,142 +1191,24 @@ class PyGameMakerDrawAction(PyGameMakerAction):
 
     def __init__(self, action_name, settings_dict={}, **kwargs):
         if not action_name in self.HANDLED_ACTIONS:
-            raise PyGameMakerActionException("PyGameMakerDrawAction: Unknown action '{}'".format(action_name))
-        PyGameMakerAction.__init__(self, action_name, {}, {},
+            raise ActionException("DrawAction: Unknown action '{}'".format(action_name))
+        Action.__init__(self, action_name, {}, {},
             settings_dict, **kwargs)
 
 # make it possible to request an action from any action type
-PyGameMakerAction.register_new_action_type(PyGameMakerMotionAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerObjectAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerRoomAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerSoundAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerTimingAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerInfoAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerGameAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerResourceAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerQuestionAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerOtherAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerCodeAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerVariableAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerAccountingAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerParticleAction)
-PyGameMakerAction.register_new_action_type(PyGameMakerDrawAction)
-
-if __name__ == "__main__":
-    import unittest
-
-    class TestPyGameMakerAction(unittest.TestCase):
-
-        def setUp(self):
-            pass
-
-        def test_003find_action_by_name(self):
-            motion_action = PyGameMakerAction.get_action_instance_by_action_name("set_velocity_compass", compass_directions="DOWN")
-            self.assertEqual(motion_action["compass_directions"], "DOWN")
-            print("action: {}".format(motion_action))
-
-        def test_005valid_motion_action(self):
-            good_action = PyGameMakerMotionAction("set_velocity_degrees", speed=5)
-            self.assertEqual(good_action["speed"], 5)
-            print("action: {}".format(good_action))
-
-        def test_010valid_object_action(self):
-            object_action = PyGameMakerObjectAction("create_object",
-                { 'position.x':250, 'position.y':250 } )
-            self.assertEqual(object_action["position.x"], 250)
-            self.assertEqual(object_action["position.y"], 250)
-            print("action: {}".format(object_action))
-
-        def test_015valid_sound_action(self):
-            sound_action = PyGameMakerSoundAction("play_sound", loop=True)
-            self.assertTrue(sound_action["loop"])
-            print("action: {}".format(sound_action))
-
-        def test_020valid_code_action(self):
-            code_string = "print(\"this is a test\")"
-            code_action = PyGameMakerCodeAction("execute_code",
-                code=code_string)
-            self.assertEqual(code_action["code"], code_string)
-            print("action {}".format(code_action))
-
-        def test_025valid_accounting_action(self):
-            accounting_action = PyGameMakerAccountingAction("set_score_value",
-                score=1, relative=True)
-            self.assertEqual(accounting_action["score"], 1)
-            self.assertTrue(accounting_action["relative"])
-            print("action {}".format(accounting_action))
-
-        def test_030invert(self):
-            if_sound_action = PyGameMakerSoundAction("if_sound_is_playing")
-            if_sound_action2 = PyGameMakerSoundAction("if_sound_is_playing",
-                invert=True)
-            self.assertEqual(if_sound_action.name, "if_sound_is_playing")
-            self.assertFalse(if_sound_action["invert"])
-            self.assertTrue(if_sound_action2["invert"])
-
-        def test_035to_yaml(self):
-            test_action = PyGameMakerMotionAction('jump_to', relative=True)
-            test_yaml="""  jump_to:
-    apply_to: self
-    position.x: 0
-    position.y: 0
-    relative: True
-"""
-            self.assertEqual(test_action.to_yaml(2), test_yaml)
-            yaml_in = yaml.load(test_action.to_yaml())
-            print("{}".format(yaml_in))
-            print("{}".format(test_action.to_yaml(2)))
-            code_str="""code line 1
-code line 2
-  indented line 1
-  indented line 2
-code line 3"""
-            test_action2 = PyGameMakerCodeAction('execute_code',
-                code=code_str)
-            test_yaml2="""  execute_code:
-    apply_to: self
-    code: |
-      code line 1
-      code line 2
-        indented line 1
-        indented line 2
-      code line 3
-"""
-            self.assertEqual(test_action2.to_yaml(2), test_yaml2)
-            yaml_in2 = yaml.load(test_action2.to_yaml())
-            print("{}".format(yaml_in2))
-            print("{}".format(test_action2.to_yaml(2)))
-
-        def test_040valid_room_action(self):
-            room_action = PyGameMakerRoomAction("goto_next_room",
-                transition="create_from_top")
-            self.assertEqual(room_action.name, "goto_next_room")
-            self.assertEqual(room_action["transition"], "create_from_top")
-            print("action {}".format(room_action))
-
-        def test_045valid_timing_action(self):
-            timing_action = PyGameMakerTimingAction("set_alarm",
-                steps=30, alarm=1)
-            self.assertEqual(timing_action.name, "set_alarm")
-            self.assertEqual(timing_action["steps"], 30)
-            self.assertEqual(timing_action["alarm"], 1)
-
-        def test_050valid_info_action(self):
-            info_action = PyGameMakerInfoAction("show_game_info")
-            self.assertEqual(info_action.name, "show_game_info")
-
-        def test_055valid_game_action(self):
-            game_action = PyGameMakerGameAction("load_game", filename="game0")
-            self.assertEqual(game_action.name, "load_game")
-            self.assertEqual(game_action["filename"], "game0")
-
-        def test_060valid_variable_action(self):
-            variable_action = PyGameMakerVariableAction("set_variable_value",
-                value='20', variable='ammo', is_global=True)
-            self.assertEqual(variable_action.name, "set_variable_value")
-            self.assertEqual(variable_action["value"], "20")
-            self.assertEqual(variable_action["variable"], 'ammo')
-            self.assertTrue(variable_action["is_global"])
-
-    unittest.main()
+Action.register_new_action_type(MotionAction)
+Action.register_new_action_type(ObjectAction)
+Action.register_new_action_type(RoomAction)
+Action.register_new_action_type(SoundAction)
+Action.register_new_action_type(TimingAction)
+Action.register_new_action_type(InfoAction)
+Action.register_new_action_type(GameAction)
+Action.register_new_action_type(ResourceAction)
+Action.register_new_action_type(QuestionAction)
+Action.register_new_action_type(OtherAction)
+Action.register_new_action_type(CodeAction)
+Action.register_new_action_type(VariableAction)
+Action.register_new_action_type(AccountingAction)
+Action.register_new_action_type(ParticleAction)
+Action.register_new_action_type(DrawAction)
 

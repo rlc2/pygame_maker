@@ -8,10 +8,10 @@
 
 import re
 
-class PyGameMakerColorException(object):
+class ColorException(object):
     pass
 
-class PyGameMakerColor(object):
+class Color(object):
     COLOR_STRING_RE=re.compile("#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
     def __init__(self, color):
         self.color = (0,0,0)
@@ -27,7 +27,7 @@ class PyGameMakerColor(object):
                 self.blue = int(minfo.group(3), base=16)
                 self.color = (self.red, self.green, self.blue)
             else:
-                raise(PyGameMakerColorException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, color)))
+                raise(ColorException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, color)))
         else:
             clist = list(color)
             if len(clist) >= 3:
@@ -36,5 +36,5 @@ class PyGameMakerColor(object):
                 self.blue = clist[2]
                 self.color = (self.red, self.green, self.blue)
             else:
-                raise(PyGameMakerColorException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, color)))
+                raise(ColorException("{}: Supplied background_color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(type(self).__name__, color)))
 

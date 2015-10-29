@@ -8,7 +8,7 @@ import random, time, sys
 
 DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
-class PyGameMakerCodeBlockRuntimeError(RuntimeError):
+class CodeBlockRuntimeError(RuntimeError):
     pass
 
 def update_symbol(_symbols, symname, value):

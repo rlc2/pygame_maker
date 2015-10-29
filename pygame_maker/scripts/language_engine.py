@@ -50,21 +50,21 @@ import os
 import re
 import imp
 import sys
-import pygame_maker_logging_object as pgm_logging
-import pygame_maker_run_time_support as pgmrts
+from ..support import logging_object
+import run_time_support
 
-class PyGameMakerLanguageEngineException(pgm_logging.PyGameMakerLoggingException):
+class LanguageEngineException(logging_object.LoggingException):
     pass
 
-class PyGameMakerCodeBlockException(pgm_logging.PyGameMakerLoggingException):
+class CodeBlockException(logging_object.LoggingException):
     pass
 
-class PyGameMakerSymbolTable(object):
+class SymbolTable(object):
     DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
     def __init__(self, initial_symbols={}, sym_change_callback=None):
         """
-            PyGameMakerSymbolTable __init__():
+            SymbolTable __init__():
             The language engine makes use of symbol tables when running the
              interpreted language code. Symbol tables support both constants
              and variables. An initial set of variables can be passed into
@@ -127,16 +127,16 @@ class PyGameMakerSymbolTable(object):
         """
         self.consts[constant_name] = constant_value
 
-class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
+class CodeBlock(logging_object.LoggingObject):
     """
-        PyGameMakerCodeBlock class:
-        Helper class that is created by the PyGameMakerCodeBlockGenerator
-        class method, that collects the infix form of source code in the C-like
-        language supported by the language engine and converts it to a more
-        readily executable postfix form. Because of the generator's constraints
-        (the pyparsing function re-uses the same object for every parsing run),
-        this class supports deep copying. Optionally, the abstract syntax tree
-        (AST) can be stored within the object.
+        CodeBlock class:
+        Helper class that is created by the CodeBlockGenerator class method,
+        that collects the infix form of source code in the C-like language
+        supported by the language engine and converts it to a more readily
+        executable postfix form. Because of the generator's constraints (the
+        pyparsing function re-uses the same object for every parsing run), this
+        class supports deep copying. Optionally, the abstract syntax tree (AST)
+        can be stored within the object.
     """
     OPERATOR_FUNCTIONS={
         "operator.add": ["number", "number"],
@@ -207,7 +207,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
               syntax checking.
              astree: the abstract syntax tree produced by pyparsing
         """
-        super(PyGameMakerCodeBlock, self).__init__(type(self).__name__)
+        super(CodeBlock, self).__init__(type(self).__name__)
         self.name = name
         self.module_context = module_context
         self.outer_block = []
@@ -473,7 +473,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
         func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name, ",".join(param_list))]
         func_lines += [
             "  if (count > 100):",
-            "    raise(PyGameMakerCodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\"))".format(self.function_name)
+            "    raise(CodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\"))".format(self.function_name)
         ]
         func_lines += function_body
         ret_minfo = self.RETURN_RE.match(func_lines[-1])
@@ -691,7 +691,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+                        raise(CodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -735,7 +735,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise(PyGameMakerCodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+                        raise(CodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     params = list(op_stack[id_start:id_end])
                     for dead_idx in range(2):
                         del(op_stack[-1])
@@ -766,7 +766,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
                             "val": "{}".format(opname)})
             #print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            raise(PyGameMakerCodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+            raise(CodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(code_line, op_stack))
         python_code_line = "{}{}".format(' '*loc[1], op_stack[-1]['val'])
@@ -884,7 +884,7 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
             #print("exec {}".format(userfunc))
             if 'compiled' in self.functionmap[userfunc]:
                 exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
-        import_lines = "from pygame_maker_run_time_support import *\n"
+        import_lines = "from pygame_maker.scripts.run_time_support import *\n"
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
         exec_code = self.toPython()
@@ -938,13 +938,12 @@ class PyGameMakerCodeBlock(pgm_logging.PyGameMakerLoggingObject):
         self.functionmap = {}
         self.astree = None
 
-class PyGameMakerCodeBlockGenerator(object):
+class CodeBlockGenerator(object):
     """
-        PyGameMakerCodeBlockGenerator class:
-        Generate a PyGameMakerCodeBlock using the wrap_code_block() class
-         method upon a supplied source code string. A class member holds
-         a code block object that is copied to a new code object, which is
-         returned to the caller.
+        CodeBlockGenerator class:
+        Generate a CodeBlock using the wrap_code_block() class method upon a
+         supplied source code string. A class member holds a code block object
+         that is copied to a new code object, which is returned to the caller.
         args:
          source_code_str: A string containing C-like source code
          funcmap: A dict containing <function_name>: [arg_type1, .., arg_typeN]
@@ -953,7 +952,7 @@ class PyGameMakerCodeBlockGenerator(object):
           prototypes.
     """
     bnf = None
-    code_block = PyGameMakerCodeBlock("none", None)
+    code_block = CodeBlock("none", None)
     @classmethod
     def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=[]):
         if module_context:
@@ -964,22 +963,22 @@ class PyGameMakerCodeBlockGenerator(object):
         try:
             astree = cls.bnf.parseString(source_code_str)
             cls.code_block.reduce()
-            new_block = PyGameMakerCodeBlock(program_name, module_context,
+            new_block = CodeBlock(program_name, module_context,
                 funcmap, astree)
             cls.code_block.copyTo(new_block)
         finally:
             cls.code_block.clear()
         return new_block
 
-class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
+class LanguageEngine(logging_object.LoggingObject):
     """
-        PyGameMakerLanguageEngine class:
+        LanguageEngine class:
         Execute code blocks. Requires managing tables of variables and
         functions that can be accessed by and/or created within the code block.
     """
     def __init__(self):
-        super(PyGameMakerLanguageEngine, self).__init__(type(self).__name__)
-        self.global_symbol_table = PyGameMakerSymbolTable()
+        super(LanguageEngine, self).__init__(type(self).__name__)
+        self.global_symbol_table = SymbolTable()
         self.global_symbol_table.setConstant('pi', math.pi)
         self.global_symbol_table.setConstant('e', math.e)
         self.function_table = {}
@@ -1010,9 +1009,9 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
         self.debug("  code block:\n{}".format(code_string))
         code_block_runnable = None
         if block_name in self.code_blocks:
-            raise(PyGameMakerLanguageEngineException("Attempt to register another code block named '{}'".format(block_name), self.error))
+            raise(LanguageEngineException("Attempt to register another code block named '{}'".format(block_name), self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
-        code_block_runnable = PyGameMakerCodeBlockGenerator.wrap_code_block(
+        code_block_runnable = CodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
         code_block_runnable.load(['operator', 'math'])
         self.code_blocks[block_name] = code_block_runnable
@@ -1024,7 +1023,7 @@ class PyGameMakerLanguageEngine(pgm_logging.PyGameMakerLoggingObject):
         """
         self.info("Execute code with handle '{}'".format(block_name))
         if not block_name in self.code_blocks:
-            raise(PyGameMakerLanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name), self.error))
+            raise(LanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name), self.error))
         if local_symbol_table:
             if not block_name in self.local_tables:
                 self.local_tables[block_name] = {}
@@ -1143,292 +1142,4 @@ def BNF(code_block_obj):
         func_def = Group( func + func_def_args + function_block )
         bnf = OneOrMore( comments.suppress() | func_def | assignment | conditional_set ) + stringEnd
     return bnf
-
-if __name__ == "__main__":
-    import unittest
-    import logging
-
-    cblogger = logging.getLogger("PyGameMakerCodeBlock")
-    cbhandler = logging.StreamHandler()
-    cbformatter = logging.Formatter("%(levelname)s: %(message)s")
-    cbhandler.setFormatter(cbformatter)
-    cblogger.addHandler(cbhandler)
-    cblogger.setLevel(logging.INFO)
-
-    lelogger = logging.getLogger("PyGameMakerLanguageEngine")
-    lehandler = logging.StreamHandler()
-    leformatter = logging.Formatter("%(levelname)s: %(message)s")
-    lehandler.setFormatter(leformatter)
-    lelogger.addHandler(lehandler)
-    lelogger.setLevel(logging.INFO)
-
-    class TestPyGameMakerLanguageEngine(unittest.TestCase):
-
-        def dumpSymtables(self, symtables):
-            print("Symbol table:")
-            print("globals:")
-            symtables['globals'].dumpVars()
-            print("locals:")
-            symtables['locals'].dumpVars()
-
-        def symChangeCallback(self, item, val):
-            self.symbol_change_list.append( {item: val} )
-
-        def setUp(self):
-
-            self.functionmap = {
-                'distance': { "arglist":
-                [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
-                'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
-                },
-                'randint': { "arglist":
-                [{"type":"number", "name":"max"}],
-                'block': [0, "_max", "random.randint", "_return"]
-                },
-                'time': { "arglist": [],
-                'block': ["time.time", "_return"]
-                }
-            }
-            self.sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            self.module_context = imp.new_module('game_functions')
-            self.symbol_change_list = []
-
-        def test_005valid_assignment(self):
-            simple_line = "x = 49"
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment",
-                self.module_context, simple_line, self.functionmap)
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            self.assertTrue(sym_tables['locals']['x'] == 49)
-            simple_line2 = "global y = 49"
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodassignment2",
-                self.module_context, simple_line2, self.functionmap)
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            self.assertTrue(sym_tables['globals']['y'] == 49)
-
-        def test_006global_vs_local_symbols(self):
-            symbol_test="""
-global answer = 42
-wrong_answer = 54
-x = wrong_answer - answer
-answer = wrong_answer
-"""
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("symbol_tables",
-                self.module_context, symbol_test, self.functionmap)
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            self.assertTrue(sym_tables['globals']['answer'] == 54)
-            self.assertTrue(sym_tables['locals']['wrong_answer'] == 54)
-            self.assertTrue(sym_tables['locals']['x'] == 12)
-
-        def test_010valid_conditional(self):
-            valid_conditional="""
-if (4 > 5) { x = 1 }
-elseif (4 > 4) { x = 2 }
-elseif (4 < 4) { x = 3 }
-else { x = 4 }
-            """
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodconditional",
-                self.module_context, valid_conditional, self.functionmap)
-            #print("ast:\n{}".format(code_block.astree))
-            #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            self.assertTrue(sym_tables['locals']['x'] == 4)
-
-        def test_015valid_operations(self):
-            valid_operations="""
-va = 1 > 0
-vb = 1 < 0
-vc = 2 >= 2
-vd = 2 <= 2
-ve = 1 >= 2
-vf = 1 <= 2
-vg = 1 != 2
-vh = 1 == 2
-vi = ((va == 0) and vb)
-vj = ve or vf
-vv = 7 / 3
-vw = 6.0 / 1.5
-vx = 4 + 5
-vy = 6 ^ 3
-vz = -2 * 4
-            """
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodops",
-                self.module_context, valid_operations, self.functionmap)
-            #print("ast:\n{}".format(code_block.astree))
-            #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            answers = {
-                "va": 1, "vb": 0, "vc": 1, "vd": 1, "ve": 0, "vf": 1,
-                "vg": 1, "vh": 0, "vi": 0, "vj": 1,
-                "vv": 2, "vw": 4.0, "vx": 9, "vy": 216, "vz": -8
-            }
-            self.assertEqual(sym_tables['locals'].vars, answers)
-
-        def test_020valid_function_def(self):
-            valid_function="""
-function set_X(number n) { x = n }
-            """
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodfunc",
-                self.module_context, valid_function, self.functionmap)
-            #print("ast:\n{}".format(code_block.astree))
-            #print("outer block:\n{}".format(code_block.outer_block))
-            exec "from pygame_maker_run_time_support import *\n" in self.module_context.__dict__
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.module_context.userfunc_set_X(sym_tables, 20)
-            print("Symbol table:")
-            self.dumpSymtables(sym_tables)
-            self.assertEqual(sym_tables['locals']['x'], 20)
-
-        def test_025valid_function_call(self):
-            valid_function_call="""
-x = distance(12, 19)
-            """
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("goodfunccall",
-                self.module_context, valid_function_call, self.functionmap)
-            #print("ast:\n{}".format(code_block.astree))
-            #print("outer block:\n{}".format(code_block.outer_block))
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            code_block.run(sym_tables)
-            self.dumpSymtables(sym_tables)
-            self.assertEqual(sym_tables['locals']['x'], 7)
-
-        def test_030invalid_syntax(self):
-            module_context = imp.new_module('for_errors')
-            bad_line1 = "x + 1 = 59"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax1",
-                    module_context, bad_line1, self.functionmap)
-            bad_line2 = "_y = 1"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax2",
-                    module_context, bad_line2, self.functionmap)
-            bad_line3 = "if { a = 2 }"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax3",
-                    module_context, bad_line3, self.functionmap)
-            bad_line4 = "function noparams() { a = 2 }"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax4",
-                    module_context, bad_line4, self.functionmap)
-            bad_line5 = "function oneparam(n) { a = n }"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax5",
-                    module_context, bad_line5, self.functionmap)
-            bad_line6 = "if 2 > 1 { a = 2 }"
-            with self.assertRaises(ParseException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax6",
-                    module_context, bad_line6, self.functionmap)
-            bad_line7 = "if ((2 > 1) or or (1 > 2)) { a = 2 }"
-            with self.assertRaises(ParseFatalException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("badsyntax7",
-                    module_context, bad_line7, self.functionmap)
-
-        def test_035semantic_errors(self):
-            module_context = imp.new_module('for_sem_errors')
-            bad_code1 = "x = nosuchfunc(1)"
-            with self.assertRaises(ParseFatalException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("semanticerror1",
-                    module_context, bad_code1, self.functionmap)
-            bad_code2 = "x = distance(12)"
-            with self.assertRaises(ParseFatalException):
-                code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("semanticerror2",
-                    module_context, bad_code2, self.functionmap)
-
-        def test_040call_stack_error(self):
-            module_context = imp.new_module('for_recursion_error')
-            call_stack_error_code="""
-function infinite_recursion(void) {
-    x = infinite_recursion()
-    return 1
-}
-a = infinite_recursion()
-            """
-            code_block = PyGameMakerCodeBlockGenerator.wrap_code_block("recursionbomb",
-                module_context, call_stack_error_code, self.functionmap)
-            code_block.load(['operator', 'math'])
-            sym_tables = { "globals": PyGameMakerSymbolTable(),
-                "locals": PyGameMakerSymbolTable() }
-            with self.assertRaises(pgmrts.PyGameMakerCodeBlockRuntimeError):
-                code_block.run(sym_tables)
-
-        def test_045language_engine(self):
-            language_engine = PyGameMakerLanguageEngine()
-            source_string = ""
-            with open("unittest_files/testpgm", "r") as source_f:
-                source_string = source_f.read()
-            #print("Program:\n{}".format(source_string))
-            language_engine.register_code_block("testA", source_string)
-            testa_locals = PyGameMakerSymbolTable()
-            another_program_string="""
-radius = 2
-circumference = 2.0 * pi * radius
-            """
-            language_engine.register_code_block("testB", another_program_string)
-            testb_locals = PyGameMakerSymbolTable()
-            language_engine.execute_code_block("testB", testb_locals)
-            language_engine.execute_code_block("testA", testa_locals)
-            print("Global symbol table:")
-            language_engine.global_symbol_table.dumpVars()
-            print("test A symbol table:")
-            testa_locals.dumpVars()
-            print("test B symbol table:")
-            testb_locals.dumpVars()
-            testa_answers = { "a": 26, "b": -259, "x": 64, "y": 12 }
-            testb_answers = { "radius": 2,
-                "circumference": 2 * math.pi * 2 }
-            self.assertEqual(testa_locals.vars, testa_answers)
-            self.assertEqual(testb_locals.vars, testb_answers)
-
-        def test_050unregister_code_blocks(self):
-            language_engine = PyGameMakerLanguageEngine()
-            language_engine.register_code_block("testA", "a = 1")
-            language_engine.register_code_block("testB", "b = 2")
-            self.assertEqual(['testA', 'testB'],
-                language_engine.code_blocks.keys())
-            language_engine.unregister_code_block("testA")
-            self.assertEqual(['testB'], language_engine.code_blocks.keys())
-            language_engine.unregister_code_block("testB")
-            self.assertEqual([], language_engine.code_blocks.keys())
-
-        def test_055symbol_change_callback(self):
-            language_engine = PyGameMakerLanguageEngine()
-            code_block = """
-sym1 = 24
-sym3 = 25
-global sym2 = 36
-sym4 = 42
-            """
-            language_engine.register_code_block("testA", code_block)
-            test_locals = PyGameMakerSymbolTable({}, sym_change_callback=lambda s, v: self.symChangeCallback(s, v))
-            test_locals.setConstant('sym2', 64)
-            language_engine.execute_code_block("testA", test_locals)
-            expected_changes = [{'sym1': 24}, {'sym3': 25}, {'sym4': 42}]
-            self.assertEqual(self.symbol_change_list, expected_changes)
-
-    unittest.main()
 

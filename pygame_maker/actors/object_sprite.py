@@ -11,10 +11,10 @@ import pygame
 import os.path
 import yaml
 
-class PyGameMakerSpriteException(Exception):
+class ObjectSpriteException(Exception):
     pass
 
-class PyGameMakerSprite(object):
+class ObjectSprite(object):
     COLLISION_TYPES = [
         "precise",
         "rectangle",
@@ -34,8 +34,8 @@ class PyGameMakerSprite(object):
     def load_from_yaml(sprite_yaml_file, unused=None):
         """Create a new sprite from a YAML-formatted file
             sprite_yaml_file: name of the file
-            Check each key against known PyGameMakerSprite parameters, and use only those parameters
-            to initialize a new sprite.
+            Check each key against known ObjectSprite parameters, and use only
+             those parameters to initialize a new sprite.
             Returns:
                 o Empty list, if the YAML-defined sprite(s) is (are) invalid
                 o a list of new sprites, for those with YAML fields that pass
@@ -55,7 +55,7 @@ class PyGameMakerSprite(object):
                 ...
         """
         yaml_info = None
-        sprite_name = PyGameMakerSprite.DEFAULT_SPRITE_PREFIX
+        sprite_name = ObjectSprite.DEFAULT_SPRITE_PREFIX
         new_sprite_list = []
         if (os.path.exists(sprite_yaml_file)):
             with open(sprite_yaml_file, "r") as yaml_f:
@@ -81,7 +81,7 @@ class PyGameMakerSprite(object):
                         sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
                     if 'manual_bounding_box_rect' in yaml_info_hash:
                         sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
-                    new_sprite_list.append(PyGameMakerSprite(sprite_name,
+                    new_sprite_list.append(ObjectSprite(sprite_name,
                         **sprite_args))
                     new_sprite_list[-1].check()
         return new_sprite_list
@@ -179,7 +179,7 @@ class PyGameMakerSprite(object):
     @collision_type.setter
     def collision_type(self, value):
         if not value in (self.COLLISION_TYPES):
-            raise PyGameMakerSpriteException("Unknown collision type '{}'".format(value))
+            raise ObjectSpriteException("ObjectSprite error ({}): Unknown collision type '{}'".format(self, value))
         self._collision_type = value
 
     def setup(self):
@@ -189,7 +189,7 @@ class PyGameMakerSprite(object):
 
     def load_graphic(self):
         if not len(self.filename) > 0:
-            raise PyGameMakerSpriteException("Sprite error ({}): Attempt to load image from empty filename".format(self))
+            raise ObjectSpriteException("ObjectSprite error ({}): Attempt to load image from empty filename".format(self))
         if self.check_filename():
             self.image = pygame.image.load(self.filename).convert_alpha()
             self.image_size = self.image.get_size()
@@ -216,33 +216,33 @@ class PyGameMakerSprite(object):
     def check_filename(self):
         """Error-check filename"""
         if not isinstance(self.filename, str):
-            raise PyGameMakerSpriteException("Sprite error ({}): filename '{}' is not a string".format(self,self.filename))
+            raise ObjectSpriteException("ObjectSprite error ({}): filename '{}' is not a string".format(self,self.filename))
         elif len(self.filename) == 0:
-            raise PyGameMakerSpriteException("Sprite error ({}): filename is empty".format(self,self.filename))
+            raise ObjectSpriteException("ObjectSprite error ({}): filename is empty".format(self,self.filename))
         if len(self.filename) > 0:
             if not os.path.exists(self.filename):
-                raise PyGameMakerSpriteException("Sprite error ({}): filename '{}' not found".format(self,self.filename))
+                raise ObjectSpriteException("ObjectSprite error ({}): filename '{}' not found".format(self,self.filename))
         return True
 
     def check_origin(self):
         """Error-check origin"""
         if isinstance(self.origin, str):
-            raise PyGameMakerSpriteException("Sprite error ({}): Origin is a string".format(self))
+            raise ObjectSpriteException("ObjectSprite error ({}): Origin is a string".format(self))
         the_origin = list(self.origin)
         if len(the_origin) < 2:
-            raise PyGameMakerSpriteException("Sprite error ({}): Origin does not have at least x, y".format(self))
+            raise ObjectSpriteException("ObjectSprite error ({}): Origin does not have at least x, y".format(self))
         return True
 
     def check_collision_type(self):
         """Error-check collision_type"""
         if not self.collision_type in self.COLLISION_TYPES:
-            raise PyGameMakerSpriteException("Sprite error ({}): Collision type \"{}\" is unknown".format(self,self.collision_type))
+            raise ObjectSpriteException("ObjectSprite error ({}): Collision type \"{}\" is unknown".format(self,self.collision_type))
         return True
 
     def check_bounding_box(self):
         """Error-check bounding_box_type"""
         if not self.bounding_box_type in self.BOUNDING_BOX_TYPES:
-            raise PyGameMakerSpriteException("Sprite error ({}): Bounding box type \"{}\" is unknown".format(self,self.bounding_box_type))
+            raise ObjectSpriteException("ObjectSprite error ({}): Bounding box type \"{}\" is unknown".format(self,self.bounding_box_type))
         if self.bounding_box_type == "manual":
             self.check_manual_bounding_box_rect()
         return True
@@ -251,12 +251,12 @@ class PyGameMakerSprite(object):
         """Error-check manual_bounding_box_rect"""
         bound_rect = self.manual_bounding_box_rect
         if not isinstance(bound_rect, pygame.Rect):
-            raise PyGameMakerSpriteException("Sprite error ({}): Bounding box dimensions {} is not a Rect".format(self,self.manual_bounding_box_rect))
+            raise ObjectSpriteException("ObjectSprite error ({}): Bounding box dimensions {} is not a Rect".format(self,self.manual_bounding_box_rect))
         dim = (bound_rect.left, bound_rect.right, bound_rect.top, bound_rect.bottom)
         if (bound_rect.left > bound_rect.right) or (bound_rect.top > bound_rect.bottom):
-            raise PyGameMakerSpriteException("Sprite error ({}): Bounding box dimensions {} are not sane".format(self,dim))
+            raise ObjectSpriteException("ObjectSprite error ({}): Bounding box dimensions {} are not sane".format(self,dim))
         if (bound_rect.left < 0) or (bound_rect.right < 0) or (bound_rect.top < 0) or (bound_rect.bottom < 0):
-            raise PyGameMakerSpriteException("Sprite error ({}): Bounding box dimensions {} are not sane".format(self,dim))
+            raise ObjectSpriteException("ObjectSprite error ({}): Bounding box dimensions {} are not sane".format(self,dim))
         return True
 
     def check(self):
@@ -285,7 +285,7 @@ class PyGameMakerSprite(object):
         return(ystr)
 
     def __eq__(self, other):
-        return(isinstance(other, PyGameMakerSprite) and
+        return(isinstance(other, ObjectSprite) and
             (self.name == other.name) and
             (self.filename == other.filename) and
             (self.smooth_edges == other.smooth_edges) and
@@ -299,116 +299,4 @@ class PyGameMakerSprite(object):
     def __repr__(self):
         return("<{} {} file={}>".format(type(self).__name__, self.name,
             self.filename))
-
-if __name__ == "__main__":
-    import unittest
-    import tempfile
-    import os
-
-    class TestPyGameMakerSprite(unittest.TestCase):
-
-        def setUp(self):
-            self.base_good_sprite_info = {
-                "filename": "unittest_files/Ball.png", "smooth_edges": True, "preload_texture": False,
-                "transparency_pixel": True, "origin": (5,5), "collision_type": "disk",
-                "bounding_box_type": "manual",
-                "manual_bounding_box_rect": {"left": 1, "top": 1, "right":11, "bottom":11}
-            }
-            self.good_sprite = PyGameMakerSprite("spr_good", **self.base_good_sprite_info)
-            self.sprite_yaml = """
-- spr_yaml:
-    filename: unittest_files/Ball.png
-    smooth_edges: true
-    preload_texture: false
-    transparency_pixel: true
-    origin: [10,10]
-    collision_type: disk
-    bounding_box_type: manual
-    manual_bounding_box_rect: {left: 5, right: 10, top: 5, bottom: 10}
-"""
-            self.yaml_sprite = PyGameMakerSprite("spr_yaml",
-                filename="unittest_files/Ball.png",
-                smooth_edges=True,
-                preload_texture=False,
-                transparency_pixel=True,
-                origin=(10,10),
-                collision_type="disk",
-                bounding_box_type="manual",
-                manual_bounding_box_rect={"left":5, "right":10, "top":5, "bottom":10}
-            )
-
-        def test_005empty_sprite(self):
-            new_sprite = PyGameMakerSprite()
-            self.assertTrue(new_sprite.name == PyGameMakerSprite.DEFAULT_SPRITE_PREFIX)
-            self.assertTrue(len(new_sprite.filename) == 0)
-            self.assertFalse(new_sprite.smooth_edges)
-            self.assertTrue(new_sprite.preload_texture)
-            self.assertFalse(new_sprite.transparency_pixel)
-            self.assertTrue(list(new_sprite.origin) == [0,0])
-            self.assertTrue(new_sprite.collision_type == "rectangle")
-            self.assertTrue(new_sprite.bounding_box_type == "automatic")
-            self.assertTrue(new_sprite.manual_bounding_box_rect == pygame.Rect(0,0,0,0))
-
-        def test_010predefined_sprite(self):
-            new_sprite = PyGameMakerSprite("spr_good", **self.base_good_sprite_info)
-            new_sprite.check()
-            self.assertEqual(self.good_sprite, new_sprite)
-
-        def test_015bad_filename(self):
-            bad_filename_hash = dict(self.base_good_sprite_info)
-            bad_filename_hash["filename"] = "bad_filename"
-            bad_sprite = PyGameMakerSprite("spr_bad1", **bad_filename_hash)
-            self.assertRaises(PyGameMakerSpriteException, bad_sprite.check_filename)
-
-        def test_020broken_sprites(self):
-            bad_origin = PyGameMakerSprite("spr_bad2", origin="foo")
-            self.assertRaises(PyGameMakerSpriteException, bad_origin.check_origin)
-            with self.assertRaises(PyGameMakerSpriteException):
-                bad_colltype = PyGameMakerSprite("spr_bad3", collision_type="bar")
-            bad_bbtype = PyGameMakerSprite("spr_bad4", bounding_box_type="baz")
-            self.assertRaises(PyGameMakerSpriteException, bad_bbtype.check_bounding_box)
-            bad_bbdim = PyGameMakerSprite("spr_bad5")
-            bad_bbdim.manual_bounding_box_rect = "whack"
-            self.assertRaises(PyGameMakerSpriteException, bad_bbdim.check_manual_bounding_box_rect)
-            bad_bbdim2 = PyGameMakerSprite("spr_bad6", manual_bounding_box_rect = {"left":10, "right":5, "top":0, "bottom":10})
-            self.assertRaises(PyGameMakerSpriteException, bad_bbdim2.check_manual_bounding_box_rect)
-            bad_bbdim3 = PyGameMakerSprite("spr_bad7", manual_bounding_box_rect = {"left":0, "right":5, "top":10, "bottom":0})
-            self.assertRaises(PyGameMakerSpriteException, bad_bbdim3.check_manual_bounding_box_rect)
-            bad_bbdim4 = PyGameMakerSprite("spr_bad8", manual_bounding_box_rect = {"top":10})
-            self.assertRaises(PyGameMakerSpriteException, bad_bbdim4.check_manual_bounding_box_rect)
-            bad_bbdim5 = PyGameMakerSprite("spr_bad9", manual_bounding_box_rect = {"left":5})
-            self.assertRaises(PyGameMakerSpriteException, bad_bbdim5.check_manual_bounding_box_rect)
-
-        def test_025load_sprite(self):
-            tmpf_info = tempfile.mkstemp(dir="/tmp")
-            tmp_file = os.fdopen(tmpf_info[0], "w")
-            tmp_file.write(self.sprite_yaml)
-            tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])[0]
-            os.unlink(tmpf_info[1])
-            self.assertEqual(self.yaml_sprite, new_sprite)
-
-        def test_026load_bad_yaml(self):
-            bad_yaml = """
-                - foo:
-                    filename: foo
-            """
-            tmpf_info = tempfile.mkstemp(dir="/tmp")
-            tmp_file = os.fdopen(tmpf_info[0], "w")
-            tmp_file.write(bad_yaml)
-            tmp_file.close()
-            self.assertRaises(PyGameMakerSpriteException, PyGameMakerSprite.load_from_yaml, tmpf_info[1])
-            os.unlink(tmpf_info[1])
-
-        def test_030to_and_from_yaml(self):
-            good_sprite_yaml = self.good_sprite.to_yaml()
-            tmpf_info = tempfile.mkstemp(dir="/tmp")
-            tmp_file = os.fdopen(tmpf_info[0], "w")
-            tmp_file.write(good_sprite_yaml)
-            tmp_file.close()
-            new_sprite = PyGameMakerSprite.load_from_yaml(tmpf_info[1])[0]
-            os.unlink(tmpf_info[1])
-            self.assertEqual(self.good_sprite, new_sprite)
-
-    unittest.main()
 

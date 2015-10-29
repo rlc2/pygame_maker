@@ -10,9 +10,8 @@ import pygame
 import math
 import random
 import numpy as np
-import pygame_maker_logging_object as pgm_logging
-import pygame_maker_action as pygm_action
-from pygame_maker_language_engine import PyGameMakerSymbolTable
+from pygame_maker.support import logging_object
+from pygame_maker.scripts.language_engine import SymbolTable
 from numbers import Number
 
 class Coordinate(object):
@@ -120,10 +119,10 @@ def direction_from_a_to_b(pointa, pointb):
     normal_vector = np.array(pointb[:2]) - np.array(pointa[:2])
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
 
-class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
+class ObjectInstance(logging_object.LoggingObject,
     pygame.sprite.DirtySprite):
     """
-        PyGameMakerObjectInstance class:
+        ObjectInstance class:
         Fits the purpose of pygame's Sprite class
         Represent an instance of a particular kind of object
         An instance has:
@@ -140,12 +139,12 @@ class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
     """
     def __init__(self, kind, screen_dims, id, settings={}, **kwargs):
         """
-            PyGameMakerObjectInstance.__init__():
+            ObjectInstance.__init__():
             Constructor for object instances. As a pygame.sprite.DirtySprite
              subclass, instances support dirty, blendmode, source_rect,
              visible, and layer attributes.
             parameters:
-             kind (PyGameMakerObject): The object type of this new instance
+             kind (Object): The object type of this new instance
              screen_dims (list of int): Width, height of the surface this
               instance will be drawn to. Allows boundary collisions to be
               detected.
@@ -166,7 +165,7 @@ class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
                pixels/sec [0.0]
         """
         # call the superclass __init__
-        pgm_logging.PyGameMakerLoggingObject.__init__(self, type(self).__name__)
+        logging_object.LoggingObject.__init__(self, type(self).__name__)
         pygame.sprite.DirtySprite.__init__(self)
         self.id = id
         self._symbols = {
@@ -181,7 +180,7 @@ class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
                                   self.update_position_x,
                                   self.update_position_y)
         }
-        self.symbols = PyGameMakerSymbolTable()
+        self.symbols = SymbolTable()
         for sym in self._symbols.keys():
             self.symbols[sym] = self._symbols[sym]
         self.delay_motion_updates = False
@@ -646,7 +645,7 @@ class PyGameMakerObjectInstance(pgm_logging.PyGameMakerLoggingObject,
                 self.game_engine.language_engine.register_code_block(
                     instance_handle_name, action.action_data['code']
                 )
-            local_symbols = PyGameMakerSymbolTable(self.symbols, lambda s, v: self.symbol_change_callback(s, v))
+            local_symbols = SymbolTable(self.symbols, lambda s, v: self.symbol_change_callback(s, v))
             self.debug("{} inst {} syms before code block: {}".format(self.kind.name, self.id, local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
                 action['language_engine_handle'], local_symbols

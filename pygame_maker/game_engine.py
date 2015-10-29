@@ -11,21 +11,20 @@ import yaml
 import pygame
 import logging
 import logging.config
-import pg_template
-import pygame_maker_logging_object as pgm_logging
-import pygame_maker_sprite as pgm_sprite
-import pygame_maker_sound as pgm_sound
-import pygame_maker_object as pgm_object
-import pygame_maker_background as pgm_bkg
-import pygame_maker_room as pgm_room
-import pygame_maker_event as pgm_event
-import pygame_maker_event_engine as pgm_event_engine
-import pygame_maker_language_engine as pgm_lang_engine
+from pygame_maker.support import logging_object
+from pygame_maker.actors import object_sprite
+from pygame_maker.sounds import sound
+from pygame_maker.actors import object_type
+from pygame_maker.scenes import background
+from pygame_maker.scenes import room
+from pygame_maker.events import event
+from pygame_maker.events import event_engine
+from pygame_maker.scripts import language_engine
 
-class PyGameMakerGameEngineException(Exception):
+class GameEngineException(Exception):
     pass
 
-class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
+class GameEngine(logging_object.LoggingObject):
     MOUSE_EVENT_TABLE=[
         {"instance_event_name": "mouse_nobutton",
          "global_event_name": "mouse_global_nobutton"},
@@ -61,15 +60,16 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
     # directories where game resources are expected to reside. The path names
     #  must match the resource key names
     RESOURCE_TABLE=[
-        ('sprites', pgm_sprite.PyGameMakerSprite),
-        ('sounds', pgm_sound.PyGameMakerSound),
-        ('objects', pgm_object.PyGameMakerObject),
-        ('backgrounds', pgm_bkg.PyGameMakerBackground),
-        ('rooms', pgm_room.PyGameMakerRoom),
+        ('sprites', object_sprite.ObjectSprite),
+        ('sounds', sound.Sound),
+        ('objects', object_type.ObjectType),
+        ('backgrounds', background.Background),
+        ('rooms', room.Room),
     ]
     DEFAULT_GAME_SETTINGS={
         "game_name": "PyGameMaker Game",
         "screen_dimensions": (640,480),
+        "frames_per_second": 60,
         "logging_config": {
           "version": 1,
           "formatters": {
@@ -96,31 +96,31 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             }
           },
           "loggers": {
-            "PyGameMakerGameEngine": {
+            "GameEngine": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerCodeBlock": {
+            "CodeBlock": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerLanguageEngine": {
+            "LanguageEngine": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerEventEngine": {
+            "EventEngine": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerObject": {
+            "ObjectType": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerObjectInstance": {
+            "ObjectInstance": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "PyGameMakerRoom": {
+            "Room": {
               "level": "INFO",
               "handlers": ["console", "file"]
             },
@@ -135,9 +135,9 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
     ]
 
     def __init__(self):
-        self.event_engine = pgm_event_engine.PyGameMakerEventEngine()
-        self.language_engine = pgm_lang_engine.PyGameMakerLanguageEngine()
-        self.symbols = pgm_lang_engine.PyGameMakerSymbolTable()
+        self.event_engine = event_engine.EventEngine()
+        self.language_engine = language_engine.LanguageEngine()
+        self.symbols = language_engine.SymbolTable()
         self.resources = {
             'sprites': {},
             'sounds': {},
@@ -163,14 +163,14 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
         else:
           logging.setLevel(logging.WARNING)
 
-        super(PyGameMakerGameEngine, self).__init__(type(self).__name__)
+        super(GameEngine, self).__init__(type(self).__name__)
 
         self.info("Loading game resources..")
-        with pgm_logging.Indented(self):
+        with logging_object.Indented(self):
             self.load_game_resources()
 
         if len(self.resources['rooms']) == 0:
-            raise(PyGameMakerGameEngineException("No game room resource found"))
+            raise(GameEngineException("No game room resource found"))
 
     def load_game_settings(self):
         """
@@ -206,12 +206,12 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             # need to chdir, since the filenames found in YAML resource
             #  files are assumed to be relative to the YAML resource's path
             os.chdir(res_path)
-            with pgm_logging.Indented(self):
+            with logging_object.Indented(self):
                 for res_file in res_yaml_files:
                     self.info("Import {}".format(res_file))
                     new_resources = res_type.load_from_yaml(res_file, self)
                     if res_path != "rooms":
-                        with pgm_logging.Indented(self):
+                        with logging_object.Indented(self):
                             for res in new_resources:
                                 # if multiple resources have the same name, the
                                 # last one read in will override the others
@@ -227,8 +227,8 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             execute_action():
             Perform an action that is not specific to existing objects.
             Parameters:
-             action (PyGameMakerAction): The action instance to be executed.
-             event (PyGameMakerEvent): The event that triggered the action.
+             action (Action): The action instance to be executed.
+             event (Event): The event that triggered the action.
         """
         # filter the action parameters
         action_params = {}
@@ -267,14 +267,14 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             send_key_event():
             Called with a keyboard event from pygame, or None if no key events
              were collected this frame. Pygame key codes will be translated
-             into PyGameMakerKeyEvents with _keyup or _keydn appended to the
+             into KeyEvents with _keyup or _keydn appended to the
              name based on the pygame event received. If no keyboard event was
              received during the frame, fire off the kb_no_key event.
             Parameters:
              key_event (pygame.event): The pygame keyboard event, or None to
               signal that no button event occurred during the frame.
         """
-        pk_map = pgm_event.PyGameMakerKeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
+        pk_map = event.KeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
         key_event_init_name = None
         key_event_name = None
         if not key_event:
@@ -286,7 +286,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                 key_event_init_name = "{}_keydn".format(pk_map[key_event.key])
             elif key_event.type == pygame.KEYUP:
                 key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
-        ev = pgm_event.PyGameMakerKeyEvent(key_event_init_name)
+        ev = event.KeyEvent(key_event_init_name)
         #print("queue event: {}".format(ev))
         self.event_engine.queue_event(ev)
         #print("xmit event: {}".format(key_event_name))
@@ -299,7 +299,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             Called with a mouse event collected from pygame, or None if no
              mouse button events were collected this frame. Motion events will
              simply capture the x, y of the mouse cursor. Button events will
-             trigger PyGameMakerMouseEvents of the appropriate global and
+             trigger MouseEvents of the appropriate global and
              instance press or release types. If no button event was received,
              fire off the nobutton global and instance events.
             Parameters:
@@ -325,7 +325,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                 #  listening for this kind of event only passes it on
                 #  to instances that intersect with the mouse position)
                 self.event_engine.queue_event(
-                    pgm_event.PyGameMakerMouseEvent(
+                    event.MouseEvent(
                         ev_table_entry["instance_event_name"],
                         {"position": mouse_event.pos}
                     )
@@ -333,7 +333,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                 event_names.append(ev_table_entry["instance_event_name"])
                 #print("queue {}".format(event_names[-1]))
                 self.event_engine.queue_event(
-                    pgm_event.PyGameMakerMouseEvent(
+                    event.MouseEvent(
                         ev_table_entry["global_event_name"],
                         {"position": mouse_event.pos}
                     )
@@ -344,7 +344,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                 if mouse_event.type == pygame.MOUSEBUTTONDOWN:
                     if 'instance_pressed_name' in ev_table_entry:
                         self.event_engine.queue_event(
-                            pgm_event.PyGameMakerMouseEvent(
+                            event.MouseEvent(
                                 ev_table_entry["instance_pressed_name"],
                                 {"position": mouse_event.pos}
                             )
@@ -352,7 +352,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                         event_names.append(ev_table_entry["instance_pressed_name"])
                         #print("queue {}".format(event_names[-1]))
                         self.event_engine.queue_event(
-                            pgm_event.PyGameMakerMouseEvent(
+                            event.MouseEvent(
                                 ev_table_entry["global_pressed_name"],
                                 {"position": mouse_event.pos}
                             )
@@ -362,7 +362,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                 if mouse_event.type == pygame.MOUSEBUTTONUP:
                     if 'instance_released_name' in ev_table_entry:
                         self.event_engine.queue_event(
-                            pgm_event.PyGameMakerMouseEvent(
+                            event.MouseEvent(
                                 ev_table_entry["instance_released_name"],
                                 {"position": mouse_event.pos}
                             )
@@ -370,7 +370,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                         event_names.append(ev_table_entry["instance_released_name"])
                         #print("queue {}".format(event_names[-1]))
                         self.event_engine.queue_event(
-                            pgm_event.PyGameMakerMouseEvent(
+                            event.MouseEvent(
                                 ev_table_entry["global_released_name"],
                                 {"position": mouse_event.pos}
                             )
@@ -379,12 +379,12 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
                         #print("queue {}".format(event_names[-1]))
         else:
             self.event_engine.queue_event(
-                pgm_event.PyGameMakerMouseEvent("mouse_nobutton",
+                event.MouseEvent("mouse_nobutton",
                     {"position": self.mouse_pos})
             )
             event_names.append("mouse_nobutton")
             self.event_engine.queue_event(
-                pgm_event.PyGameMakerMouseEvent("mouse_global_nobutton",
+                event.MouseEvent("mouse_global_nobutton",
                     {"position": self.mouse_pos})
             )
             event_names.append("mouse_global_nobutton")
@@ -406,34 +406,34 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
               are, for transmitting boundary collision events.
         """
         self.info("Setup:")
-        with pgm_logging.Indented(self):
+        with logging_object.Indented(self):
             self.screen = screen
             self.symbols.setConstant('screen_width', screen.get_width())
             self.symbols.setConstant('screen_height', screen.get_height())
             self.info("Pre-load game resources..")
-            with pgm_logging.Indented(self):
+            with logging_object.Indented(self):
                 self.setup_game_resources()
             self.info("Load first room..")
-            with pgm_logging.Indented(self):
+            with logging_object.Indented(self):
                 self.load_room(0)
 
     def setup_game_resources(self):
         topdir = os.getcwd()
         os.chdir('sprites')
         self.info("Preloading sprite images..")
-        with pgm_logging.Indented(self):
+        with logging_object.Indented(self):
             for spr in self.resources['sprites'].keys():
                 self.info("{}".format(spr))
                 self.resources['sprites'][spr].setup()
         os.chdir("{}/sounds".format(topdir))
         self.info("Preloading sound files..")
-        with pgm_logging.Indented(self):
+        with logging_object.Indented(self):
             for snd in self.resources['sounds'].keys():
                 self.info("{}".format(snd))
                 self.resources['sounds'][snd].setup()
         os.chdir("{}/backgrounds".format(topdir))
         self.info("Preloading background images..")
-        with pgm_logging.Indented(self):
+        with logging_object.Indented(self):
             for bkg in self.resources['backgrounds'].keys():
                 self.info("{}".format(bkg))
                 self.resources['background'][bkg].setup()
@@ -488,14 +488,16 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
         # clear the queue for next frame
         self.new_object_queue = []
         # begin_step happens before other events
-        ev = pgm_event.PyGameMakerStepEvent('begin_step')
+        ev = event.StepEvent('begin_step')
         self.event_engine.queue_event(ev)
         self.event_engine.transmit_event(ev.name)
         for ev in self.current_events:
-            if ev.type in (pygame.KEYDOWN, pygame.KEYUP):
+            if ev.type == pygame.QUIT:
+                self.done = True
+                break
+            elif ev.type in (pygame.KEYDOWN, pygame.KEYUP):
                 key_pressed = True
-                # @@@@ replace this with the QUIT event, whatever it was called
-                if ev.key == pygame.K_ESCAPE:
+                if (ev.key == pygame.K_ESCAPE):
                     self.done = True
                     break
                 else:
@@ -514,7 +516,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
         # done with event handling
         self.current_events = []
         # normal_step happens before updating object instance positions
-        ev = pgm_event.PyGameMakerStepEvent('normal_step')
+        ev = event.StepEvent('normal_step')
         self.event_engine.queue_event(ev)
         self.event_engine.transmit_event(ev.name)
         # perform position updates on all objects
@@ -535,7 +537,7 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
             Called by the pygame template to draw the foreground items.
         """
         # end_step happens just before drawing object instances
-        ev = pgm_event.PyGameMakerStepEvent('end_step')
+        ev = event.StepEvent('end_step')
         self.event_engine.queue_event(ev)
         self.event_engine.transmit_event(ev.name)
         for obj_name in self.resources['objects'].keys():
@@ -558,11 +560,37 @@ class PyGameMakerGameEngine(pgm_logging.PyGameMakerLoggingObject):
     def is_done(self):
         return self.done
 
-    def start(self):
-        the_game = pg_template.PygameTemplate(self.game_settings['screen_dimensions'], self.game_settings['game_name'], self)
-        the_game.run()
+    def run(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode(self.game_settings['screen_dimensions'])
+        self.setup(self.screen)
+        pygame.display.set_caption(self.game_settings['game_name'])
+        self.clock = pygame.time.Clock()
+
+        # --- Main Loop ---
+        while not self.done:
+            for event in pygame.event.get():
+                self.collect_event(event)
+        
+            # --- Game Logic ---
+            self.update()
+        
+            #self.screen.fill(self.WHITE)
+            # --- Drawing ---
+            self.draw_background()
+            self.draw_objects()
+        
+            # update screen
+            self.final_pass()
+            pygame.display.flip()
+        
+            # limit frame rate
+            self.clock.tick(self.game_settings['frames_per_second'])
+
+        # close window & quit
+        pygame.quit()
 
 if __name__ == "__main__":
-    game_engine = PyGameMakerGameEngine()
-    game_engine.start()
+    game_engine = GameEngine()
+    game_engine.run()
 

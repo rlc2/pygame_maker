@@ -14,13 +14,13 @@ class Indented(object):
     def __exit__(self, type, value, traceback):
         self.logger.log_indent -= self.logger.indent_size
 
-class PyGameMakerLoggingException(Exception):
+class LoggingException(Exception):
     def __init__(self, msg, logger=None):
         if logger:
             logger(msg)
         self.msg = msg
 
-class PyGameMakerLoggingObject(object):
+class LoggingObject(object):
 
     def __init__(self, logger_name=""):
       self.logger_name = logger_name

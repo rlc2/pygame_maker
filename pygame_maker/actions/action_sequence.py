@@ -9,14 +9,14 @@
 import pygame
 import re
 import yaml
-import pygame_maker_action as pygm_action
+from pygame_maker.actions.action import *
 
-class PyGameMakerEventActionSequenceStatementException(Exception):
+class ActionSequenceStatementException(Exception):
     pass
 
-class PyGameMakerEventActionSequenceStatement(object):
+class ActionSequenceStatement(object):
     """
-        PyGameMakerEventActionSequenceStatement class:
+        ActionSequenceStatement class:
         The basis for all action sequence statements. A "statement" wraps
         an action and provides structure to represent if/else conditionals
         and blocks along with normal executable statements.
@@ -35,22 +35,22 @@ class PyGameMakerEventActionSequenceStatement(object):
         new_action = None
         if isinstance(action, str):
             try:
-                new_action = pygm_action.PyGameMakerAction.get_action_instance_by_action_name(action, **kwargs)
-            except pygm_action.PyGameMakerActionException:
-                raise PyGameMakerEventActionSequenceStatementException("'{}' is not a known action".format(action))
+                new_action = Action.get_action_instance_by_action_name(action, **kwargs)
+            except ActionException:
+                raise ActionSequenceStatementException("'{}' is not a known action".format(action))
         else:
             new_action = action
-        if not isinstance(new_action, pygm_action.PyGameMakerAction):
-            raise PyGameMakerEventActionSequenceStatementException("'{}' is not a recognized action")
+        if not isinstance(new_action, Action):
+            raise ActionSequenceStatementException("'{}' is not a recognized action")
         if (new_action.nest_adjustment):
             if new_action.name == "else":
-                return PyGameMakerEventActionSequenceConditionalElse(new_action)
-            minfo = pygm_action.PyGameMakerAction.IF_STATEMENT_RE.search(new_action.name)
+                return ActionSequenceConditionalElse(new_action)
+            minfo = Action.IF_STATEMENT_RE.search(new_action.name)
             if minfo:
-                return PyGameMakerEventActionSequenceConditionalIf(new_action)
+                return ActionSequenceConditionalIf(new_action)
             if new_action.nest_adjustment != "block_end":
-                return PyGameMakerEventActionSequenceBlock(new_action)
-        return PyGameMakerEventActionSequenceStatement(new_action)
+                return ActionSequenceBlock(new_action)
+        return ActionSequenceStatement(new_action)
 
     def __init__(self, action):
         self.is_block = False
@@ -79,13 +79,13 @@ class PyGameMakerEventActionSequenceStatement(object):
     def __repr__(self):
         return "<{}: {}>".format(type(self).__name__, self.action)
 
-class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceStatement):
+class ActionSequenceConditional(ActionSequenceStatement):
     """
-        PyGameMakerEventActionSequenceConditional class:
+        ActionSequenceConditional class:
         Represent a simple conditional ('else' is the only kind this fits).
     """
     def __init__(self, action):
-        PyGameMakerEventActionSequenceStatement.__init__(self, action)
+        ActionSequenceStatement.__init__(self, action)
         self.is_conditional = True
         self.contained_statement = None
 
@@ -99,8 +99,8 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
         """
         found_place = True
         # basic type check
-        if not isinstance(statement, PyGameMakerEventActionSequenceStatement):
-            raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceStatement".format(statement)))
+        if not isinstance(statement, ActionSequenceStatement):
+            raise(ActionSequenceStatementException("{} is not a ActionSequenceStatement".format(statement)))
         if not self.contained_statement:
             # the statement is now the conditional clause
             self.contained_statement = statement
@@ -135,7 +135,7 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
             pretty_print():
             Display an action sequence simple conditional as indented code
         """
-        PyGameMakerEventActionSequenceStatement.pretty_print(self, indent)
+        ActionSequenceStatement.pretty_print(self, indent)
         if self.contained_statement:
             self.contained_statement.pretty_print(indent+1)
 
@@ -144,15 +144,15 @@ class PyGameMakerEventActionSequenceConditional(PyGameMakerEventActionSequenceSt
         repr += "\t{}>".format(self.contained_statement)
         return repr
 
-class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequenceConditional):
+class ActionSequenceConditionalIf(ActionSequenceConditional):
     """
-        PyGameMakerEventActionSequenceConditionalIf class:
+        ActionSequenceConditionalIf class:
         This represents an entire if/else conditional. The 'else' clause is
         also placed here, to avoid having to search earlier statements to see
         if there is a free 'if' conditional that matches the 'else'.
     """
     def __init__(self, action):
-        PyGameMakerEventActionSequenceConditional.__init__(self, action)
+        ActionSequenceConditional.__init__(self, action)
         self.else_condition = None
 
     def add_statement(self, statement):
@@ -168,11 +168,11 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
             will be accepted there.
         """
         found_place = True
-        if not PyGameMakerEventActionSequenceConditional.add_statement(self,
+        if not ActionSequenceConditional.add_statement(self,
             statement):
             if (not self.else_condition and
                 isinstance(statement,
-                PyGameMakerEventActionSequenceConditionalElse)):
+                ActionSequenceConditionalElse)):
                 self.else_condition = statement
             elif (self.else_condition and self.else_condition.is_conditional and
                 self.else_condition.add_statement(statement)):
@@ -190,7 +190,7 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
             pretty_print():
             Display an action sequence if/else conditional as indented code
         """
-        PyGameMakerEventActionSequenceConditional.pretty_print(self, indent)
+        ActionSequenceConditional.pretty_print(self, indent)
         if self.else_condition:
             self.else_condition.pretty_print(indent)
 
@@ -223,7 +223,7 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
             to storage. The deserialized simple list can be expanded into an
             action sequence when the application starts up.
         """
-        contained_list = PyGameMakerEventActionSequenceConditional.get_action_list(self)
+        contained_list = ActionSequenceConditional.get_action_list(self)
         else_list = []
         if self.else_condition:
             else_list = self.else_condition.get_action_list()
@@ -236,19 +236,19 @@ class PyGameMakerEventActionSequenceConditionalIf(PyGameMakerEventActionSequence
             repr += "{}>".format(self.else_condition)
         return repr
 
-class PyGameMakerEventActionSequenceConditionalElse(PyGameMakerEventActionSequenceConditional):
+class ActionSequenceConditionalElse(ActionSequenceConditional):
     """
-        PyGameMakerEventActionSequenceConditionalElse class:
-        Currently identical to the PyGameMakerEventActionSequenceConditional
+        ActionSequenceConditionalElse class:
+        Currently identical to the ActionSequenceConditional
         class, but named for convenience to be used in a
-        PyGameMakerEventActionSequenceConditionalIf.
+        ActionSequenceConditionalIf.
     """
     def __init__(self, action):
-        PyGameMakerEventActionSequenceConditional.__init__(self, action)
+        ActionSequenceConditional.__init__(self, action)
 
-class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatement):
+class ActionSequenceBlock(ActionSequenceStatement):
     """
-        PyGameMakerEventActionSequenceBlock class:
+        ActionSequenceBlock class:
         Represent a block of action statements. All statements are placed into
         a block (even if just the 'main' block) or into conditionals within
         a block.
@@ -257,7 +257,7 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         # main block doesn't start with an explicit action, so action==None
         #  is ok. Remember this when trying to use self.action in any
         #  methods, including superclasses!
-        PyGameMakerEventActionSequenceStatement.__init__(self, action)
+        ActionSequenceStatement.__init__(self, action)
         self.is_block = True
         self.is_block_closed = False
         self.contained_statements = []
@@ -274,9 +274,9 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
                 self.is_block_closed = True
                 self.contained_statements.append(statement)
             else:
-                raise(PyGameMakerEventActionSequenceStatementException("block_end cannot be added to a main block"))
-        elif isinstance(statement, PyGameMakerEventActionSequenceConditionalElse):
-            raise(PyGameMakerEventActionSequenceStatementException("Cannot add an 'else' statement without an 'if' statement."))
+                raise(ActionSequenceStatementException("block_end cannot be added to a main block"))
+        elif isinstance(statement, ActionSequenceConditionalElse):
+            raise(ActionSequenceStatementException("Cannot add an 'else' statement without an 'if' statement."))
         else:
             self.contained_statements.append(statement)
 
@@ -291,8 +291,8 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
             always a "main" block) or a conditional.
         """
         #print("Adding statement: {} .. ".format(statement))
-        if not isinstance(statement, PyGameMakerEventActionSequenceStatement):
-            raise(PyGameMakerEventActionSequenceStatementException("{} is not a PyGameMakerEventActionSequenceStatement".format(statement)))
+        if not isinstance(statement, ActionSequenceStatement):
+            raise(ActionSequenceStatementException("{} is not a ActionSequenceStatement".format(statement)))
         last_statement = None
         if len(self.contained_statements) > 0:
             last_statement = self.contained_statements[-1]
@@ -337,7 +337,7 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         """
         new_indent = indent
         if not self.main_block:
-            PyGameMakerEventActionSequenceStatement.pretty_print(self,indent)
+            ActionSequenceStatement.pretty_print(self,indent)
             new_indent += 1
         if self.contained_statements:
             for contained in self.contained_statements:
@@ -365,7 +365,7 @@ class PyGameMakerEventActionSequenceBlock(PyGameMakerEventActionSequenceStatemen
         repr += ">"
         return repr
 
-class PyGameMakerEventActionSequence(object):
+class ActionSequence(object):
     """
         Store a list of the actions that are triggered by an event
     """
@@ -381,13 +381,13 @@ class PyGameMakerEventActionSequence(object):
         """
         new_sequence = None
         if len(sequence_repr) > 0:
-            new_sequence = PyGameMakerEventActionSequence()
+            new_sequence = ActionSequence()
             for action_hash in sequence_repr:
                 action_name = action_hash.keys()[0]
                 action_params = {}
                 if action_hash[action_name] and len(action_hash[action_name]) > 0:
                     action_params.update(action_hash[action_name])
-                next_action = pygm_action.PyGameMakerAction.get_action_instance_by_action_name(action_name, **action_params)
+                next_action = Action.get_action_instance_by_action_name(action_name, **action_params)
                 #print("New action: {}".format(next_action))
                 new_sequence.append_action(next_action)
         return new_sequence
@@ -396,13 +396,13 @@ class PyGameMakerEventActionSequence(object):
         """
             main_block: the container for the top-level statements
         """
-        self.main_block = PyGameMakerEventActionSequenceBlock(None, True)
+        self.main_block = ActionSequenceBlock(None, True)
 
     def append_action(self, action):
         """
             Add a new action to the end of the list
         """
-        statement = PyGameMakerEventActionSequenceStatement.get_sequence_item_from_action(action)
+        statement = ActionSequenceStatement.get_sequence_item_from_action(action)
         self.main_block.add_statement(statement)
 
     def get_next_action(self):
@@ -437,230 +437,4 @@ class PyGameMakerEventActionSequence(object):
 
     def __repr__(self):
         return("{}".format(self.main_block))
-
-if __name__ == "__main__":
-    import unittest
-
-    class TestPyGameMakerObject(unittest.TestCase):
-
-        def setUp(self):
-            pass
-
-        def test_005build_single_nested_action_sequence(self):
-            actions=[
-                (pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound1"),
-                 False),
-                (pygm_action.PyGameMakerSoundAction("stop_sound",
-                    sound="sound1"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("else"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("play_sound",
-                    sound="sound1"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound2", invert=True),
-                 True),
-                (pygm_action.PyGameMakerOtherAction("start_of_block"),
-                 False),
-                (pygm_action.PyGameMakerSoundAction("play_sound",
-                    sound="sound2"),
-                 None),
-                (pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("end_of_block"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("else"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("start_of_block"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("play_sound",
-                    sound="sound3"),
-                 None),
-                (pygm_action.PyGameMakerObjectAction("create_object",
-                    object="object1"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("end_of_block"),
-                 None),
-                (pygm_action.PyGameMakerObjectAction("create_object",
-                    object="object2"),
-                 None)
-            ]
-            action_list = [action[0] for action in actions]
-            result_list = [action[1] for action in actions]
-            all_true_action_list=[
-                action_list[0], action_list[1], action_list[2], action_list[5],
-                action_list[7], action_list[8], action_list[15]
-            ]
-            all_false_action_list=[
-                action_list[0], action_list[1], action_list[4], action_list[5],
-                action_list[12], action_list[13], action_list[15]
-            ]
-            simulated_list=[
-                action_list[0], action_list[1], action_list[4], action_list[5],
-                action_list[7], action_list[8], action_list[15]
-            ]
-            action_sequence = PyGameMakerEventActionSequence()
-            for act in action_list:
-                action_sequence.append_action(act)
-            #print(action_sequence)
-            self.assertEqual(action_list,
-                action_sequence.main_block.get_action_list())
-            action_sequence.pretty_print()
-            walked_list = []
-            print("\nconditional True paths:")
-            for action in action_sequence.get_next_action():
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    action.action_result = True
-                walked_list.append(action)
-            self.assertEqual(walked_list, all_true_action_list)
-            walked_list = []
-            print("\nconditional False paths:")
-            for action in action_sequence.get_next_action():
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    action.action_result = False
-                walked_list.append(action)
-            self.assertEqual(walked_list, all_false_action_list)
-            walked_list = []
-            print("\nSimulated real-time conditionals:")
-            if_idx = 0
-            for action in action_sequence.get_next_action():
-                if_idx = action_list.index(action)
-                if_result = result_list[if_idx]
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    print("---> RETURNED {}".format(if_result))
-                    action.action_result = if_result
-                walked_list.append(action)
-            self.assertEqual(walked_list, simulated_list)
-
-        def test_010build_multiple_nested_action_sequence(self):
-            actions=[
-                (pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound1"),
-                 True),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound2", invert=True),
-                 False),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound3"),
-                 True),
-                (pygm_action.PyGameMakerSoundAction("stop_sound",
-                    sound="sound3"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound4", invert=True),
-                 True),
-                (pygm_action.PyGameMakerOtherAction("start_of_block"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("play_sound",
-                    sound="sound5"),
-                 None),
-                (pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound6"),
-                 False),
-                (pygm_action.PyGameMakerOtherAction("start_of_block"),
-                 None),
-                (pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
-                 None),
-                (pygm_action.PyGameMakerMotionAction("apply_gravity"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("end_of_block"),
-                 None),
-                (pygm_action.PyGameMakerOtherAction("end_of_block"),
-                 None),
-                (pygm_action.PyGameMakerObjectAction("create_object"),
-                 None)
-            ]
-            action_list = [action[0] for action in actions]
-            result_list = [action[1] for action in actions]
-            all_true_action_list=[
-                action_list[0], action_list[1], action_list[2], action_list[3],
-                action_list[4], action_list[5], action_list[7], action_list[8],
-                action_list[10], action_list[11], action_list[14]
-            ]
-            all_false_action_list=[
-                action_list[0], action_list[1], action_list[5], action_list[14]
-            ]
-            simulated_list=[
-                action_list[0], action_list[1], action_list[2], action_list[5],
-                action_list[7], action_list[8], action_list[14]
-            ]
-            action_sequence = PyGameMakerEventActionSequence()
-            for act in action_list:
-                action_sequence.append_action(act)
-#            print(action_sequence)
-            self.assertEqual(action_list,
-                action_sequence.main_block.get_action_list())
-            action_sequence.pretty_print()
-            walked_list=[]
-            print("\nconditional True paths:")
-            for action in action_sequence.get_next_action():
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    action.action_result = True
-                walked_list.append(action)
-            self.assertEqual(walked_list, all_true_action_list)
-            walked_list=[]
-            print("\nconditional False paths:")
-            for action in action_sequence.get_next_action():
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    action.action_result = False
-                walked_list.append(action)
-            self.assertEqual(walked_list, all_false_action_list)
-            walked_list=[]
-            print("\nSimulated real-time conditionals:")
-            if_idx = 0
-            for action in action_sequence.get_next_action():
-                if_idx = action_list.index(action)
-                if_result = result_list[if_idx]
-                print("{}".format(action))
-                if hasattr(action, "action_result"):
-                    print("---> RETURNED {}".format(if_result))
-                    action.action_result = if_result
-                walked_list.append(action)
-            self.assertEqual(walked_list, simulated_list)
-            
-        def test_015broken_sequences(self):
-            action_sequence = PyGameMakerEventActionSequence()
-            action_sequence.pretty_print()
-            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
-                action_sequence.append_action(
-                    pygm_action.PyGameMakerOtherAction("else"))
-            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
-                action_sequence.append_action(
-                    pygm_action.PyGameMakerOtherAction("end_of_block"))
-            with self.assertRaises(PyGameMakerEventActionSequenceStatementException):
-                action_sequence.append_action("this is not an action!")
-
-        def test_020to_and_from_yaml(self):
-            action_list = [
-                pygm_action.PyGameMakerMotionAction("set_velocity_compass"),
-                pygm_action.PyGameMakerSoundAction("if_sound_is_playing",
-                    sound="sound1"),
-                pygm_action.PyGameMakerSoundAction("stop_sound",
-                    sound="sound1"),
-                pygm_action.PyGameMakerOtherAction("else"),
-                pygm_action.PyGameMakerSoundAction("play_sound",
-                    sound="sound1"),
-            ]
-            action_sequence = PyGameMakerEventActionSequence()
-            for act in action_list:
-                action_sequence.append_action(act)
-            print("{}".format(action_sequence.to_yaml()))
-            yaml_out = yaml.load(action_sequence.to_yaml())
-            print("{}".format(yaml_out))
-            new_seq = PyGameMakerEventActionSequence.load_sequence_from_yaml_obj(yaml_out)
-            self.assertEqual(action_list, new_seq.main_block.get_action_list())
-            new_seq.pretty_print()
-
-    unittest.main()
 
