@@ -364,7 +364,7 @@ class ObjectType(logging_object.LoggingObject):
             Check for collisions between this and other object types' instances,
              and queue collision events when detected.
             Parameters:
-            other_obj_types (sequence): A list of other Objects
+            other_obj_types (sequence): A list of other ObjectTypes
              to test for collisions with this one.
             Return value:
              A list of collision event names that were queued (empty if none).
