@@ -10,7 +10,7 @@ import pygame
 import yaml
 import re
 import sys
-from pygame_maker.scripts.language_engine import SymbolTable
+from pygame_maker.logic.language_engine import SymbolTable
 
 class ActionException(Exception):
     pass

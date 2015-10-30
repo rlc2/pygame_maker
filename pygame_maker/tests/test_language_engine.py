@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from pygame_maker.scripts.language_engine import CodeBlock, CodeBlockGenerator,\
+from pygame_maker.logic.language_engine import CodeBlock, CodeBlockGenerator,\
     LanguageEngine, SymbolTable
-from pygame_maker.scripts import run_time_support
+from pygame_maker.logic import run_time_support
 from pyparsing import ParseException, ParseFatalException
 import unittest
 import logging
@@ -154,7 +154,7 @@ function set_X(number n) { x = n }
             self.module_context, valid_function, self.functionmap)
         #print("ast:\n{}".format(code_block.astree))
         #print("outer block:\n{}".format(code_block.outer_block))
-        exec "from pygame_maker.scripts.run_time_support import *\n" in self.module_context.__dict__
+        exec "from pygame_maker.logic.run_time_support import *\n" in self.module_context.__dict__
         code_block.load(['operator', 'math'])
         sym_tables = { "globals": SymbolTable(),
             "locals": SymbolTable() }

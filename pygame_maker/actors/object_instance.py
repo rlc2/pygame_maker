@@ -11,7 +11,7 @@ import math
 import random
 import numpy as np
 from pygame_maker.support import logging_object
-from pygame_maker.scripts.language_engine import SymbolTable
+from pygame_maker.logic.language_engine import SymbolTable
 from numbers import Number
 
 class Coordinate(object):

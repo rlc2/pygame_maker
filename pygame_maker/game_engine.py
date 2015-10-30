@@ -19,7 +19,7 @@ from pygame_maker.scenes import background
 from pygame_maker.scenes import room
 from pygame_maker.events import event
 from pygame_maker.events import event_engine
-from pygame_maker.scripts import language_engine
+from pygame_maker.logic import language_engine
 
 class GameEngineException(Exception):
     pass

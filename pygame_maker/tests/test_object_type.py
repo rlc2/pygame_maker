@@ -7,7 +7,7 @@ import random
 import sys
 import os
 from pygame_maker.events import event_engine
-from pygame_maker.scripts import language_engine
+from pygame_maker.logic import language_engine
 
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 

@@ -884,7 +884,7 @@ class CodeBlock(logging_object.LoggingObject):
             #print("exec {}".format(userfunc))
             if 'compiled' in self.functionmap[userfunc]:
                 exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
-        import_lines = "from pygame_maker.scripts.run_time_support import *\n"
+        import_lines = "from pygame_maker.logic.run_time_support import *\n"
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
         exec_code = self.toPython()

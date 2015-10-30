@@ -7,7 +7,7 @@ import logging
 import sys
 import os
 from pygame_maker.scenes import background
-from pygame_maker.scripts import language_engine
+from pygame_maker.logic import language_engine
 from pygame_maker.sounds import sound
 from pygame_maker.actors import object_sprite
 from pygame_maker.actors import object_type
