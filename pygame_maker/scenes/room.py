@@ -95,7 +95,7 @@ class Room(logging_object.LoggingObject):
                     kwargs['object_instances'] = room_yaml['object_instances']
                 new_room_list.append(Room(room_name, game_engine,
                     **kwargs))
-            return new_room_list
+        return(new_room_list)
 
     def __init__(self, name, game_engine, **kwargs):
         super(Room, self).__init__(type(self).__name__)
