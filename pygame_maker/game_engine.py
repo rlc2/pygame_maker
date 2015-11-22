@@ -159,9 +159,9 @@ class GameEngine(logging_object.LoggingObject):
         self.load_game_settings()
 
         if 'logging_config' in self.game_settings.keys():
-          logging.config.dictConfig(self.game_settings['logging_config'])
+            logging.config.dictConfig(self.game_settings['logging_config'])
         else:
-          logging.setLevel(logging.WARNING)
+            logging.setLevel(logging.WARNING)
 
         super(GameEngine, self).__init__(type(self).__name__)
 
@@ -194,6 +194,8 @@ class GameEngine(logging_object.LoggingObject):
         topdir = os.getcwd()
         for res_path, res_type in self.RESOURCE_TABLE:
             self.info("Loading {}..".format(res_path))
+            if (not os.path.exists(res_path)):
+                continue
             # resource directories are expected to contain YAML descriptions
             #  for each of their respective resource types. Sprites and sounds
             #  may also contain image or sound files, respectively, so filter
@@ -419,24 +421,29 @@ class GameEngine(logging_object.LoggingObject):
 
     def setup_game_resources(self):
         topdir = os.getcwd()
-        os.chdir('sprites')
-        self.info("Preloading sprite images..")
-        with logging_object.Indented(self):
-            for spr in self.resources['sprites'].keys():
-                self.info("{}".format(spr))
-                self.resources['sprites'][spr].setup()
-        os.chdir("{}/sounds".format(topdir))
-        self.info("Preloading sound files..")
-        with logging_object.Indented(self):
-            for snd in self.resources['sounds'].keys():
-                self.info("{}".format(snd))
-                self.resources['sounds'][snd].setup()
-        os.chdir("{}/backgrounds".format(topdir))
-        self.info("Preloading background images..")
-        with logging_object.Indented(self):
-            for bkg in self.resources['backgrounds'].keys():
-                self.info("{}".format(bkg))
-                self.resources['background'][bkg].setup()
+        if os.path.exists('sprites'):
+            os.chdir('sprites')
+            self.info("Preloading sprite images..")
+            with logging_object.Indented(self):
+                for spr in self.resources['sprites'].keys():
+                    self.info("{}".format(spr))
+                    self.resources['sprites'][spr].setup()
+        sound_dir = os.path.join(topdir, 'sounds')
+        if os.path.exists(sound_dir):
+            os.chdir(sound_dir)
+            self.info("Preloading sound files..")
+            with logging_object.Indented(self):
+                for snd in self.resources['sounds'].keys():
+                    self.info("{}".format(snd))
+                    self.resources['sounds'][snd].setup()
+        background_dir = os.path.join(topdir, 'background')
+        if os.path.exists(background_dir):
+            os.chdir(background_dir)
+            self.info("Preloading background images..")
+            with logging_object.Indented(self):
+                for bkg in self.resources['backgrounds'].keys():
+                    self.info("{}".format(bkg))
+                    self.resources['background'][bkg].setup()
         os.chdir(topdir)
 
     def load_room(self, room_n):
