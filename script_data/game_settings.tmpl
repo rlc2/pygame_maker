@@ -1,0 +1,47 @@
+game_name: $$NAME$$
+screen_dimensions: [$$WIDTH$$, $$HEIGHT$$]
+logging_config:
+  version: 1
+  formatters:
+    normal:
+      format: '%(name)s [%(levelname)s]:%(message)s'
+    timestamped:
+      format: '%(asctime)s - %(name)s [%(levelname)s]:%(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: WARNING
+      formatter: normal
+      stream: ext://sys.stdout
+# uncomment the lines below starting with 'file:' to create a log file
+# remember to change the 'handlers:' lines below to add the file handler, E.G.:
+# handlers: [console, file]
+#    file:
+#      class: logging.FileHandler
+#      level: WARNING
+#      formatter: timestamped
+#      filename: pygame_maker_game_engine.log
+#      mode: w
+  loggers:
+    GameEngine:
+      level: INFO
+      handlers: [console]
+    CodeBlock:
+      level: INFO
+      handlers: [console]
+    LanguageEngine:
+      level: INFO
+      handlers: [console]
+    EventEngine:
+      level: INFO
+      handlers: [console]
+    ObjectType:
+      level: INFO
+      handlers: [console]
+    ObjectInstance:
+      level: INFO
+      handlers: [console]
+    Room:
+      level: INFO
+      handlers: [console]
+

@@ -1,0 +1,10 @@
+- rm_0:
+    background_color: '#111111'
+    width: 640
+    height: 480
+    object_instances:
+      - obj_manager:
+          position: [0, 0]
+      - obj_poker:
+          position: [100, 100]
+

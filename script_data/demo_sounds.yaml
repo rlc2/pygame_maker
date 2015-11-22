@@ -1,0 +1,6 @@
+# TODO: point to documentation that explains sound YAML fields
+- snd_explosion:
+    sound_file: explosion.wav
+- snd_pop:
+    sound_file: Pop.wav
+

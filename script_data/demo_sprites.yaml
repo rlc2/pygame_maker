@@ -1,0 +1,8 @@
+# TODO: point to documentation that explains sprite YAML fields
+- spr_ball:
+    filename: ball2.png
+    collision_type: precise
+- spr_poker:
+    filename: pokey.png
+    collision_type: precise
+
