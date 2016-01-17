@@ -7,6 +7,7 @@ import re
 import sys
 import shutil
 import argparse
+from pkg_resources import resource_stream
 
 YAML_STUB_TEMPLATE="""# Create a list of the $$ITEM$$ used in the game
 # This file will be interpreted as YAML (http://yaml.org)
@@ -47,12 +48,16 @@ $ cd demo
 $ game_engine.py
 """
 
-GAME_SETTINGS_TEMPLATE="script_data/game_settings.tmpl"
+GAME_SETTINGS_FILE="game_settings.yaml"
+
 GAME_NAME_RE=re.compile('\$\$NAME\$\$')
 WIDTH_RE=re.compile('\$\$WIDTH\$\$')
 HEIGHT_RE=re.compile('\$\$HEIGHT\$\$')
 
 class PyGameMakerInitError(Exception):
+    pass
+
+class PyGameMakerAppError(Exception):
     pass
 
 def create_help_text_from_template(item_name):
@@ -66,19 +71,19 @@ def create_game_settings_from_template(top_dir, game_name, dimension_string):
     width = minfo.group(1)
     height = minfo.group(2)
     output_data = ""
-    with open(os.path.join(top_dir, GAME_SETTINGS_TEMPLATE), "r") as gstemplate_f:
-        for settings_line in gstemplate_f:
-            output_line = str(settings_line)
-            gninfo = GAME_NAME_RE.search(settings_line)
-            if gninfo:
-                output_line = GAME_NAME_RE.sub(game_name, settings_line)
-            winfo = WIDTH_RE.search(output_line)
-            if winfo:
-                output_line = WIDTH_RE.sub(width, output_line)
-            hinfo = HEIGHT_RE.search(output_line)
-            if hinfo:
-                output_line = HEIGHT_RE.sub(height, output_line)
-            output_data += output_line
+    template_resource = resource_stream('pygame_maker', 'script_data/game_settings.tmpl')
+    for settings_line in template_resource:
+        output_line = str(settings_line)
+        gninfo = GAME_NAME_RE.search(settings_line)
+        if gninfo:
+            output_line = GAME_NAME_RE.sub(game_name, settings_line)
+        winfo = WIDTH_RE.search(output_line)
+        if winfo:
+            output_line = WIDTH_RE.sub(width, output_line)
+        hinfo = HEIGHT_RE.search(output_line)
+        if hinfo:
+            output_line = HEIGHT_RE.sub(height, output_line)
+        output_data += output_line
     return(output_data)
 
 def create_project_tree(base_name):
@@ -96,7 +101,7 @@ def init_project(args):
         yaml_stub_name = os.path.join(new_subfolder, "{}.yaml".format(folder))
         with open(yaml_stub_name, "w") as yaml_f:
             yaml_f.write(create_help_text_from_template(folder))
-    settings_path = os.path.join(base_name, 'game_settings.yaml')
+    settings_path = os.path.join(base_name, GAME_SETTINGS_FILE)
     with open(settings_path, "w") as settings_f:
         settings_f.write(create_game_settings_from_template(top_dir, base_name,
             dimensions))
@@ -106,19 +111,49 @@ def init_project(args):
 def demo_project(args):
     base_name = 'demo'
     create_project_tree(base_name)
-    script_data_path = os.path.join(top_dir, 'script_data')
     for folder in GAME_FOLDERS:
         if folder in DEMO_FILES.keys():
             for demo_file in DEMO_FILES[folder]:
-                src_path = os.path.join(script_data_path, demo_file)
+                resource_path = "script_data/{}".format(demo_file)
+                demo_resource = resource_stream('pygame_maker', resource_path)
                 new_path = os.path.join(base_name, folder)
-                if os.path.exists(src_path):
-                    shutil.copy(src_path, new_path)
-    settings_path = os.path.join(base_name, 'game_settings.yaml')
+                new_file = os.path.join(new_path, demo_file)
+                with open(new_file, "w") as new_f:
+                    new_f.write(demo_resource.read())
+    settings_path = os.path.join(base_name, GAME_SETTINGS_FILE)
     with open(settings_path, "w") as settings_f:
         settings_f.write(create_game_settings_from_template(top_dir, base_name,
             "640x480"))
     print(DEMO_INSTRUCTIONS)
+
+def run_project(args):
+    import yaml
+    import subprocess
+    from pygame_maker import game_engine
+    # find the game's project name
+    game_name = ""
+    if os.path.exists(GAME_SETTINGS_FILE):
+        with open(GAME_SETTINGS_FILE, "r") as settings_f:
+            yaml_info = yaml.load(settings_f)
+            if yaml_info:
+                if 'game_name' in yaml_info:
+                    game_name = yaml_info['game_name']
+                else:
+                    print("ERROR: No game name found in {}".format(GAME_SETTINGS_FILE))
+                    exit(1)
+            else:
+                print("ERROR: Empty or corrupted {} file found.".format(GAME_SETTINGS_FILE))
+                exit(1)
+    else:
+        print("ERROR: '{}' not found.".format(GAME_SETTINGS_FILE))
+        exit(1)
+    # look for a customized game engine script named after the game itself
+    game_engine_script_name = "./{}.py".format(game_name)
+    if os.path.exists(game_engine_script_name):
+        subprocess.call(game_engine_script_name)
+    else:
+        game = game_engine.GameEngine()
+        game.run()
 
 script_full_path = os.path.abspath(sys.argv[0])
 script_path = os.path.dirname(script_full_path)
@@ -133,6 +168,8 @@ parser_init.add_argument('dimensions', help='Supply the screen dimensions as <wi
 parser_init.set_defaults(func=init_project)
 parser_demo = subparsers.add_parser('demo', help='Create the demo game folder in the current directory')
 parser_demo.set_defaults(func=demo_project)
+parser_run = subparsers.add_parser('run', help='Run the game in the current directory')
+parser_run.set_defaults(func=run_project)
 
 args = parser.parse_args()
 args.func(args)
