@@ -18,7 +18,9 @@ class MyGameManager:
     def __init__(self):
         self.current_events = []
         self.objects = []
-        self.backgrounds = Background.load_from_yaml(TEST_BACKGROUND_LIST_YAML_FILE)
+        self.backgrounds = None
+        with open(TEST_BACKGROUND_LIST_YAML_FILE, "r") as yaml_f:
+            self.backgrounds = Background.load_from_yaml(yaml_f)
         if len(self.backgrounds) == 0:
             print("Unable to load backgrounds from {}, aborting.".format(TEST_BACKGROUND_LIST_YAML_FILE))
             exit(1)

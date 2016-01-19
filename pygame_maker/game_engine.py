@@ -211,7 +211,8 @@ class GameEngine(logging_object.LoggingObject):
             with logging_object.Indented(self):
                 for res_file in res_yaml_files:
                     self.info("Import {}".format(res_file))
-                    new_resources = res_type.load_from_yaml(res_file, self)
+                    with open(res_file, "r") as yaml_f:
+                        new_resources = res_type.load_from_yaml(yaml_f, self)
                     if res_path != "rooms":
                         with logging_object.Indented(self):
                             for res in new_resources:

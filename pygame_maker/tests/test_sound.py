@@ -52,7 +52,9 @@ class TestSound(unittest.TestCase):
         tmp_file = os.fdopen(tmpf_info[0], 'w')
         tmp_file.write(self.valid_sound_yaml)
         tmp_file.close()
-        loaded_sound1 = Sound.load_from_yaml(tmpf_info[1])[0]
+        loaded_sound1 = None
+        with open(tmpf_info[1], "r") as yaml_f:
+            loaded_sound1 = Sound.load_from_yaml(yaml_f)[0]
         os.unlink(tmpf_info[1])
         self.assertEqual(self.valid_sound_object, loaded_sound1)
 
@@ -62,7 +64,9 @@ class TestSound(unittest.TestCase):
         tmp_file = os.fdopen(tmpf_info[0], 'w')
         tmp_file.write(generated_sound_yaml)
         tmp_file.close()
-        loaded_sound1 = Sound.load_from_yaml(tmpf_info[1])[0]
+        loaded_sound1 = None
+        with open(tmpf_info[1], "r") as yaml_f:
+            loaded_sound1 = Sound.load_from_yaml(yaml_f)[0]
         os.unlink(tmpf_info[1])
         self.assertEqual(self.valid_sound_object, loaded_sound1)
 

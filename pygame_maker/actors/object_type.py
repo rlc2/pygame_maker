@@ -156,7 +156,7 @@ class ObjectType(logging_object.LoggingObject):
     GLOBAL_MOUSE_RE=re.compile("global")
 
     @staticmethod
-    def load_from_yaml(yaml_file_name, game_engine):
+    def load_from_yaml(yaml_stream, game_engine):
         """
             load_from_yaml():
             Create an object type from a YAML-formatted file.
@@ -177,8 +177,7 @@ class ObjectType(logging_object.LoggingObject):
         """
         yaml_repr = None
         new_object_list = []
-        with open(yaml_file_name, "r") as yaml_f:
-            yaml_repr = yaml.load(yaml_f)
+        yaml_repr = yaml.load(yaml_stream)
         if yaml_repr:
             for top_level in yaml_repr:
                 kwargs = {

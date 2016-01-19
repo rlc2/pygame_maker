@@ -50,7 +50,7 @@ class Background(object):
     DEFAULT_NAME="bkg_"
 
     @staticmethod
-    def load_from_yaml(yaml_file_name, unused=None):
+    def load_from_yaml(yaml_stream, unused=None):
         """
             load_from_yaml():
             Create background(s) from a YAML-formatted file.
@@ -70,8 +70,7 @@ class Background(object):
         """
         yaml_repr = None
         new_background_list = []
-        with open(yaml_file_name, "r") as yaml_f:
-            yaml_repr = yaml.load(yaml_f)
+        yaml_repr = yaml.load(yaml_stream)
         if yaml_repr:
             for top_level in yaml_repr:
                 kwargs = {}

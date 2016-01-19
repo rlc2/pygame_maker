@@ -85,7 +85,9 @@ class TestSprite(unittest.TestCase):
         tmp_file = os.fdopen(tmpf_info[0], "w")
         tmp_file.write(self.sprite_yaml)
         tmp_file.close()
-        new_sprite = ObjectSprite.load_from_yaml(tmpf_info[1])[0]
+        new_sprite = None
+        with open(tmpf_info[1], "r") as yaml_f:
+            new_sprite = ObjectSprite.load_from_yaml(yaml_f)[0]
         os.unlink(tmpf_info[1])
         self.assertEqual(self.yaml_sprite, new_sprite)
 
@@ -98,7 +100,9 @@ class TestSprite(unittest.TestCase):
         tmp_file = os.fdopen(tmpf_info[0], "w")
         tmp_file.write(bad_yaml)
         tmp_file.close()
-        self.assertRaises(ObjectSpriteException, ObjectSprite.load_from_yaml, tmpf_info[1])
+        with open(tmpf_info[1], "r") as yaml_f:
+            self.assertRaises(ObjectSpriteException,
+                ObjectSprite.load_from_yaml, yaml_f)
         os.unlink(tmpf_info[1])
 
     def test_030to_and_from_yaml(self):
@@ -107,7 +111,9 @@ class TestSprite(unittest.TestCase):
         tmp_file = os.fdopen(tmpf_info[0], "w")
         tmp_file.write(good_sprite_yaml)
         tmp_file.close()
-        new_sprite = ObjectSprite.load_from_yaml(tmpf_info[1])[0]
+        new_sprite = None
+        with open(tmpf_info[1], "r") as yaml_f:
+            new_sprite = ObjectSprite.load_from_yaml(yaml_f)[0]
         os.unlink(tmpf_info[1])
         self.assertEqual(self.good_sprite, new_sprite)
 

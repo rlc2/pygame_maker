@@ -219,7 +219,8 @@ class TestGameManager(object):
         self.game_engine.resources['sprites']['spr_solid'] = object_sprite.ObjectSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
         self.game_engine.resources['sounds']['snd_test'] = sound.Sound("snd_test", sound_file="unittest_files/Pop.wav")
         self.game_engine.resources['sounds']['snd_explosion'] = sound.Sound("snd_explosion", sound_file="unittest_files/explosion.wav")
-        self.game_engine.resources['objects']['obj_test'] = ObjectType.load_from_yaml(OBJ_TEST_FILE, self.game_engine)[0]
+        with open(OBJ_TEST_FILE, "r") as yaml_f:
+            self.game_engine.resources['objects']['obj_test'] = ObjectType.load_from_yaml(yaml_f, self.game_engine)[0]
         self.game_engine.resources['objects']['obj_solid'] = ObjectType("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
         # this doubles as a solid object and as the manager object
         self.game_engine.resources['objects']['obj_solid'].create_instance(self.screen,

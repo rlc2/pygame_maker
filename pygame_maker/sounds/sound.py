@@ -26,10 +26,10 @@ class Sound(object):
     DEFAULT_SOUND_PREFIX="snd_"
 
     @staticmethod
-    def load_from_yaml(sound_yaml_file, unused=None):
+    def load_from_yaml(yaml_stream, unused=None):
         """
             Create a new sound from a YAML-formatted file
-            sound_yaml_file: name of the file
+            sound_yaml_stream: file or stream object
             Check each key against known Sound parameters, and use
             only those parameters to initalize a new sound.
             Returns:
@@ -47,23 +47,21 @@ class Sound(object):
         yaml_info = None
         sound_name = Sound.DEFAULT_SOUND_PREFIX
         new_sound_list = []
-        if os.path.exists(sound_yaml_file):
-            with open(sound_yaml_file, "r") as yaml_f:
-                yaml_info = yaml.load(yaml_f)
-            if yaml_info:
-                for top_level in yaml_info:
-                    sound_args = {}
-                    sound_name = top_level.keys()[0]
-                    yaml_info_hash = top_level[sound_name]
-                    if 'sound_file' in yaml_info_hash.keys():
-                        sound_args['sound_file'] = yaml_info_hash['sound_file']
-                    if 'sound_type' in yaml_info_hash.keys():
-                        sound_args['sound_type'] = yaml_info_hash['sound_type']
-                    if 'preload' in yaml_info_hash.keys():
-                        sound_args['preload'] = yaml_info_hash['preload']
-                    new_sound_list.append(Sound(sound_name,
-                        **sound_args))
-                    new_sound_list[-1].check()
+        yaml_info = yaml.load(yaml_stream)
+        if yaml_info:
+            for top_level in yaml_info:
+                sound_args = {}
+                sound_name = top_level.keys()[0]
+                yaml_info_hash = top_level[sound_name]
+                if 'sound_file' in yaml_info_hash.keys():
+                    sound_args['sound_file'] = yaml_info_hash['sound_file']
+                if 'sound_type' in yaml_info_hash.keys():
+                    sound_args['sound_type'] = yaml_info_hash['sound_type']
+                if 'preload' in yaml_info_hash.keys():
+                    sound_args['preload'] = yaml_info_hash['preload']
+                new_sound_list.append(Sound(sound_name,
+                    **sound_args))
+                new_sound_list[-1].check()
         return new_sound_list
 
     def __init__(self, sound_name=None, **kwargs):

@@ -31,9 +31,9 @@ class ObjectSprite(object):
     DEFAULT_SPRITE_PREFIX="spr_"
 
     @staticmethod
-    def load_from_yaml(sprite_yaml_file, unused=None):
+    def load_from_yaml(sprite_yaml_stream, unused=None):
         """Create a new sprite from a YAML-formatted file
-            sprite_yaml_file: name of the file
+            sprite_yaml_stream: file or stream object
             Check each key against known ObjectSprite parameters, and use only
              those parameters to initialize a new sprite.
             Returns:
@@ -57,33 +57,31 @@ class ObjectSprite(object):
         yaml_info = None
         sprite_name = ObjectSprite.DEFAULT_SPRITE_PREFIX
         new_sprite_list = []
-        if (os.path.exists(sprite_yaml_file)):
-            with open(sprite_yaml_file, "r") as yaml_f:
-                yaml_info = yaml.load(yaml_f)
-            if yaml_info:
-                for top_level in yaml_info:
-                    sprite_args = {}
-                    sprite_name = top_level.keys()[0]
-                    yaml_info_hash = top_level[sprite_name]
-                    if 'filename' in yaml_info_hash:
-                        sprite_args['filename'] = yaml_info_hash['filename']
-                    if 'smooth_edges' in yaml_info_hash:
-                        sprite_args['smooth_edges'] = yaml_info_hash['smooth_edges']
-                    if 'preload_texture' in yaml_info_hash:
-                        sprite_args['preload_texture'] = yaml_info_hash['preload_texture']
-                    if 'transparency_pixel' in yaml_info_hash:
-                        sprite_args['transparency_pixel'] = yaml_info_hash['transparency_pixel']
-                    if 'origin' in yaml_info_hash:
-                        sprite_args['origin'] = yaml_info_hash['origin']
-                    if 'collision_type' in yaml_info_hash:
-                        sprite_args['collision_type'] = yaml_info_hash['collision_type']
-                    if 'bounding_box_type' in yaml_info_hash:
-                        sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
-                    if 'manual_bounding_box_rect' in yaml_info_hash:
-                        sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
-                    new_sprite_list.append(ObjectSprite(sprite_name,
-                        **sprite_args))
-                    new_sprite_list[-1].check()
+        yaml_info = yaml.load(sprite_yaml_stream)
+        if yaml_info:
+            for top_level in yaml_info:
+                sprite_args = {}
+                sprite_name = top_level.keys()[0]
+                yaml_info_hash = top_level[sprite_name]
+                if 'filename' in yaml_info_hash:
+                    sprite_args['filename'] = yaml_info_hash['filename']
+                if 'smooth_edges' in yaml_info_hash:
+                    sprite_args['smooth_edges'] = yaml_info_hash['smooth_edges']
+                if 'preload_texture' in yaml_info_hash:
+                    sprite_args['preload_texture'] = yaml_info_hash['preload_texture']
+                if 'transparency_pixel' in yaml_info_hash:
+                    sprite_args['transparency_pixel'] = yaml_info_hash['transparency_pixel']
+                if 'origin' in yaml_info_hash:
+                    sprite_args['origin'] = yaml_info_hash['origin']
+                if 'collision_type' in yaml_info_hash:
+                    sprite_args['collision_type'] = yaml_info_hash['collision_type']
+                if 'bounding_box_type' in yaml_info_hash:
+                    sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
+                if 'manual_bounding_box_rect' in yaml_info_hash:
+                    sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
+                new_sprite_list.append(ObjectSprite(sprite_name,
+                    **sprite_args))
+                new_sprite_list[-1].check()
         return new_sprite_list
 
     def __init__(self, name=None, **kwargs):
