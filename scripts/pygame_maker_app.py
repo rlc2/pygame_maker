@@ -5,6 +5,7 @@
 import os
 import re
 import sys
+import stat
 import shutil
 import argparse
 from pkg_resources import resource_stream
@@ -27,6 +28,8 @@ INIT_INSTRUCTIONS="""New project folder '$$NAME$$' created.
 Edit the .yaml files in the subdirectories inside the new project folder to
 create the game.
 
+Run the $$NAME$$.py script from the $$NAME$$ directory to start the game.
+
 TO-DO:
  * Make the new game init command produce something playable (if you try to
    play the game now it will fail, because no room was defined)
@@ -41,11 +44,18 @@ DEMO_FILES = {
     "objects": ["demo_objects.yaml"],
     "rooms": ["demo_rooms.yaml"]
 }
+APP_SCRIPT="""#!/usr/bin/env python
+
+import pygame_maker.game_engine
+# use the default game engine, or subclass and customize it
+engine = pygame_maker.game_engine.GameEngine()
+engine.run()
+"""
 DEMO_INSTRUCTIONS="""Demo project folder 'demo' created.
 
 To run the demo:
 $ cd demo
-$ game_engine.py
+$ ./demo.py
 """
 
 GAME_SETTINGS_FILE="game_settings.yaml"
@@ -105,6 +115,10 @@ def init_project(args):
     with open(settings_path, "w") as settings_f:
         settings_f.write(create_game_settings_from_template(top_dir, base_name,
             dimensions))
+    app_path = os.path.join(base_name, "{}.py".format(base_name))
+    with open(app_path, "w") as app_f:
+        app_f.write(APP_SCRIPT)
+    os.chmod(app_path, stat.S_IRWXU)
     instructions = GAME_NAME_RE.sub(base_name, INIT_INSTRUCTIONS)
     print(instructions)
 
@@ -124,6 +138,10 @@ def demo_project(args):
     with open(settings_path, "w") as settings_f:
         settings_f.write(create_game_settings_from_template(top_dir, base_name,
             "640x480"))
+    demo_app_path = os.path.join(base_name, 'demo.py')
+    with open(demo_app_path, "w") as demo_f:
+        demo_f.write(APP_SCRIPT)
+    os.chmod(demo_app_path, stat.S_IRWXU)
     print(DEMO_INSTRUCTIONS)
 
 def run_project(args):
