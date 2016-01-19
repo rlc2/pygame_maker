@@ -25,7 +25,7 @@ setup(name='pygame_maker',
         'pygame_maker.support',
     ],
     package_data = {
-        '': ['script_data/*.png','script_data/*.wav','script_data/*.yaml','script_data/*.tmpl','tests/unittest_files/*']
+        '': ['script_data/*.png','script_data/*.wav','script_data/*.yaml','script_data/*.tmpl']
     },
     scripts = [
         'scripts/pygame_maker_app.py'
