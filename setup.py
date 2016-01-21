@@ -32,8 +32,8 @@ setup(name='pygame_maker',
     ],
     install_requires=[
         'numpy>=1.10.1',
-        'yaml>=3.11',
-        'pyparsing>=2.0.5',
+        'pyyaml>=3.11',
+        'pyparsing>=2.0.3',
         'pygame>=1.9.0',
     ],
     zip_safe=False)
