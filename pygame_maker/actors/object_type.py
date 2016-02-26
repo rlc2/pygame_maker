@@ -306,7 +306,7 @@ class ObjectType(logging_object.LoggingObject):
             * solid (bool): Whether instances block other object instances
               (e.g. a platform) [False]
             * depth (int): Which layer object instances will be placed into [0]
-            * sprite (ObjectSprite): Sprite resource used as the image [None]
+            * sprite (str): Name of a sprite resource used as the image [None]
         """
         super(ObjectType, self).__init__(type(self).__name__)
         self.debug("New object {}, with args {}".format(object_name,
