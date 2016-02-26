@@ -14,13 +14,28 @@ from pygame_maker.support import logging_object
 from pygame_maker.logic.language_engine import SymbolTable
 from numbers import Number
 
+
 class Coordinate(object):
     """
-        Coordinate class:
-        This class records an x,y location, and allows for running callback
-         methods when x and/or y are changed.
+    Record an x,y location.
+
+    Allows for running callback methods when x and/or y are changed.
     """
     def __init__(self, x=0, y=0, x_change_callback=None, y_change_callback=None):
+        """
+        Store an x, y coordinate.
+
+        :param x: X component
+        :type x: int|float
+        :param y: Y component
+        :type y: int|float
+        :param x_change_callback: A callable to execute when the X component
+            changes
+        :type x_change_callback: callable
+        :param y_change_callback: A callable to execute when the Y component
+            changes
+        :type y_change_callback: callable
+        """
         self._x = x
         self._y = y
         self.x_callback = x_change_callback
@@ -48,8 +63,13 @@ class Coordinate(object):
         
     def __getitem__(self, itemkey):
         """
-            __getitem__():
-            Support index form coordinate[0] for x or coordinate[1] for y.
+        Support index form coordinate[0] for x or coordinate[1] for y.
+
+        :param itemkey: Must be 0 or 1
+        :type itemkey: int
+        :raise: IndexError if itemkey is not 0 or 1
+        :return: The value of coordinate[0] or coordinate[1]
+        :rtype: int|float
         """
         if itemkey == 0:
             return self.x
@@ -60,8 +80,14 @@ class Coordinate(object):
 
     def __setitem__(self, itemkey, value):
         """
-            __setitem__():
-            Support index form coordinate[0] for x or coordinate[1] for y.
+        Support index form coordinate[0] for x or coordinate[1] for y.
+
+        :param itemkey: Must be 0 or 1
+        :type itemkey: int
+        :param value: New value for coordinate 0 or 1
+        :type value: int|float
+        :raise: ValueError if value is not a Number
+        :raise: IndexError if itemkey is not 0 or 1
         """
         if not isinstance(value, Number):
             raise ValueError("Coordinates can only hold numbers")
@@ -73,48 +99,67 @@ class Coordinate(object):
             raise IndexError("Coordinates only have indices 0 or 1")
 
     def __len__(self):
-        """
-            __len__():
-            A coordinate always has 2 items: x and y.
-        """
+        """A coordinate always has 2 items: x and y."""
         return 2
 
     def __repr__(self):
-        return "({}, {})".format(int(self.x), int(self.y))
+        return "({:d}, {:d})".format(int(self.x), int(self.y))
 
-def get_vector_xy_from_speed_direction(speed, angle):
+def get_vector_xy_from_speed_direction(speed, direction):
     """
-        get_vector_xy_from_speed_direction():
-        Return an x,y vector representing the given speed and angle of motion.
+    Return an x,y vector representing the given speed and angle of motion.
+
+    :param speed: The speed component of the velocity.
+    :type speed: float
+    :param direction: The direction component of the velocity.
+    :type direction: float
+    :return: A tuple (x, y) representing the velocity
+    :rtype: (float, float)
     """
-    xval = speed * math.sin(angle / 180.0 * math.pi)
-    yval = speed * -1 * math.cos(angle / 180.0 * math.pi)
+    xval = speed * math.sin(direction / 180.0 * math.pi)
+    yval = speed * -1 * math.cos(direction / 180.0 * math.pi)
     xy = (xval, yval)
     return np.array(xy)
 
 def get_speed_direction_from_xy(x,y):
     """
-        get_speed_direction_from_xy():
-        Return speed and direction of motion, given an x,y vector starting from
-         0,0
+    Return speed and direction of motion, given an x,y vector starting from 0,0
+
+    :param x: X component of the velocity.
+    :type x: float
+    :param y: Y component of the velocity.
+    :type y: float
+    :return: A tuple (speed, direction) representing the velocity
+    :rtype: (float, float)
     """
-    speed = 0.0
-    direction = 0.0
     speed = math.sqrt(x * x + y * y)
     direction = direction_from_a_to_b(np.zeros(2), (x,y))
     spdir = (speed, direction)
     return spdir
 
 def get_radius_angle_from_xy(x,y):
+    """
+    Return polar coordinates from an x, y coordinate.  This is the same
+    operation as converting a velocity represented as x, y into speed,
+    direction.
+
+    :param x: X coordinate
+    :param y: Y coordinate
+    :return: A tuple (radius, angle) representing the polar coordinate
+    :rtype: (float, float)
+    """
     return get_speed_direction_from_xy(x,y)
 
 def direction_from_a_to_b(pointa, pointb):
     """
-        direction_from_a_to_b():
-        Return the direction in degrees for the line connecting points
-         a and b
-        parameters:
-         pointa, pointb: 2-element lists in x, y order
+    Calculate the direction in degrees for the line connecting points a and b.
+
+    :param pointa: A 2-element list representing the coordinate in x, y order
+    :type pointa: (float, float)
+    :param pointb: A 2-element list representing the coordinate in x, y order
+    :type pointb: (float, float)
+    :return: The angle to pointb, using pointa as the origin.
+    :rtype: float
     """
     normal_vector = np.array(pointb[:2]) - np.array(pointa[:2])
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
@@ -122,52 +167,76 @@ def direction_from_a_to_b(pointa, pointb):
 class ObjectInstance(logging_object.LoggingObject,
     pygame.sprite.DirtySprite):
     """
-        ObjectInstance class:
-        Fits the purpose of pygame's Sprite class
-        Represent an instance of a particular kind of object
-        An instance has:
-         o position
-         o speed
-         o direction of motion
-         o gravity
-         o gravity direction
-         o friction
-        An instance does:
-         o respond to events
-         o produce collision events
-         o draws itself
+    Fits the purpose of pygame's Sprite class.
+
+    Represent an instance of an ObjectType.
+
+    An instance has:
+
+    * position
+    * speed
+    * direction of motion
+    * gravity
+    * gravity direction
+    * friction
+
+    An instance does:
+
+    * respond to events
+    * produce collision events
+    * draw itself
+
+    As a pygame.sprite.DirtySprite subclass, instances support dirty,
+    blendmode, source_rect, visible, and layer attributes.
+
+    As a subclass of LoggingObject, instances support debug(), info(),
+    warning(), error(), and critical() methods.
     """
-    def __init__(self, kind, screen_dims, id, settings={}, **kwargs):
+    def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
         """
-            ObjectInstance.__init__():
-            Constructor for object instances. As a pygame.sprite.DirtySprite
-             subclass, instances support dirty, blendmode, source_rect,
-             visible, and layer attributes.
-            parameters:
-             kind (Object): The object type of this new instance
-             screen_dims (list of int): Width, height of the surface this
-              instance will be drawn to. Allows boundary collisions to be
-              detected.
-             id (int): A unique integer ID for this instance
-             settings (dict): Like kwargs for setting attributes
-             **kwargs: Supply alternatives to instance attributes
-              position (list of float or pygame.Rect): Upper left XY coordinate.
-               If not integers, each will be rounded to the next highest
-               integer [(0,0)]
-              speed (float): How many pixels (or fraction thereof) the object
-               moves in each update [0.0]
-              direction (float): 0-359 degrees for direction of motion [0.0]
-              gravity (float): Strength of gravity toward gravity_direction in
-               pixels/sec^2 [0.0]
-              gravity_direction (float): 0-359 degrees for direction of gravity
-               vector [0.0]
-              friction (float): Strength of friction vs direction of motion in
-               pixels/sec [0.0]
+        Initialize an ObjectInstance.
+
+        As a pygame.sprite.DirtySprite subclass, instances support dirty,
+        blendmode, source_rect, visible, and layer attributes.
+
+        As a subclass of LoggingObject, instances support debug(), info(),
+        warning(), error(), and critical() methods.
+
+        :param kind: The object type of this new instance
+        :type kind: ObjectType
+        :param screen_dims: Width, height of the surface this instance will be
+            drawn to.  Allows boundary collisions to be detected.
+        :type screen_dims: [int, int]
+        :param id\_: A unique integer ID for this instance
+        :type id\_: int
+        :param settings: Used along with kwargs for settings attributes
+            (allows attributes to be set that have a '.' character, which
+            cannot be set in kwargs).  Known attributes are the same as for
+            kwargs.
+        :type settings: None or dict
+        :param kwargs:
+            Supply alternatives to instance attributes
+
+            * position (list of float or pygame.Rect): Upper left XY coordinate.
+              If not integers, each will be rounded to the next highest
+              integer [(0,0)]
+            * speed (float): How many pixels (or fraction thereof) the object
+              moves in each update [0.0]
+            * direction (float): 0-359 degrees for direction of motion [0.0]
+            * gravity (float): Strength of gravity toward gravity_direction in
+              pixels/sec^2 [0.0]
+            * gravity_direction (float): 0-359 degrees for direction of gravity
+              vector [0.0]
+            * friction (float): Strength of friction vs direction of motion in
+              pixels/sec [0.0]
+
         """
         # call the superclass __init__
         logging_object.LoggingObject.__init__(self, type(self).__name__)
         pygame.sprite.DirtySprite.__init__(self)
-        self.id = id
+        # Unique ID for this ObjectInstance
+        self._id = id_
+        # Symbols tracked by all ObjectInstances
         self._symbols = {
             "speed"             : 0.0,
             "direction"         : 0.0,
@@ -176,21 +245,28 @@ class ObjectInstance(logging_object.LoggingObject,
             "friction"          : 0.0,
             "hspeed"            : 0.0,
             "vspeed"            : 0.0,
-            "position"          : Coordinate(0.0, 0.0,
-                                  self.update_position_x,
-                                  self.update_position_y)
+            "position"          : Coordinate(0, 0,
+                                  self._update_position_x,
+                                  self._update_position_y)
         }
+        #: Symbol table
         self.symbols = SymbolTable()
         for sym in self._symbols.keys():
             self.symbols[sym] = self._symbols[sym]
-        self.delay_motion_updates = False
+        # Flag when methods shouldn't automatically update speed, direction
+        self._delay_motion_updates = False
+        #: The ObjectType this ObjectInstance belongs to
         self.kind = kind
+        #: Keep a handle to the game engine for handling certain actions
         self.game_engine = kind.game_engine
+        #: Keep track of the screen boundaries for collision detection
         self.screen_dims = list(screen_dims)
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
-        self.visible = kind.visible
+        self.dirty = 0
+        self._visible = kind.visible
         # copy this instance's image and Rect from the sprite resource
+        #: Keep a reference to the ObjectSprite's image
         self.image = kind.get_image()
         if self.image:
             self.rect = self.image.get_rect()
@@ -200,21 +276,25 @@ class ObjectInstance(logging_object.LoggingObject,
                 self.radius = self.kind.radius
             self.source_rect = pygame.Rect(self.kind.bounding_box_rect)
         else:
+            #: The Sprite's Rect
             self.rect = pygame.Rect(0,0,0,0)
+            #: The bounding box rect containing drawn pixels
             self.source_rect = pygame.Rect(0,0,0,0)
         self.blendmode = 0
         # use the instance type's 'depth' parameter as the layer for this
         #  instance
         self.layer = kind.depth
-        attr_values = dict(settings)
+        attr_values = {}
+        if settings is not None:
+            attr_values.update(settings)
         attr_values.update(kwargs)
         if kwargs or (len(settings) > 0):
-            self.apply_kwargs(attr_values)
+            self._apply_kwargs(attr_values)
         #print("Initial symbols:")
         #self.symbols.dumpVars()
 
         self.start_position = (self.position.x, self.position.y)
-        self.action_name_to_method_map={
+        self.action_name_to_method_map = {
             'set_velocity_compass': self.set_velocity_compass,
             'move_toward_point': self.move_toward_point,
             'set_horizontal_speed': self.set_horizontal_speed,
@@ -228,7 +308,7 @@ class ObjectInstance(logging_object.LoggingObject,
 
     @property
     def visible(self):
-        return(self._visible)
+        return self._visible
 
     @visible.setter
     def visible(self, is_visible):
@@ -239,90 +319,86 @@ class ObjectInstance(logging_object.LoggingObject,
             self.dirty = 0
         self._visible = vis
 
-    def change_motion_x_y(self):
-        """
-            change_motion_x_y():
-            Motion is represented as x and y adjustments that are made every
-             update when using the speed/direction model (as opposed to
-             manually changing the position). Caching these values reduces the
-             number of times math functions will be called for object instances
-             with constant velocity.
-        """
-        self.debug("change_motion_x_y():")
+    def _change_motion_x_y(self):
+        # Keep track of horizontal and vertical components of velocity.
+
+        # Motion is represented as x and y adjustments that are made every
+        # update when using the speed/direction model (as opposed to
+        # manually changing the position).  Caching these values reduces the
+        # number of times math functions will be called for object instances
+        # with constant velocity.
+        self.debug("_change_motion_x_y():")
         xadj, yadj = get_vector_xy_from_speed_direction(self.symbols['speed'],
             self.symbols['direction'])
-        #print("new inst {} xyadj {}, {}".format(self.id, xadj, yadj))
+        # print("new inst {} xyadj {}, {}".format(self._id, xadj, yadj))
         self.symbols['hspeed'] = xadj
         self.symbols['vspeed'] = yadj
 
-    def update_position_x(self):
-        self.debug("update_position_x():")
-        self.round_position_x_to_rect_x()
+    def _update_position_x(self):
+        # Automatically called when the X coordinate of the position changes
+        self.debug("_update_position_x():")
+        self._round_position_x_to_rect_x()
         self.symbols['position.x'] = self.position.x
         
-    def update_position_y(self):
-        self.debug("update_position_y():")
-        self.round_position_y_to_rect_y()
+    def _update_position_y(self):
+        # Automatically called when the Y coordinate of the position changes
+        self.debug("_update_position_y():")
+        self._round_position_y_to_rect_y()
         self.symbols['position.y'] = self.position.y
         
-    def round_position_x_to_rect_x(self):
-        """
-            round_position_x_to_rect_x():
-            Called when the x coordinate of the position changes, to round
-             the floating-point value to the nearest integer and place it
-             in rect.x for the draw() method.
-        """
-        self.debug("round_position_x_to_rect_x():")
+    def _round_position_x_to_rect_x(self):
+        # Called when the x coordinate of the position changes, to round
+        # the floating-point value to the nearest integer and place it
+        # in rect.x for the draw() method.
+        self.debug("_round_position_x_to_rect_x():")
         self.rect.x = math.floor(self.position.x + 0.5)
 
-    def round_position_y_to_rect_y(self):
-        """
-            round_position_y_to_rect_y():
-            Called when the y coordinate of the position changes, to round
-             the floating-point value to the nearest integer and place it
-             in rect.y for the draw() method.
-        """
-        self.debug("round_position_y_to_rect_y():")
+    def _round_position_y_to_rect_y(self):
+        # _round_position_y_to_rect_y():
+        #  Called when the y coordinate of the position changes, to round
+        #  the floating-point value to the nearest integer and place it
+        #  in rect.y for the draw() method.
+        self.debug("_round_position_y_to_rect_y():")
         self.rect.y = math.floor(self.position.y + 0.5)
 
     @property
     def code_block_id(self):
-        """Return a unique code block id"""
+        # Return a unique code block id
         self._code_block_id += 1
         return self._code_block_id
 
     @property
     def direction(self):
-        """Direction property"""
+        """Direction of motion in degrees, between 0.0 and 360.0"""
         return self.symbols['direction']
 
     @direction.setter
     def direction(self, value):
         new_value = value
-        if (new_value >= 360.0):
+        if new_value >= 360.0:
             new_value %= 360.0
-        if (new_value <= -360.0):
+        if new_value <= -360.0:
             new_value %= 360.0
         if (new_value > -360.0) and (new_value < 0.0):
             new_value = (360.0 + new_value)
         self.symbols['direction'] = new_value
-        if not self.delay_motion_updates:
-            self.change_motion_x_y()
+        if not self._delay_motion_updates:
+            self._change_motion_x_y()
 
     @property
     def speed(self):
-        """Speed property"""
+        """Speed of motion in pixels (or fractions) per frame"""
         return self.symbols['speed']
 
     @speed.setter
     def speed(self, value):
         self.symbols['speed'] = value
-        if not self.delay_motion_updates:
-            self.change_motion_x_y()
+        if not self._delay_motion_updates:
+            self._change_motion_x_y()
 
     @property
     def position(self):
-        """Position property"""
+        """Position of this instance.  Set a new position using an x, y list"""
         return self.symbols['position']
 
     @position.setter
@@ -333,7 +409,7 @@ class ObjectInstance(logging_object.LoggingObject,
 
     @property
     def friction(self):
-        """Friction property"""
+        """Magnitude of friction applied against motion each frame"""
         return self.symbols['friction']
 
     @friction.setter
@@ -342,7 +418,7 @@ class ObjectInstance(logging_object.LoggingObject,
 
     @property
     def gravity(self):
-        """Gravity property"""
+        """Magnitude of gravity applied each frame"""
         return self.symbols['gravity']
 
     @gravity.setter
@@ -351,15 +427,15 @@ class ObjectInstance(logging_object.LoggingObject,
 
     @property
     def gravity_direction(self):
-        """Gravity direction property"""
+        """Direction gravity pulls the instance in degrees"""
         return self.symbols['gravity_direction']
 
     @gravity_direction.setter
     def gravity_direction(self, value):
         new_value = value
-        if (new_value >= 360.0):
+        if new_value >= 360.0:
             new_value %= 360.0
-        if (new_value <= -360.0):
+        if new_value <= -360.0:
             new_value %= 360.0
         if (new_value > -360.0) and (new_value < 0.0):
             new_value = (360.0 + new_value)
@@ -367,56 +443,69 @@ class ObjectInstance(logging_object.LoggingObject,
 
     @property
     def hspeed(self):
-        """Horizontal speed property"""
+        """Horizontal speed"""
         return self.symbols['hspeed']
 
     @hspeed.setter
     def hspeed(self, value):
         # skip setting motion x,y and hspeed, vspeed
-        self.delay_motion_updates = True
+        self._delay_motion_updates = True
         self.speed, self.direction = get_speed_direction_from_xy(value,
             self.vspeed)
-        self.delay_motion_updates = False
+        self._delay_motion_updates = False
         self.symbols['hspeed'] = value
 
     @property
     def vspeed(self):
-        """Vertical speed property"""
+        """Vertical speed"""
         return self.symbols['vspeed']
 
     @vspeed.setter
     def vspeed(self, value):
         # skip setting motion x,y and hspeed, vspeed
-        self.delay_motion_updates = True
+        self._delay_motion_updates = True
         self.speed, self.direction = get_speed_direction_from_xy(self.hspeed,
             value)
-        self.delay_motion_updates = False
+        self._delay_motion_updates = False
         self.symbols['vspeed'] = value
 
     def get_center_point(self):
         """
-            get_center_point():
-            Return the approximate center pixel coordinate of the object.
+        Return the approximate center pixel coordinate of the object.
+
+        :return: A 2-element tuple x, y of the approximate position of the
+            object's center point.
+        :rtype: (int, int)
         """
         self.debug("get_center_point():")
         center_xy = (self.rect.x + self.rect.width / 2.0,
             self.rect.y + self.rect.height / 2.0)
+        return center_xy
 
-    def apply_kwargs(self, kwargs):
-        """
-            apply_kwargs():
-            Apply the kwargs dict mappings to the instance's properties. Any
-             keys that don't refer to built-in properties (speed, direction,
-             etc) will instead be tracked in the local symbol table to support
-             code execution actions.
-        """
-        self.debug("apply_kwargs(kwargs={}):".format(kwargs))
+    def _apply_kwargs(self, kwargs):
+        # Apply the kwargs dict mappings to the instance's properties.
+
+        # Any keys that don't refer to built-in properties (speed, direction,
+        # etc) will instead be tracked in the local symbol table to support
+        # code execution actions.
+        # Parameters themselves can have attributes up to 1 level, to support
+        #     position.x and position.y
+
+        # :param kwargs: A dictionary containing the new attributes to be
+        #     applied
+        # :type kwargs: dict
+        self.debug("_apply_kwargs(kwargs={}):".format(str(kwargs)))
         relative = False
         if "relative" in kwargs.keys():
             relative = kwargs["relative"]
         for kwarg in kwargs.keys():
             if kwarg == 'relative':
+                # 'relative' is not an attribute, it instead determines how the
+                #  other attributes are applied.
                 continue
+            # Attributes can themselves have attributes, but only 1 level deep
+            # is currently supported.  This facilitates setting the position.x
+            #  and position.y attributes.
             attrs = kwarg.split('.')
             if hasattr(self, attrs[0]):
                 new_val = kwargs[kwarg]
@@ -424,14 +513,14 @@ class ObjectInstance(logging_object.LoggingObject,
                     old_val = getattr(self, kwarg)
                     if relative:
                         new_val += getattr(self, kwarg)
-                    if (new_val != old_val):
+                    if new_val != old_val:
                         setattr(self, kwarg, new_val)
                 elif len(attrs) == 2:
                     main_attr = getattr(self, attrs[0])
                     old_val = getattr(main_attr, attrs[1])
                     if relative:
                         new_val += old_val
-                    if (new_val != old_val):
+                    if new_val != old_val:
                         setattr(main_attr, attrs[1], new_val)
             else:
                 # keep track of local symbols created by code blocks
@@ -439,15 +528,16 @@ class ObjectInstance(logging_object.LoggingObject,
 
     def update(self):
         """
-            update():
-            Move the instance from its current position using its speed and
-             direction. Queue events for boundary collisions or outside-of-room
-             positions. Make friction and/or gravity changes to speed and/or
-             direction for the next update().
+        Move the instance from its current position.
+
+        Calculate the new position using current speed and direction.  Queue
+        events for boundary collisions or outside-of-room positions.  Make
+        friction and/or gravity changes to speed and/or direction for the next
+        update().
         """
         self.debug("update():")
         event_queued = None
-        if (self.speed > 0.0):
+        if self.speed > 0.0:
             self.position[0] += self.symbols['hspeed']
             self.position[1] += self.symbols['vspeed']
             self.rect.x = int(math.floor(self.position[0] + 0.5))
@@ -464,49 +554,51 @@ class ObjectInstance(logging_object.LoggingObject,
                 (self.rect.x <= self.screen_dims[0] <=
                 (self.rect.x + self.rect.width)) and in_y_bounds):
                 # queue and handle boundary collision event (async)
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
-                #print("inst {} hit x bound".format(self.id))
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
+                                                                                      { "type": self.kind,
+                                                                                        "instance": self })
+                #print("inst {} hit x bound".format(self._id))
             if ((self.rect.y <= 0 <= (self.rect.y + self.rect.height)) or
                 (self.rect.y <= self.screen_dims[1] <=
                 (self.rect.y + self.rect.width)) and in_x_bounds):
                 # queue and handle boundary collision event (async)
                 if not event_queued:
-                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary", { "type": self.kind, "instance": self })
-                #print("inst {} hit y bound".format(self.id))
+                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
+                                                                                          { "type": self.kind,
+                                                                                            "instance": self })
+                # print("inst {} hit y bound".format(self._id))
             # check for outside room
             if ((self.rect.x > self.screen_dims[0]) or
                 ((self.rect.x + self.rect.width) < 0)):
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
+                                                                                { "type": self.kind,
+                                                                                  "instance": self })
             if ((self.rect.y > self.screen_dims[1]) or
                 ((self.rect.y + self.rect.height) < 0)):
                 if not event_queued:
-                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room", { "type": self.kind, "instance": self })
+                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
+                                                                                    { "type": self.kind,
+                                                                                      "instance": self })
             self.debug("  {} inst {} new position: {} ({})".format(self.kind.name,
-                self.id, self.position, self.rect))
+                self._id, self.position, self.rect))
         # apply forces for next update
-        self.apply_gravity()
-        self.apply_friction()
+        self._apply_gravity()
+        self._apply_friction()
         # transmit outside_room or intersect_boundary event last
         if event_queued:
             self.game_engine.event_engine.queue_event(event_queued)
             self.debug("  {} inst {} transmitting {} event".format(self.kind.name,
-                self.id, event_queued))
+                self._id, event_queued))
             self.game_engine.event_engine.transmit_event(event_queued.name)
 
-    def apply_gravity(self):
-        """
-            apply_gravity():
-            Adjust speed and direction using value and direction of gravity
-        """
-        pass
+    def _apply_gravity(self):
+        # Adjust speed and direction using value and direction of gravity.
+        self.debug("_apply_gravity():")
 
-    def apply_friction(self):
-        """
-            apply_friction():
-            Adjust speed based on friction value
-        """
-        self.debug("apply_friction():")
-        if (self.friction) > 0.0 and (self.speed > 0.0):
+    def _apply_friction(self):
+        # Adjust speed based on friction value.
+        self.debug("_apply_friction():")
+        if (self.friction > 0.0) and (self.speed > 0.0):
             new_speed = self.speed - self.friction
             if new_speed < 0.0:
                 new_speed = 0.0
@@ -514,21 +606,27 @@ class ObjectInstance(logging_object.LoggingObject,
 
     def aim_toward_point(self, pointxy):
         """
-            aim_toward_point():
-            Given an xy iteratable, change the direction of motion toward the
-             given point.
+        Change the direction of motion toward a given point.
+
+        :param pointxy: A 2-element list of the x, y coordinate
+        :type pointxy: array-like
         """
         self.debug("aim_toward_point():")
         self.direction = direction_from_a_to_b(self.get_center_point(), pointxy)
 
     def set_velocity_compass(self, action):
         """
-            set_velocity_compass():
-            Handle the set_velocity_compass action.
-            Possible directions:
-            NONE: don't set the direction, just the speed
-            -or- '|' separated list of possible directions to be chosen at
-             random: UP, UPLEFT, UPRIGHT, RIGHT, DOWN, DOWNLEFT, DOWNRIGHT, LEFT
+        Handle the set_velocity_compass action.
+
+        Possible directions:
+
+        * NONE: don't set the direction, just the speed
+        * '|' separated list of possible directions to be chosen at
+          random: UP, UPLEFT, UPRIGHT, RIGHT, DOWN, DOWNLEFT, DOWNRIGHT, LEFT
+          (see :py:attr:`pygame_maker.actions.action.Action.COMPASS_DIRECTIONS`)
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
         """
         self.debug("set_velocity_compass(action={}):".format(action))
         # convert compass direction into degrees
@@ -547,27 +645,31 @@ class ObjectInstance(logging_object.LoggingObject,
                 # if stop was selected, set speed to zero
                 new_params['speed'] = 0
         del(new_params["compass_directions"])
-        apply_kwargs(new_params)
+        _apply_kwargs(new_params)
 
     def move_toward_point(self, action):
         """
-            move_toward_point():
-            Handle the move_toward_point action.
+        Handle the move_toward_point action.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
         """
         self.debug("move_toward_point(action={}):".format(action))
         if "destination" in action.action_data:
-            self.delay_motion_updates = True
+            self._delay_motion_updates = True
             # change direction
             self.aim_toward_point(action.action_data["destination"])
             # apply speed parameter
-            self.apply_kwargs({"speed": action.action_data['speed']})
-            self.delay_motion_updates = False
-            self.change_motion_x_y()
+            self._apply_kwargs({"speed": action.action_data['speed']})
+            self._delay_motion_updates = False
+            self._change_motion_x_y()
 
     def set_horizontal_speed(self, action):
         """
-            set_horizontal_speed():
-            Handle the set_horizontal_speed action.
+        Handle the set_horizontal_speed action.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
         """
         self.debug("set_horizontal_speed(action={}):".format(action))
         relative = False
@@ -586,8 +688,10 @@ class ObjectInstance(logging_object.LoggingObject,
 
     def set_vertical_speed(self, action):
         """
-            set_vertical_speed():
-            Handle the set_vertical_speed action.
+        Handle the set_vertical_speed action.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
         """
         self.debug("set_vertical_speed(action={}):".format(action))
         relative = False
@@ -604,8 +708,15 @@ class ObjectInstance(logging_object.LoggingObject,
                 new_vspeed += self.vspeed
             self.vspeed = new_vspeed
 
-    def symbol_change_callback(self, sym, new_value):
-        self.debug("symbol_change_callback(sym={}, new_value={}):".format(sym,
+    def _symbol_change_callback(self, sym, new_value):
+        # Callback for the SymbolTable.
+
+        # Called whenever a symbol changes while running the language engine.
+
+        # :param sym: The symbol's name
+        # :type sym: str
+        # :param new_value: The symbol's new value
+        self.debug("_symbol_change_callback(sym={}, new_value={}):".format(sym,
             new_value))
         if sym == 'speed':
             self.speed = new_value
@@ -630,23 +741,30 @@ class ObjectInstance(logging_object.LoggingObject,
 
     def execute_code(self, action, keep_code_block=True):
         """
-            execute_code():
-            Handle the execute_code action. Puts local variables into the
-             symbols attribute, which is a symbol table. Applies any built-in
-             local variable changes for the instance (speed, direction, etc.).
+        Handle the execute_code action.
+
+        Puts local variables into the symbols attribute, which is a symbol
+        table. Applies any built-in local variable changes for the instance
+        (speed, direction, etc.).
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
+        :param keep_code_block: Specify whether the code block will be re-used,
+            and so shouldn't be deleted after execution
+        :type keep_code_block: bool
         """
         self.debug("execute_code(action={}, keep_code_block={}):".format(action,
             keep_code_block))
-        if (len(action.action_data['code']) > 0):
-            instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
-            if not 'language_engine_handle' in action.runtime_data:
+        if len(action.action_data['code']) > 0:
+            instance_handle_name = "obj_{}_block{}".format(self.kind.name, self._code_block_id)
+            if 'language_engine_handle' not in action.runtime_data:
                 action['language_engine_handle'] = instance_handle_name
                 #print("action {} runtime: '{}'".format(action, action.runtime_data))
                 self.game_engine.language_engine.register_code_block(
                     instance_handle_name, action.action_data['code']
                 )
-            local_symbols = SymbolTable(self.symbols, lambda s, v: self.symbol_change_callback(s, v))
-            self.debug("{} inst {} syms before code block: {}".format(self.kind.name, self.id, local_symbols.vars))
+            local_symbols = SymbolTable(self.symbols, lambda s, v: self._symbol_change_callback(s, v))
+            self.debug("{} inst {} syms before code block: {}".format(self.kind.name, self._id, local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
                 action['language_engine_handle'], local_symbols
             )
@@ -660,10 +778,13 @@ class ObjectInstance(logging_object.LoggingObject,
 
     def if_variable_value(self, action):
         """
-            if_variable_value():
-            Handle the if_variable_value action. Makes use of both the local
-             symbol table in self.symbols, and the global symbol table managed
-             by the language engine.
+        Handle the if_variable_value action.
+
+        Makes use of both the local symbol table in self.symbols, and the
+        global symbol table managed by the language engine.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
         """
         self.debug("if_variable_value(action={}):".format(action))
         # look in symbol tables for the answer, local table first
@@ -692,35 +813,41 @@ class ObjectInstance(logging_object.LoggingObject,
             if var_val > action['value']:
                 test_result = True
         self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name,
-            self.id, action['variable'], action['test'], action['value'],
+            self._id, action['variable'], action['test'], action['value'],
             test_result))
         action.action_result = test_result
 
     def set_variable_value(self, action):
         """
-            set_variable_value():
-            Handle the set_variable_value action.
+        Handle the set_variable_value action.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action (or subclass) instance
         """
         self.debug("set_variable_value(action={}):".format(action))
         if action['is_global']:
             value_result = action.get_parameter_expression_result('value',
                 self.game_engine.language_engine.global_symbol_table,
                 self.game_engine.language_engine)
-            self.debug("  {} inst {}: set global var {} to {}".format(self.kind.name, self.id, action['variable'], value_result))
+            self.debug("  {} inst {}: set global var {} to {}".format(self.kind.name, self._id, action['variable'], value_result))
             self.game_engine.language_engine.global_symbol_table[action['variable']] = value_result
         else:
             value_result = action.get_parameter_expression_result('value',
                 self.symbols, self.game_engine.language_engine)
-            self.debug("  {} inst {}: set local var '{}' to {}".format(self.kind.name, self.id, action['variable'], value_result))
+            self.debug("  {} inst {}: set local var '{}' to {}".format(self.kind.name, self._id, action['variable'], value_result))
             self.symbols[action['variable']] = value_result
 
     def execute_action(self, action, event):
         """
-            execute_action():
-            Perform the actions instances can do.
+        Perform an action in an action sequence, in response to an event.
+
+        :param action: The Action instance that triggered this method
+        :type action: Action
+        :param event: The Event instance that triggered this method
+        :type event: Event
         """
-        # apply any setting names that match property names found in the
-        #  action_data. For some actions, this is enough
+        # Apply any setting names that match property names found in the
+        #  action_data.  For some actions, this is enough.
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
@@ -737,24 +864,24 @@ class ObjectInstance(logging_object.LoggingObject,
         elif action.name == "jump_to_start":
             self.position = self.start_position
         elif action.name == "reverse_horizontal_speed":
-            old_dir = self.direction
+            # old_dir = self.direction
             self.direction = -self.direction
-            #print("Reverse hdir {} to {}".format(old_dir, self.direction))
+            # self.debug("Reverse hdir {} to {}".format(old_dir, self.direction))
         elif action.name == "reverse_vertical_speed":
-            old_dir = self.direction
+            # old_dir = self.direction
             self.direction = 180.0 - self.direction
-            #print("Reverse vdir {} to {}".format(old_dir, self.direction))
+            # self.debug("Reverse vdir {} to {}".format(old_dir, self.direction))
         elif action.name == "destroy_object":
-            # queue the destroy event for this instance and run it. then remove
-            #  ourselves from our parent object
+            # Queue the destroy event for this instance and run it, then schedule
+            #  ourselves for removal from our parent object.
             self.game_engine.event_engine.queue_event(
                 self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", { "type": self.kind, "instance": self })
             )
             self.game_engine.event_engine.transmit_event("destroy")
             self.kind.add_instance_to_delete_list(self)
         elif action.name == "bounce_off_collider":
-            #print("bounce event: {}".format(event))
-            if ((action_params['precision'] == 'imprecise') or (not 'normal' in
+            # self.debug("bounce event: {}".format(event))
+            if ((action_params['precision'] == 'imprecise') or ('normal' not in
                 event.event_params.keys())):
                 self.direction = 180.0 + self.direction
             else:
@@ -769,10 +896,9 @@ class ObjectInstance(logging_object.LoggingObject,
                     # Y component is greater; reverse Y
                     self.direction = 180.0 - self.direction
         else:
-            self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name, self.id, action.name))
-            self.apply_kwargs(action_params)
+            self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name, self._id, action.name))
+            self._apply_kwargs(action_params)
 
     def __repr__(self):
         return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
-            self.id, self.position, self.direction, self.speed)
-
+            self._id, self.position, self.direction, self.speed)

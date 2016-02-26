@@ -20,10 +20,30 @@ from pygame_maker.actions import action
 from pygame_maker.actions import action_sequence
 from pygame_maker.sounds import sound
 
+
 class ObjectTypeException(logging_object.LoggingException):
     pass
 
+
 def sprite_collision_test(sprite_a, sprite_b):
+    """
+    Determine whether 2 sprites intersect.
+
+    Currently, there are three types of collision masks that may be used to
+    detect a collision:
+
+    * rectangle: Used if both sprites have collision_type 'rectangle'
+    * disk: Used if both sprites have collision_type 'disk'
+    * precise: Used if both sprites have collision_type 'precise', or
+      their collision types don't match
+
+    :param sprite_a: The sprite to test for a collision
+    :type sprite_a: ObjectSprite
+    :param sprite_b: The other sprite to test for a collision
+    :type sprite_b: ObjectSprite
+    :return: True if the two sprites collided, or False
+    :rtype: bool
+    """
     if sprite_a == sprite_b:
         return False
     if not sprite_a or not sprite_b:
@@ -43,12 +63,22 @@ def sprite_collision_test(sprite_a, sprite_b):
 
 def mask_from_surface(surface, threshold = 127):
     """
-        mask_from_surface():
-        Create a precise mask of pixels with alpha greater than threshold (for
-         a surface with an alpha channel), or of pixels that don't match the
-         color key. Borrowed from pygame's mask.py demo code. For some reason,
-         this works and pygame.mask.from_surface() doesn't for the sample
-         image used in the demo code below.
+    Create a precise mask of an ObjectSprite's pixels.
+
+    Set a mask pixel if the corresponding surface's pixel has an alpha value
+    greater than threshold (for a surface with an alpha channel), or if the
+    pixel doesn't match the surface's color key.  Borrowed from pygame's
+    mask.py demo code. For some reason, this works and
+    pygame.mask.from_surface() doesn't for the sample image used in the demo
+    code below.
+
+    :param surface: The drawing surface to create a mask from
+    :type surface: pygame.Surface
+    :param threshold: The minimum alpha value for a pixel on the Surface to
+        appear in the mask (ignored if the surface has a color key)
+    :type threshold: int
+    :return: The mask created from the surface
+    :rtype: pygame.Mask
     """
     mask = pygame.mask.Mask(surface.get_size())
     key = surface.get_colorkey()
@@ -66,9 +96,17 @@ def mask_from_surface(surface, threshold = 127):
 
 def get_collision_normal(instance_a, instance_b):
     """
-        get_collision_normal():
-        Get an approximate collision normal between overlapping instances,
-         from instance_a's perspective.
+    Get an approximate collision normal between overlapping instances,
+    from instance_a's perspective.
+
+    :param instance_a: The first ObjectInstance to calculate a collision
+        normal from
+    :type instance_a: ObjectInstance
+    :param instance_b: The second ObjectInstance to calculate a collision
+        normal from
+    :type instance_b: ObjectInstance
+    :return: The normal vector
+    :rtype: (int, int)
     """
     offset = get_offset_between_instances(instance_a, instance_b)
     overlap = get_mask_overlap(instance_a, instance_b)
@@ -92,9 +130,15 @@ def get_collision_normal(instance_a, instance_b):
 
 def get_offset_between_instances(instance_a, instance_b):
     """
-        get_offset_between_instances():
-        Return the position offset between instance_a and instance_b from
-         instance_a's perspective.
+    Return the position offset between instance_a and instance_b from
+        instance_a's perspective.
+
+    :param instance_a: The first ObjectInstance to calculate the offset from
+    :type instance_a: ObjectInstance
+    :param instance_b: The second ObjectInstance to calculate the offset from
+    :type instance_b: ObjectInstance
+    :return: The offset in pixels
+    :rtype: int
     """
     instance_a_pos = (instance_a.rect.x, instance_a.rect.y)
     instance_b_pos = (instance_b.rect.x, instance_b.rect.y)
@@ -104,48 +148,72 @@ def get_offset_between_instances(instance_a, instance_b):
 
 def get_mask_overlap(instance_a, instance_b):
     """
-        get_mask_overlap():
-        Return the number of pixels that overlap between instance_a and
-         instance_b
+    Return the number of pixels that instance_a overlaps instance_b.
+
+    :param instance_a: The first ObjectInstance with overlapping pixels
+    :type instance_a: ObjectInstance
+    :param instance_b: The second ObjectInstance with overlapping pixels
+    :type instance_b: ObjectInstance
+    :return: The number of pixels that overlap
+    :rtype: int
     """
     offset = get_offset_between_instances(instance_a, instance_b)
     overlap = instance_a.kind.mask.overlap_area(instance_b.kind.mask, offset)
     return overlap
 
 def dot_product(v1,v2):
+    """
+    Calculate a dot product between 2 vectors.
+
+    :param v1: The first vector
+    :type v1: (float, float)
+    :param v2: The second vector
+    :type v2: (float, float)
+    :return: The dot product
+    :rtype: float
+    """
     return v1[0]*v2[0]+v1[1]*v2[1]
 
 class ObjectType(logging_object.LoggingObject):
     """
-        pygame maker objects have:
-        o sprite reference
-        o depth? (Z dimension?) (numeric)
-        o parent? (another object?)
-        o collision mask (uses sprite reference, can be a different sprite)
-        o visible flag
-        o persistent flag?
-        o solid flag (for solid stationary objects, e.g. platform)
-        o physics flag
-        o events!
-          * ex: create. normal step. draw.
-          * events can be modified, edited (appears to just add a run code
-            action), or deleted.
-          * actions!
-            - things that happen in response to events
-            - change direction. jump to a location. run code. affect
-              score/lives.  play a sound.
-            - actions can be chained together
-            - actions can be "questions". depending on the answer, the following
-              action(s) can be taken
-        Objects, like classes, are instantiated within the game.
-         There can be many instances of a particular kind of object.
+    PyGameMaker objects have:
+
+    * sprite reference
+    * depth (determines which objects draw on top of other objects) (numeric)
+    * parent (another object)
+    * collision mask (uses sprite reference, can be a different sprite)
+    * visible flag (whether the object will be drawn)
+    * persistent flag (unknown purpose, not implemented)
+    * solid flag (for solid stationary objects, e.g. platform)
+    * physics flag
+    * events
+
+      * ex: create. normal step. draw.
+      * events can be modified, edited (appears to just add a run code
+        action), or deleted.
+
+    * actions
+
+      * things that happen in response to events
+      * change direction.  jump to a location.  run code.  affect score/lives.
+        play a sound.
+      * actions can be chained together
+      * actions can be "questions".  Depending on the answer, the following
+        action(s) may execute
+
+    Objects, like classes, are instantiated within the game.  There can be many
+    instances of a particular kind of object.
     """
-    DEFAULT_OBJECT_PREFIX="obj_"
-    DEFAULT_VISIBLE=True
-    DEFAULT_SOLID=False
-    DEFAULT_DEPTH=0
-    DEFAULT_SPRITE_RESOURCE=None
-    EVENT_NAME_OBJECT_HASH={
+    DEFAULT_OBJECT_PREFIX = "obj_"
+    #: Default object visibility
+    DEFAULT_VISIBLE = True
+    #: Default for 'solid' flag
+    DEFAULT_SOLID = False
+    #: Default depth
+    DEFAULT_DEPTH = 0
+    #: By default, a new ObjectType doesn't refer to a sprite yet
+    DEFAULT_SPRITE_RESOURCE = None
+    EVENT_NAME_OBJECT_HASH = {
         "outside_room": event.OtherEvent,
         "intersect_boundary": event.OtherEvent,
         "create": event.ObjectStateEvent,
@@ -158,9 +226,9 @@ class ObjectType(logging_object.LoggingObject):
     @staticmethod
     def load_from_yaml(yaml_stream, game_engine):
         """
-            load_from_yaml():
-            Create an object type from a YAML-formatted file.
-            Expected format:
+        Create an object type from a YAML-formatted file.
+        Expected format::
+
             - obj_name1:
                 visible: True | False
                 solid: True | False
@@ -173,9 +241,18 @@ class ObjectType(logging_object.LoggingObject):
                   <eventN_name>:
                     <yaml representation for event action sequence>
             - obj_name2:
-                ...
+            ...
+
+        For a description of the action sequence YAML format, see
+        :py:meth:`pygame_maker.actions.action_sequence.ActionSequence.load_sequence_from_yaml_obj`
+
+        :param yaml_stream: A file or stream containing the YAML string data
+        :type yaml_stream: file-like
+        :param game_engine: A reference to the main game engine
+        :type game_engine: GameEngine
+        :return: A new ObjectType with YAML-defined properties
+        :type: ObjectType
         """
-        yaml_repr = None
         new_object_list = []
         yaml_repr = yaml.load(yaml_stream)
         if yaml_repr:
@@ -205,7 +282,7 @@ class ObjectType(logging_object.LoggingObject):
                         game_engine.debug("{}: create event sequence from '{}'".format(obj_name, obj_yaml['events'][ev_seq]))
                         kwargs["event_action_sequences"][ev_seq] = action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
                         game_engine.debug("Loaded sequence {}:".format(ev_seq))
-                        if (game_engine.logger.level <= logging.DEBUG):
+                        if game_engine.logger.level <= logging.DEBUG:
                             kwargs["event_action_sequences"][ev_seq].pretty_print()
                 new_object_list.append(ObjectType(obj_name, game_engine,
                     **kwargs))
@@ -214,22 +291,22 @@ class ObjectType(logging_object.LoggingObject):
     def __init__(self, object_name, game_engine, **kwargs):
 
         """
-            ObjectType.__init__():
-            Create a new type of object. An object type can create instances
-            of itself.
-            parameters:
-             object_name (str): Supply a name for the object type
-             game_engine (GameEngine): Supply the main game engine
-              containing an event engine, language engine, sprite resources,
-              sound resources, and object types (type does not yet exist,
-              see test code below for stub class)
-             **kwargs: Supply alternatives for default object properties:
-              visible (bool): Whether instances will be drawn [True]
-              solid (bool): Whether instances block other object instances
-                     (e.g. a platform) [False]
-              depth (int): Which layer object instances will be placed into [0]
-              sprite (ObjectSprite): Sprite resource used as the
-               image [None]
+        Create a new type of object.
+
+        :param object_name: Supply a name for the object type
+        :type object_name: str
+        :param game_engine: Supply the main game engine
+            containing an event engine, language engine, sprite resources,
+            sound resources, other object types, and handlers for certain game
+            actions
+        :type game_engine: GameEngine
+        :param kwargs: Supply alternatives for default object properties:
+
+            * visible (bool): Whether instances will be drawn [True]
+            * solid (bool): Whether instances block other object instances
+              (e.g. a platform) [False]
+            * depth (int): Which layer object instances will be placed into [0]
+            * sprite (ObjectSprite): Sprite resource used as the image [None]
         """
         super(ObjectType, self).__init__(type(self).__name__)
         self.debug("New object {}, with args {}".format(object_name,
@@ -249,7 +326,7 @@ class ObjectType(logging_object.LoggingObject):
         self.depth = self.DEFAULT_DEPTH
         self.group = pygame.sprite.LayeredDirty()
         self.event_action_sequences = {}
-        self.id = 0
+        self._id = 0
         self.instance_delete_list = []
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
@@ -285,11 +362,12 @@ class ObjectType(logging_object.LoggingObject):
                             raise(ObjectTypeException("Event '{}' does not contain an ActionSequence", self.error))
                         self[ev_name] = ev_dict[ev_name]
 
-        #print("Finished setup of {}".format(self.name))
+        # print("Finished setup of {}".format(self.name))
 
     @property
     def visible(self):
-        return(self._visible)
+        """Flag whether the ObjectType is to be drawn"""
+        return self._visible
 
     @visible.setter
     def visible(self, is_visible):
@@ -300,14 +378,11 @@ class ObjectType(logging_object.LoggingObject):
                 instance.visible = is_visible
 
     def to_yaml(self):
-        """
-            to_yaml():
-            Create the YAML representation for this object type.
-        """
+        """Create the YAML representation for this object type."""
         yaml_str = "- {}:\n".format(self.name)
         yaml_str += "    visible: {}\n".format(self.visible)
         yaml_str += "    solid: {}\n".format(self.solid)
-        yaml_str += "    depth: {}\n".format(self.depth)
+        yaml_str += "    depth: {:d}\n".format(self.depth)
         yaml_str += "    sprite: {}\n".format(self.sprite_resource.name)
         yaml_str += "    events:\n"
         for event_name in self.event_action_sequences:
@@ -317,30 +392,38 @@ class ObjectType(logging_object.LoggingObject):
 
     def add_instance_to_delete_list(self, instance):
         """
-            add_instance_to_delete_list():
-            Given a sprite reference, add it to the list of instances of this
-             object to be deleted following the object's update() call. This
-             allows for iterating through objects and flagging them for removal
-             without trying to remove them during iteration.
+        Given a sprite reference, add it to the list of instances of this
+        object to be deleted.
+
+        This allows for iterating through objects and flagging them for removal
+        without trying to remove them inside the iterator.  Deletion occurs
+        following the update() call for the object.
+
+        :param instance: The ObjectInstance of this type to be removed
+        :type instance: ObjectInstance
         """
         # a simple list manages deletions
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
         self.instance_delete_list.append(instance)
 
-    def create_instance(self, screen, settings={}, **kwargs):
+    def create_instance(self, screen, settings=None, **kwargs):
         """
-            create_instance():
-            Create a new instance of this object type. Every instance is
-             assigned a unique ID, and placed inside a sprite group that
-             handles drawing and positional updates for all contained instances.
-            parameters:
-             screen (pygame.Surface): The surface the instance will be drawn
-              upon. The instance will use this surface's width and height
-              parameters to detect boundary collision events, which are queued
-              in the event engine.
-             **kwargs: Passed on to the instance constructor, to supply
-              alternatives to object instance defaults (usually 'speed',
-              'direction', and/or 'position')
+        Create a new instance of this object type.
+
+        Every instance is assigned a unique ID, and placed inside a sprite
+        group that handles drawing and positional updates for all contained
+        instances.
+
+        :param screen: The surface the instance will be drawn upon.  The
+            instance will use this surface's width and height parameters to
+            detect boundary collision events, which are queued in the event
+            engine
+        :type screen: pygame.Surface
+        :param settings: A hash of settings to be applied.  See kwargs entry
+            in :py:meth:`pygame_maker.actors.object_instance.ObjectInstance.__init__`
+        :type settings: dict
+        :param kwargs: Keyword arguments, in addition to or as an alternative
+            to the settings dict
         """
         self.debug("create_instance(screen={}, settings={}, kwargs={}):".format(screen, settings, kwargs))
         #print("Create new instance of {}".format(self))
@@ -349,9 +432,9 @@ class ObjectType(logging_object.LoggingObject):
           settings, kwargs))
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = object_instance.ObjectInstance(self,
-            screen_dims, self.id, settings, **kwargs)
+            screen_dims, self._id, settings, **kwargs)
         self.group.add(new_instance)
-        self.id += 1
+        self._id += 1
         # queue the creation event for the new instance
         self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create", { "type": self, "instance": new_instance }))
         self.game_engine.event_engine.transmit_event('create')
@@ -359,14 +442,14 @@ class ObjectType(logging_object.LoggingObject):
 
     def collision_check(self, other_obj_types):
         """
-            collision_check():
-            Check for collisions between this and other object types' instances,
-             and queue collision events when detected.
-            Parameters:
-            other_obj_types (sequence): A list of other ObjectTypes
-             to test for collisions with this one.
-            Return value:
-             A list of collision event names that were queued (empty if none).
+        Check for collisions between this and other object types' instances,
+        and queue collision events when detected.
+
+        :param other_obj_types: A list of other ObjectTypes to test
+            for collisions with this one
+        :type other_obj_types: array-like
+        :return: A list of collision event names that were queued, or an
+            empty list if none
         """
         self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
         collision_types_queued = []
@@ -383,10 +466,10 @@ class ObjectType(logging_object.LoggingObject):
                 collision_normal = None
                 for other_inst in collision_map[collider]:
                     overlap = get_mask_overlap(collider, other_inst)
-                    #print("Solid collision overlap: {}".format(overlap))
+                    # print("Solid collision overlap: {}".format(overlap))
                     collision_normal = get_collision_normal(collider,
                         other_inst)
-                    #print("Collision normal: {}".format(collision_normal))
+                    # print("Collision normal: {}".format(collision_normal))
                     # in the event of a collision with a solid object (i.e.
                     #  stationary), kick the sprite outside of the other
                     #  object's collision mask
@@ -408,7 +491,7 @@ class ObjectType(logging_object.LoggingObject):
                 if not collision_name in collision_types_queued:
                     collision_types_queued.append(collision_name)
                 self.info("{} inst {}: Queue collision {}".format(self.name,
-                    collider.id, collision_name))
+                    collider._id, collision_name))
                 collision_event_info = {
                     "type": self, "instance": collider,
                     "others": collision_map[collider]
@@ -423,9 +506,8 @@ class ObjectType(logging_object.LoggingObject):
 
     def update(self):
         """
-            update():
-            Call to perform position updates for all instances. After all
-             instances have updated, handle any queued deletions.
+        Call to perform position updates for all instances.  After all
+        instances have updated, handle any queued deletions.
         """
         self.debug("update():")
         if len(self.group) > 0:
@@ -438,8 +520,10 @@ class ObjectType(logging_object.LoggingObject):
 
     def draw(self, surface):
         """
-            draw():
-            Call to draw all instances. The sprite group handles this for us.
+        Call to draw all instances. The sprite group handles this for us.
+
+        :param surface: The surface the object instances will be drawn upon
+        :type surface: pygame.Surface
         """
         self.debug("draw(surface={}):".format(surface))
         if (len(self.group) > 0) and self.visible:
@@ -447,18 +531,21 @@ class ObjectType(logging_object.LoggingObject):
 
     def create_rectangle_mask(self, orig_rect):
         """
-            create_rectangle_mask():
-            Create a rectangular mask that covers the opaque pixels of an
-             object. Normally, collisions between objects with collision_type
-             "rectangle" will use the rectangle collision test, which only needs
-             the rect attribute. The mask is created in the event this object
-             collides with an object that has a different collision_type, in
-             which case the objects fall back to using a mask collision test.
-             The assumption is that the user wants a simple collision model, so
-             the mask is made from the rect attribute, instead of creating an
-             exact mask from the opaque pixels in the image.
-            Parameters:
-             orig_rect (pygame.Rect): The Rect for the image
+        Create a rectangular mask that covers the opaque pixels of an object.
+
+        Normally, collisions between objects with collision_type "rectangle"
+        will use the rectangle collision test, which only needs the rect
+        attribute.  The mask is created in the event this object collides with
+        an object that has a different collision_type, in which case the
+        objects fall back to using a mask collision test.  The assumption is
+        that the user wants a simple collision model, so the mask is made from
+        the rect attribute, instead of creating an exact mask from the opaque
+        pixels in the image.
+
+        :param orig_rect: The Rect from the image
+        :type orig_rect: pygame.Rect
+        :return: A new mask
+        :rtype: pygame.mask.Mask
         """
         self.debug("create_rectangle_mask(orig_rect={}):".format(orig_rect))
         self.mask = pygame.mask.Mask( (orig_rect.width, orig_rect.height) )
@@ -466,17 +553,17 @@ class ObjectType(logging_object.LoggingObject):
 
     def get_disk_radius(self, precise_mask, orig_rect):
         """
-            get_disk_radius():
-            Calculate the radius of a circle that covers the opaque pixels in
-             precise_mask.
-            Parameters:
-             precise_mask (pygame.mask.Mask): The precise mask for every opaque
-              pixel in the image. If the original image was circular, this can
-              aid in creating in a more accurate circular mask.
-             orig_rect (pygame.Rect): The Rect for the image
+        Calculate the radius of a circle that covers the opaque pixels in
+        precise_mask.
+
+        :param precise_mask: The precise mask for every opaque pixel in the
+            image.  If the original image was circular, this can aid in
+            creating in a more accurate circular mask
+        :type precise_mask: pygame.mask.Mask
+        :param orig_rect: The Rect from the image
+        :type orig_rect: pygame.Rect
         """
         self.debug("get_disk_radius(precise_mask={}, orig_rect={}):".format(precise_mask, orig_rect))
-        radius = 0
         # find the radius of a circle that contains bound_rect for the worst
         #  case
         disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
@@ -511,20 +598,21 @@ class ObjectType(logging_object.LoggingObject):
 
     def create_disk_mask(self, orig_rect):
         """
-            create_disk_mask():
-            Create a circular mask that covers the opaque pixels of an object.
-             Normally, collisions between objects with collision_type "disk"
-             will use the circle collision test, which only needs the radius
-             attribute. The mask is created in the event this object collides
-             with an object that has a different collision_type, in which case
-             the objects fall back to using a mask collision test. The
-             assumption is that the user wants a simple collision model, so
-             the mask is made from a circle of the right radius, instead of
-             creating an exact mask from the opaque pixels in the image.
-            Parameters:
-             radius (int): The disk radius centered at the center x,y of the
-              image
-             orig_rect (pygame.Rect): The Rect for the image
+        Create a circular mask that covers the opaque pixels of an object.
+
+        Normally, collisions between objects with collision_type "disk" will
+        use the circle collision test, which only needs the radius attribute.
+        The mask is created in the event this object collides with an object
+        that has a different collision_type, in which case the objects fall
+        back to using a mask collision test.  The assumption is that the user
+        wants a simple collision model, so the mask is made from a circle of
+        the right radius, instead of creating an exact mask from the opaque
+        pixels in the image.
+
+        :param orig_rect: The Rect from the image
+        :type orig_rect: pygame.Rect
+        :return: A new mask
+        :rtype: pygame.mask.Mask
         """
         # create a disk mask with a radius sufficient to cover the
         #  opaque pixels
@@ -544,10 +632,14 @@ class ObjectType(logging_object.LoggingObject):
 
     def get_image(self):
         """
-            Called by instances of this ObjectType, to get a new copy of
-             the sprite resource's image. Loads the image when the first
-             instance using this image is created. Also, handle the
-             collision type and create a collision mask.
+        Called by instances of this ObjectType, to get a new copy of
+        the sprite resource's image.
+
+        Load the image when the first instance using this image is created.
+        Also, handle the collision type and create a collision mask.
+
+        :return: A new pygame image, copied from the ObjectSprite resource
+        :rtype: pygame.image
         """
         self.debug("get_image():")
         if self.sprite_resource:
@@ -569,8 +661,6 @@ class ObjectType(logging_object.LoggingObject):
                         #  bounding rect
                         bound_rect = orig_rect
                     self.bounding_box_rect = bound_rect
-                    max_r = 0
-                    precise_mask_ctr = (orig_rect.width/2, orig_rect.height/2)
                     self.info("  bounded dimensions: {}".format(bound_rect))
                     # create a mask based on the collision type
                     self.info("  Sprite collision type: {}".format(self.sprite_resource.collision_type))
@@ -583,12 +673,12 @@ class ObjectType(logging_object.LoggingObject):
                     elif self.sprite_resource.collision_type == "rectangle":
                         self.create_rectangle_mask(orig_rect)
                     elif self.sprite_resource.collision_type == "disk":
-                        radius = self.get_disk_radius(precise_mask, orig_rect)
+                        self.get_disk_radius(precise_mask, orig_rect)
                         self.create_disk_mask(orig_rect)
                     else:
                         # other collision types are not supported, fall back to
                         #  rectangle
-                        self.create_rectangle_mask(orig_rect, bound_rect)
+                        self.create_rectangle_mask(orig_rect)
                     # queue the image_loaded event
                     self.game_engine.event_engine.queue_event(
                         self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
@@ -601,19 +691,21 @@ class ObjectType(logging_object.LoggingObject):
 
     def get_applied_instance_list(self, action, event):
         """
-            get_applied_instance_list():
-            For actions with "apply_to" parameters, return a list of the
-             object instances affected. There could be one, called "self",
-             which can refer to a particular instance (which needs to
-             be part of the event data), or called "other", in cases where
-             another instance is involved in the event (collisions); or
-             multiple, if apply_to refers to an object type, in which case
-             all objects of the named type recieve the action.
-             For "create" type actions, "self" instead refers to the object
-             type to be created.
-            parameters:
-             action (Action): The action with an "apply_to" field
-             event (Event): The received event
+        For actions with "apply_to" parameters, return a list of the
+        object instances affected.
+
+        The "apply_to" parameter may be "self", which can refer to a particular
+        instance (which needs to be part of the event data); or may be "other",
+        in cases where another instance is involved in the event (collisions);
+        or affect multiple objects if apply_to refers to an object type,
+        in which case all objects of the named type receive the action.  For
+        "create" type actions, "self" instead refers to the object type to be
+        created.
+
+        :param action: The action with an "apply_to" field
+        :type action: Action
+        :param event: The received event
+        :type event: Event
         """
         self.debug("get_applied_instance_list(action={}, event={}):".format(action, event))
         apply_to_instances = []
@@ -633,17 +725,22 @@ class ObjectType(logging_object.LoggingObject):
                 apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
         return apply_to_instances
 
-    def execute_action_sequence(self, event, targets=[]):
+    def execute_action_sequence(self, event, targets=None):
         """
-            execute_action_sequence():
-            The sausage factory method. When an event comes in the event handler
-             calls this to walk through the event action sequence associated
-             with the event. There are many types of actions; the object
-             instance actions make the most sense to handle here, but the
-             game engine that inspired this one uses a model in which a hidden
-             manager object type triggers actions that affect other parts
-             of the game engine, so those actions need to be routed properly
-             as well.
+        Walk through an event action sequence when the event handler matches a
+        known event.
+
+        The sausage factory method.  There are many types of actions; the
+        object instance actions make the most sense to handle here, but the
+        game engine that inspired this one uses a model in which a hidden
+        manager object type triggers actions that affect other parts of the
+        game engine, so those actions need to be routed properly as well.
+
+        :param event: The event to be handled
+        :type event: Event
+        :param targets: The event handler may pass in a list of target
+            instances for the action sequence to operate on
+        :type event: array-like|None
         """
         self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
         if event.name in self.event_action_sequences:
@@ -653,8 +750,8 @@ class ObjectType(logging_object.LoggingObject):
                 for action in self.event_action_sequences[event.name].get_next_action():
                     self.info("  Execute action {}".format(action))
                     # forward instance actions to instance(s)
-                    if len(targets) > 0:
-                        self.info("  Apply to target(s) {}".format(targets))
+                    if (targets is not None) and len(targets) > 0:
+                        self.info("  Apply to target(s) {}".format(str(targets)))
                         for target in targets:
                             if not action.name in self.game_engine.GAME_ENGINE_ACTIONS:
                                 target.execute_action(action, event)
@@ -672,22 +769,31 @@ class ObjectType(logging_object.LoggingObject):
 
     def handle_instance_event(self, event):
         """
-            handle_instance_event():
-            Execute action sequences generated by an instance:
-             intersect_boundary
-             outside_room
+        Execute action sequences generated by an instance.
+
+        Possible ObjectInstance events:
+
+        * intersect_boundary
+        * outside_room
+
+        :param event: The event generated by an ObjectInstance of this type
+        :type event: Event
         """
         self.debug("handle_instance_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_mouse_event(self, event):
         """
-            handle_mouse_event():
-            Execute the action sequence associated with the supplied mouse
-             event, if its XY coordinate intersects one or more instances and
-             the exact mouse event is handled by this object (button #,
-             press/release). mouse_global_* events are handled by instances
-             watching for them at any location.
+        Execute the action sequence associated with the supplied mouse
+        event.
+
+        If mouse event's XY coordinate intersects one or more instances and the
+        exact mouse event is handled by this object (button #, press/release),
+        then handle the event.  mouse_global_* events are handled by instances
+        watching for them, regardless of the XY coordinate.
+
+        :param event: The mouse event
+        :type event: Event
         """
         self.debug("handle_mouse_event(event={}):".format(event))
         gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
@@ -700,10 +806,12 @@ class ObjectType(logging_object.LoggingObject):
 
     def handle_keyboard_event(self, event):
         """
-            handle_keyboard_event():
-            Execute the action sequence associated with the supplied key event,
-             if the exact key event is handled by this object (which key,
-             press/release)
+        Execute the action sequence associated with the supplied key event,
+        if the exact key event is handled by this object (which key,
+        press/release).
+
+        :param event: The keyboard event
+        :type event: Event
         """
         self.debug("handle_keyboard_event(event={}):".format(event))
         matched_seq = None
@@ -724,55 +832,69 @@ class ObjectType(logging_object.LoggingObject):
 
     def handle_collision_event(self, event):
         """
-            handle_collision_event():
-            Execute the action sequence associated with the collision event,
-             if the name of the object collided with is part of the event's name
+        Execute the action sequence associated with a collision event.
+
+        The name of the object type collided with is part of the event's name,
+        which should have been added as a key in the event_action_sequences
+        attribute using the :py:meth:`__setitem__` interface.
+
+        :param event: The collision event
+        :type event: Event
         """
         self.debug("handle_collision_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_step_event(self, event):
         """
-            handle_step_event():
-            Execute the action sequence associated with the supplied step event,
-             if the exact step event is handled by this object (begin, end,
-             normal), on every instance
+        Execute the action sequence associated with the supplied step event, if
+        the exact step event is handled by this object (begin, end, normal),
+        on every instance.
+
+        :param event: The step event
+        :type event: Event
         """
         self.debug("handle_step_event(event={}):".format(event))
         self.execute_action_sequence(event, targets=[inst for inst in self.group])
 
     def handle_alarm_event(self, event):
         """
-            handle_alarm_event():
-            Execute the action sequence associated with the alarm event, if
-             the exact alarm is handled by this object (0-11)
+        Execute the action sequence associated with the alarm event, if the
+        exact alarm is handled by this object (one or more of alarms 0-11).
+
+        :param event: The alarm event
+        :type event: Event
         """
         self.debug("handle_alarm_event(event={}):".format(event))
-        pass
 
     def handle_create_event(self, event):
         """
-            handle_create_event():
-            Execute the action sequence associated with the create event,
-             passing it on to the instance recorded in the event
+        Execute the action sequence associated with the create event, passing
+        it on to the instance recorded in the event.
+
+        :param event: The object creation event
+        :type event: Event
         """
         self.debug("handle_create_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
     def handle_destroy_event(self, event):
         """
-            handle_destroy_event():
-            Execute the action sequence associated with the destroy event.
+        Execute the action sequence associated with the destroy event.
+
+        :param event: The destroy event
+        :type event: Event
         """
         self.debug("handle_destroy_event(event={}):".format(event))
         self.execute_action_sequence(event)
 
-    def select_event_handler(self, event_name):
-        """
-            select_event_handler():
-            Return an event type, given the name of the handled event.
-        """
-        self.debug("select_event_handler(event_name={}):".format(event_name))
+    def _select_event_handler(self, event_name):
+        # Return an event type, given the name of the handled event.
+
+        # :param event_name: The name of the received event
+        # :type event_name: str
+        # :return: An event handler
+        # :rtype: callable
+        self.debug("_select_event_handler(event_name={}):".format(event_name))
         hdlr = None
         for ev_re in self.handler_table.keys():
             minfo = ev_re.match(event_name)
@@ -782,17 +904,23 @@ class ObjectType(logging_object.LoggingObject):
 
     def keys(self):
         """
-            keys():
-            Return the event names handled by this object type, in a list.
+        Return the event names handled by this object type, in a list.
+
+        :return: A list of event names handled by this object type
+        :rtype: list
         """
         self.debug("keys():")
         return self.event_action_sequences.keys()
 
     def __getitem__(self, itemname):
         """
-            __getitem__():
-            ObjectType instances support obj[event_name] to directly
-             access the action sequence for a particular event.
+        ObjectType instances support obj[event_name] to directly access the
+        action sequence for a particular event.
+
+        :param itemname: Name of an event
+        :type itemname: str
+        :return: An action sequence, or None
+        :rtype: None|ActionSequence
         """
         self.debug("__getitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
@@ -802,20 +930,28 @@ class ObjectType(logging_object.LoggingObject):
 
     def __setitem__(self, itemname, val):
         """
-            __setitem__():
-            ObjectType instances support obj[event_name] = sequence for
-             directly setting the action sequence for a particular event.
-             After adding the event action sequence, register the event handler
-             for the event.
+        ObjectType instances support obj[event_name] = sequence for
+        directly setting the action sequence for a particular event.
+
+        After adding the event action sequence, register the event handler
+        for the event.
+
+        :param itemname: Name of an event
+        :type itemname: str
+        :param val: New action sequence to apply to an event
+        :type val: ActionSequence
+        :raise: KeyError, if itemname is not a string
+        :raise: ValueError, if val is not an ActionSequence
         """
         self.debug("__setitem__(itemname={}, val={}):".format(itemname, val))
         if not isinstance(itemname, str):
-            raise(ObjectTypeException("Event action sequence keys must be strings", self.error))
+            raise(KeyError("Event action sequence keys must be strings", self.error))
         if not isinstance(val, action_sequence.ActionSequence):
-            raise(ObjectTypeException("Supplied event action sequence is not an ActionSequence instance", self.error))
+            raise(ValueError("Supplied event action sequence is not an ActionSequence instance",
+                             self.error))
         self.event_action_sequences[itemname] = val
         # register our handler for this event
-        new_handler = self.select_event_handler(itemname)
+        new_handler = self._select_event_handler(itemname)
         if new_handler:
             self.info("{}: Register handler for event '{}'".format(self.name,
                 itemname))
@@ -825,13 +961,15 @@ class ObjectType(logging_object.LoggingObject):
 
     def __delitem__(self, itemname):
         """
-            __delitem__():
-            Stop handling the named event.
+        Stop handling the named event, by removing its entry from the dict.
+
+        :param itemname: The name of the event to stop handling
+        :type itemname: str
         """
         self.debug("__delitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
             # stop handling the given event name
-            old_handler = self.select_event_handler(itemname)
+            old_handler = self._select_event_handler(itemname)
             self.info("  {}: Unregister handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.unregister_event_handler(itemname, old_handler)
             # remove the event from the table
@@ -841,4 +979,3 @@ class ObjectType(logging_object.LoggingObject):
         rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name,
             self.sprite_resource)
         return rpr
-
