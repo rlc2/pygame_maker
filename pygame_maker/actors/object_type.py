@@ -38,9 +38,9 @@ def sprite_collision_test(sprite_a, sprite_b):
       their collision types don't match
 
     :param sprite_a: The sprite to test for a collision
-    :type sprite_a: ObjectSprite
+    :type sprite_a: :py:class:`~pygame_maker.actors.object_sprite.ObjectSprite`
     :param sprite_b: The other sprite to test for a collision
-    :type sprite_b: ObjectSprite
+    :type sprite_b: :py:class:`~pygame_maker.actors.object_sprite.ObjectSprite`
     :return: True if the two sprites collided, or False
     :rtype: bool
     """
@@ -69,16 +69,16 @@ def mask_from_surface(surface, threshold = 127):
     greater than threshold (for a surface with an alpha channel), or if the
     pixel doesn't match the surface's color key.  Borrowed from pygame's
     mask.py demo code. For some reason, this works and
-    pygame.mask.from_surface() doesn't for the sample image used in the demo
-    code below.
+    :py:func:`pygame.mask.from_surface` doesn't for the sample image used in
+    the unit test for object_type.
 
     :param surface: The drawing surface to create a mask from
-    :type surface: pygame.Surface
+    :type surface: :py:class:`pygame.Surface`
     :param threshold: The minimum alpha value for a pixel on the Surface to
         appear in the mask (ignored if the surface has a color key)
     :type threshold: int
     :return: The mask created from the surface
-    :rtype: pygame.Mask
+    :rtype: :py:class:`pygame.mask.Mask`
     """
     mask = pygame.mask.Mask(surface.get_size())
     key = surface.get_colorkey()
@@ -101,10 +101,10 @@ def get_collision_normal(instance_a, instance_b):
 
     :param instance_a: The first ObjectInstance to calculate a collision
         normal from
-    :type instance_a: ObjectInstance
+    :type instance_a: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :param instance_b: The second ObjectInstance to calculate a collision
         normal from
-    :type instance_b: ObjectInstance
+    :type instance_b: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :return: The normal vector
     :rtype: (int, int)
     """
@@ -134,9 +134,9 @@ def get_offset_between_instances(instance_a, instance_b):
         instance_a's perspective.
 
     :param instance_a: The first ObjectInstance to calculate the offset from
-    :type instance_a: ObjectInstance
+    :type instance_a: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :param instance_b: The second ObjectInstance to calculate the offset from
-    :type instance_b: ObjectInstance
+    :type instance_b: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :return: The offset in pixels
     :rtype: int
     """
@@ -151,9 +151,9 @@ def get_mask_overlap(instance_a, instance_b):
     Return the number of pixels that instance_a overlaps instance_b.
 
     :param instance_a: The first ObjectInstance with overlapping pixels
-    :type instance_a: ObjectInstance
+    :type instance_a: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :param instance_b: The second ObjectInstance with overlapping pixels
-    :type instance_b: ObjectInstance
+    :type instance_b: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
     :return: The number of pixels that overlap
     :rtype: int
     """
@@ -244,14 +244,14 @@ class ObjectType(logging_object.LoggingObject):
             ...
 
         For a description of the action sequence YAML format, see
-        :py:meth:`pygame_maker.actions.action_sequence.ActionSequence.load_sequence_from_yaml_obj`
+        :py:meth:`~pygame_maker.actions.action_sequence.ActionSequence.load_sequence_from_yaml_obj`
 
         :param yaml_stream: A file or stream containing the YAML string data
         :type yaml_stream: file-like
         :param game_engine: A reference to the main game engine
         :type game_engine: GameEngine
         :return: A new ObjectType with YAML-defined properties
-        :type: ObjectType
+        :type: :py:class:`ObjectType`
         """
         new_object_list = []
         yaml_repr = yaml.load(yaml_stream)
@@ -378,7 +378,7 @@ class ObjectType(logging_object.LoggingObject):
                 instance.visible = is_visible
 
     def to_yaml(self):
-        """Create the YAML representation for this object type."""
+        """Return the YAML string representing this object type."""
         yaml_str = "- {}:\n".format(self.name)
         yaml_str += "    visible: {}\n".format(self.visible)
         yaml_str += "    solid: {}\n".format(self.solid)
@@ -400,7 +400,7 @@ class ObjectType(logging_object.LoggingObject):
         following the update() call for the object.
 
         :param instance: The ObjectInstance of this type to be removed
-        :type instance: ObjectInstance
+        :type instance: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
         """
         # a simple list manages deletions
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
@@ -418,9 +418,9 @@ class ObjectType(logging_object.LoggingObject):
             instance will use this surface's width and height parameters to
             detect boundary collision events, which are queued in the event
             engine
-        :type screen: pygame.Surface
+        :type screen: :py:class:`pygame.Surface`
         :param settings: A hash of settings to be applied.  See kwargs entry
-            in :py:meth:`pygame_maker.actors.object_instance.ObjectInstance.__init__`
+            in :py:meth:`~pygame_maker.actors.object_instance.ObjectInstance.__init__`
         :type settings: dict
         :param kwargs: Keyword arguments, in addition to or as an alternative
             to the settings dict
@@ -523,7 +523,7 @@ class ObjectType(logging_object.LoggingObject):
         Call to draw all instances. The sprite group handles this for us.
 
         :param surface: The surface the object instances will be drawn upon
-        :type surface: pygame.Surface
+        :type surface: :py:class:`pygame.Surface`
         """
         self.debug("draw(surface={}):".format(surface))
         if (len(self.group) > 0) and self.visible:
@@ -543,9 +543,9 @@ class ObjectType(logging_object.LoggingObject):
         pixels in the image.
 
         :param orig_rect: The Rect from the image
-        :type orig_rect: pygame.Rect
+        :type orig_rect: :py:class:`pygame.Rect`
         :return: A new mask
-        :rtype: pygame.mask.Mask
+        :rtype: :py:class:`pygame.mask.Mask`
         """
         self.debug("create_rectangle_mask(orig_rect={}):".format(orig_rect))
         self.mask = pygame.mask.Mask( (orig_rect.width, orig_rect.height) )
@@ -559,9 +559,9 @@ class ObjectType(logging_object.LoggingObject):
         :param precise_mask: The precise mask for every opaque pixel in the
             image.  If the original image was circular, this can aid in
             creating in a more accurate circular mask
-        :type precise_mask: pygame.mask.Mask
+        :type precise_mask: :py:class:`pygame.mask.Mask`
         :param orig_rect: The Rect from the image
-        :type orig_rect: pygame.Rect
+        :type orig_rect: :py:class:`pygame.Rect`
         """
         self.debug("get_disk_radius(precise_mask={}, orig_rect={}):".format(precise_mask, orig_rect))
         # find the radius of a circle that contains bound_rect for the worst
@@ -610,9 +610,9 @@ class ObjectType(logging_object.LoggingObject):
         pixels in the image.
 
         :param orig_rect: The Rect from the image
-        :type orig_rect: pygame.Rect
+        :type orig_rect: :py:class:`pygame.Rect`
         :return: A new mask
-        :rtype: pygame.mask.Mask
+        :rtype: :py:class:`pygame.mask.Mask`
         """
         # create a disk mask with a radius sufficient to cover the
         #  opaque pixels
@@ -639,7 +639,7 @@ class ObjectType(logging_object.LoggingObject):
         Also, handle the collision type and create a collision mask.
 
         :return: A new pygame image, copied from the ObjectSprite resource
-        :rtype: pygame.image
+        :rtype: :py:class:`pygame.Surface`
         """
         self.debug("get_image():")
         if self.sprite_resource:
@@ -703,9 +703,9 @@ class ObjectType(logging_object.LoggingObject):
         created.
 
         :param action: The action with an "apply_to" field
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         :param event: The received event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("get_applied_instance_list(action={}, event={}):".format(action, event))
         apply_to_instances = []
@@ -737,10 +737,10 @@ class ObjectType(logging_object.LoggingObject):
         game engine, so those actions need to be routed properly as well.
 
         :param event: The event to be handled
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         :param targets: The event handler may pass in a list of target
             instances for the action sequence to operate on
-        :type event: array-like|None
+        :type event: array-like | None
         """
         self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
         if event.name in self.event_action_sequences:
@@ -777,7 +777,7 @@ class ObjectType(logging_object.LoggingObject):
         * outside_room
 
         :param event: The event generated by an ObjectInstance of this type
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_instance_event(event={}):".format(event))
         self.execute_action_sequence(event)
@@ -793,7 +793,7 @@ class ObjectType(logging_object.LoggingObject):
         watching for them, regardless of the XY coordinate.
 
         :param event: The mouse event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_mouse_event(event={}):".format(event))
         gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
@@ -811,7 +811,7 @@ class ObjectType(logging_object.LoggingObject):
         press/release).
 
         :param event: The keyboard event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_keyboard_event(event={}):".format(event))
         matched_seq = None
@@ -839,7 +839,7 @@ class ObjectType(logging_object.LoggingObject):
         attribute using the :py:meth:`__setitem__` interface.
 
         :param event: The collision event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_collision_event(event={}):".format(event))
         self.execute_action_sequence(event)
@@ -851,7 +851,7 @@ class ObjectType(logging_object.LoggingObject):
         on every instance.
 
         :param event: The step event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_step_event(event={}):".format(event))
         self.execute_action_sequence(event, targets=[inst for inst in self.group])
@@ -862,7 +862,7 @@ class ObjectType(logging_object.LoggingObject):
         exact alarm is handled by this object (one or more of alarms 0-11).
 
         :param event: The alarm event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_alarm_event(event={}):".format(event))
 
@@ -872,7 +872,7 @@ class ObjectType(logging_object.LoggingObject):
         it on to the instance recorded in the event.
 
         :param event: The object creation event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_create_event(event={}):".format(event))
         self.execute_action_sequence(event)
@@ -882,7 +882,7 @@ class ObjectType(logging_object.LoggingObject):
         Execute the action sequence associated with the destroy event.
 
         :param event: The destroy event
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_destroy_event(event={}):".format(event))
         self.execute_action_sequence(event)
@@ -920,7 +920,7 @@ class ObjectType(logging_object.LoggingObject):
         :param itemname: Name of an event
         :type itemname: str
         :return: An action sequence, or None
-        :rtype: None|ActionSequence
+        :rtype: None | :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
         """
         self.debug("__getitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
@@ -939,7 +939,7 @@ class ObjectType(logging_object.LoggingObject):
         :param itemname: Name of an event
         :type itemname: str
         :param val: New action sequence to apply to an event
-        :type val: ActionSequence
+        :type val: :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
         :raise: KeyError, if itemname is not a string
         :raise: ValueError, if val is not an ActionSequence
         """
@@ -961,7 +961,7 @@ class ObjectType(logging_object.LoggingObject):
 
     def __delitem__(self, itemname):
         """
-        Stop handling the named event, by removing its entry from the dict.
+        Remove the named event from the action sequence table.
 
         :param itemname: The name of the event to stop handling
         :type itemname: str

@@ -26,9 +26,9 @@ class Coordinate(object):
         Store an x, y coordinate.
 
         :param x: X component
-        :type x: int|float
+        :type x: int | float
         :param y: Y component
-        :type y: int|float
+        :type y: int | float
         :param x_change_callback: A callable to execute when the X component
             changes
         :type x_change_callback: callable
@@ -69,7 +69,7 @@ class Coordinate(object):
         :type itemkey: int
         :raise: IndexError if itemkey is not 0 or 1
         :return: The value of coordinate[0] or coordinate[1]
-        :rtype: int|float
+        :rtype: int | float
         """
         if itemkey == 0:
             return self.x
@@ -85,7 +85,7 @@ class Coordinate(object):
         :param itemkey: Must be 0 or 1
         :type itemkey: int
         :param value: New value for coordinate 0 or 1
-        :type value: int|float
+        :type value: int | float
         :raise: ValueError if value is not a Number
         :raise: IndexError if itemkey is not 0 or 1
         """
@@ -186,8 +186,8 @@ class ObjectInstance(logging_object.LoggingObject,
     * produce collision events
     * draw itself
 
-    As a pygame.sprite.DirtySprite subclass, instances support dirty,
-    blendmode, source_rect, visible, and layer attributes.
+    As a :py:class:`pygame.sprite.DirtySprite` subclass, instances support
+    dirty, blendmode, source_rect, visible, and layer attributes.
 
     As a subclass of LoggingObject, instances support debug(), info(),
     warning(), error(), and critical() methods.
@@ -196,14 +196,8 @@ class ObjectInstance(logging_object.LoggingObject,
         """
         Initialize an ObjectInstance.
 
-        As a pygame.sprite.DirtySprite subclass, instances support dirty,
-        blendmode, source_rect, visible, and layer attributes.
-
-        As a subclass of LoggingObject, instances support debug(), info(),
-        warning(), error(), and critical() methods.
-
         :param kind: The object type of this new instance
-        :type kind: ObjectType
+        :type kind: :py:class:`~pygame_maker.actors.object_type.ObjectType`
         :param screen_dims: Width, height of the surface this instance will be
             drawn to.  Allows boundary collisions to be detected.
         :type screen_dims: [int, int]
@@ -623,10 +617,10 @@ class ObjectInstance(logging_object.LoggingObject,
         * NONE: don't set the direction, just the speed
         * '|' separated list of possible directions to be chosen at
           random: UP, UPLEFT, UPRIGHT, RIGHT, DOWN, DOWNLEFT, DOWNRIGHT, LEFT
-          (see :py:attr:`pygame_maker.actions.action.Action.COMPASS_DIRECTIONS`)
+          (see :py:attr:`~pygame_maker.actions.action.Action.COMPASS_DIRECTIONS`)
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("set_velocity_compass(action={}):".format(action))
         # convert compass direction into degrees
@@ -652,7 +646,7 @@ class ObjectInstance(logging_object.LoggingObject,
         Handle the move_toward_point action.
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("move_toward_point(action={}):".format(action))
         if "destination" in action.action_data:
@@ -669,7 +663,7 @@ class ObjectInstance(logging_object.LoggingObject,
         Handle the set_horizontal_speed action.
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("set_horizontal_speed(action={}):".format(action))
         relative = False
@@ -691,7 +685,7 @@ class ObjectInstance(logging_object.LoggingObject,
         Handle the set_vertical_speed action.
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("set_vertical_speed(action={}):".format(action))
         relative = False
@@ -748,7 +742,7 @@ class ObjectInstance(logging_object.LoggingObject,
         (speed, direction, etc.).
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         :param keep_code_block: Specify whether the code block will be re-used,
             and so shouldn't be deleted after execution
         :type keep_code_block: bool
@@ -784,7 +778,7 @@ class ObjectInstance(logging_object.LoggingObject,
         global symbol table managed by the language engine.
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("if_variable_value(action={}):".format(action))
         # look in symbol tables for the answer, local table first
@@ -822,7 +816,7 @@ class ObjectInstance(logging_object.LoggingObject,
         Handle the set_variable_value action.
 
         :param action: The Action instance that triggered this method
-        :type action: Action (or subclass) instance
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("set_variable_value(action={}):".format(action))
         if action['is_global']:
@@ -842,9 +836,9 @@ class ObjectInstance(logging_object.LoggingObject,
         Perform an action in an action sequence, in response to an event.
 
         :param action: The Action instance that triggered this method
-        :type action: Action
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
         :param event: The Event instance that triggered this method
-        :type event: Event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         # Apply any setting names that match property names found in the
         #  action_data.  For some actions, this is enough.
