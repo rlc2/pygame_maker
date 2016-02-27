@@ -9,11 +9,18 @@
 import pygame
 import re
 
-class EventException(Exception):
+
+__all__ = ["Event", "AlarmEvent", "CollisionEvent", "DrawEvent", "KeyEvent",
+           "MouseEvent", "ObjectStateEvent", "OtherEvent", "StepEvent",
+           "UnknownEventError"]
+
+
+class UnknownEventError(Exception):
     pass
 
+
 class Event(object):
-    """Base class for events"""
+    """Base class for events."""
     HANDLED_EVENTS=[]
 
     event_type_registry = []
@@ -21,37 +28,91 @@ class Event(object):
     @classmethod
     def register_new_event_type(cls, eventtype):
         """
-            Register a class (at init time) to make it possible to search
-            through them for a particular action name
+        Register a class (at init time) to make it possible to search through
+        them for a particular action name.
+
+        :param eventtype: A subclass for registration
+        :type eventtype: Event
         """
         cls.event_type_registry.append(eventtype)
 
     @classmethod
     def find_event_by_name(cls, event_name):
+        """
+        Answer whether the event class handles the named event.
+
+        :param event_name: The name of an event
+        :type event_name: str
+        :return: True if the event is handled, False otherwise
+        :rtype: bool
+        """
         if event_name in cls.HANDLED_EVENTS:
             return True
         return False
 
     @classmethod
-    def get_event_instance_by_event_name(cls, event_name, event_params={}):
+    def get_event_instance_by_event_name(cls, event_name, event_params=None):
+        """
+        Return an event instance of the right type, by searching for the
+        event type in the registry.  Event parameters may be applied to the
+        returned instance.
+
+        :param event_name: The name of the new event instance
+        :type event_name: str
+        :param event_params: A dict containing parameters to apply to the new
+            instance, or None
+        :type event_params: dict|None
+        :return: A new event instance
+        :raise: UnknownEventError if the named event is not found
+        """
+        instance_params = {}
+        if event_params is not None:
+            instance_params.update(event_params)
         if len(cls.event_type_registry) > 0:
             for atype in cls.event_type_registry:
                 if atype.find_event_by_name(event_name):
-                    return atype(event_name, event_params)
+                    return atype(event_name, instance_params)
         # no event type handles the named event
-        raise EventException("Event '{}' is unknown".format(event_name))
+        raise UnknownEventError("Event '{}' is unknown".format(event_name))
 
-    def __init__(self, event_name="", event_params={}):
+    def __init__(self, event_name="", event_params=None):
+        """
+        Create a new Event instance.  Meant to be called by subclasses.
+
+        :param event_name: The event's name
+        :type event_name: str
+        :param event_params: A dict containing the new event's parameters, or
+            None
+        :type event_params: dict|None
+        """
         self.name = event_name
-        self.event_params = event_params
+        ev_params = {}
+        if event_params is not None:
+            ev_params.update(event_params)
+        self.event_params = ev_params
 
     def __getitem__(self, item_name):
+        """
+        Retrieve an event parameter from the event_params attribute.
+
+        :param item_name: A parameter name
+        :type item_name: str
+        :return: The contents of the named parameter, if found
+        :raise: KeyError if the named parameter isn't found
+        """
         if item_name in self.event_params:
             return self.event_params[item_name]
         else:
-            return None
+            raise KeyError("No parameter '{}' found in event")
 
     def __setitem__(self, item_name, val):
+        """
+        Set an event parameter in the event_params attribute.
+
+        :param item_name: A parameter name
+        :type item_name: str
+        :param val: The parameter's new value
+        """
         self.event_params[item_name] = val
 
     def repr_event_strings(self):
@@ -71,41 +132,72 @@ class Event(object):
             self.name, self.repr_event_strings()))
 
 class ObjectStateEvent(Event):
+    """Wrap object state events."""
     OBJECT_STATE_EVENTS=[
         "create",
         "destroy"
     ]
+    #: Complete list of object state event names
     HANDLED_EVENTS=OBJECT_STATE_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create an ObjectStateEvent instance with the given name and parameters.
+
+        :param event_name: The name of an ObjectStateEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("ObjectStateEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("ObjectStateEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class AlarmEvent(Event):
+    """Wrap alarm events."""
     ALARM_COUNT=12
-    ALARM_EVENTS=["alarm{}".format(n) for n in range(0,ALARM_COUNT)]
+    ALARM_EVENTS=["alarm{:d}".format(n) for n in range(0,ALARM_COUNT)]
+    #: Complete list of alarm event names
     HANDLED_EVENTS=ALARM_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create an AlarmEvent instance with the given name and parameters.
+
+        :param event_name: The name of an AlarmEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("AlarmEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("AlarmEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class StepEvent(Event):
+    """Wrap step events."""
     STEP_EVENTS=[
         "normal_step",
         "begin_step",
         "end_step"
     ]
+    #: Complete list of step event names
     HANDLED_EVENTS=STEP_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create a StepEvent instance with the given name and parameters.
+
+        :param event_name: The name of a StepEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("StepEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("StepEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class MouseEvent(Event):
+    """Wrap mouse events."""
     MOUSE_EVENTS=[
         "mouse_button_left",
         "mouse_button_right",
@@ -140,14 +232,24 @@ class MouseEvent(Event):
         "mouse_global_wheelup",
         "mouse_global_wheeldown"
     ]
+    #: Complete list of mouse events
     HANDLED_EVENTS=MOUSE_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create a MouseEvent instance with the given name and parameters.
+
+        :param event_name: The name of a MouseEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("MouseEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("MouseEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class OtherEvent(Event):
+    """Wrap miscellaneous events."""
     OTHER_EVENTS=[
         "outside_room",
         "intersect_boundary",
@@ -171,34 +273,54 @@ class OtherEvent(Event):
         "image_loaded",
         "sound_loaded"
     ]
+    #: Complete list of 'other' events
     HANDLED_EVENTS=OTHER_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create an OtherEvent instance with the given name and parameters.
+
+        :param event_name: The name of an OtherEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("OtherEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("OtherEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class DrawEvent(Event):
+    """Wrap draw events."""
     DRAW_EVENTS=[
         "draw",
         "gui",
         "resize"
     ]
+    #: Complete list of draw events
     HANDLED_EVENTS=DRAW_EVENTS
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create a DrawEvent instance with the given name and parameters.
+
+        :param event_name: The name of a DrawEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         if not event_name in self.HANDLED_EVENTS:
-            raise EventException("DrawEvent: Unknown event '{}'".format(event_name))
+            raise UnknownEventError("DrawEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
 class KeyEvent(Event):
-    ARROW_KEYS=[
+    """Wrap keyboard events."""
+    ARROW_KEYS = [
         "kb_left",
         "kb_right",
         "kb_up",
         "kb_down",
     ]
-    META_KEYS=[
+    META_KEYS = [
         "kb_lctrl",
         "kb_rctrl",
         "kb_lalt",
@@ -210,7 +332,7 @@ class KeyEvent(Event):
         "kb_lsuper",
         "kb_rsuper"
     ]
-    KEYPAD_KEYS=[
+    KEYPAD_KEYS = [
         "kb_np0",
         "kb_np1",
         "kb_np2",
@@ -229,7 +351,7 @@ class KeyEvent(Event):
         "kb_np=",
         "kb_npenter",
     ]
-    PUNCTUATION_KEYS=[
+    PUNCTUATION_KEYS = [
         "kb_,",
         "kb_.",
         "kb_/",
@@ -242,10 +364,10 @@ class KeyEvent(Event):
         "kb_`",
         "kb_\\"
     ]
-    DIGIT_KEYS=["kb_{}".format(str(k)) for k in range(0,10)]
-    LETTER_KEYS=["kb_{}".format(chr(l)) for l in range(65, 65+26)]
-    FUNCTION_KEYS=["kb_F{}".format(n) for n in range(1,13)]
-    OTHER_KEYS=[
+    DIGIT_KEYS = ["kb_{}".format(str(k)) for k in range(0,10)]
+    LETTER_KEYS = ["kb_{}".format(chr(l)) for l in range(65, 65+26)]
+    FUNCTION_KEYS = ["kb_F{:d}".format(n) for n in range(1,13)]
+    OTHER_KEYS = [
         "kb_no_key",
         "kb_any_key",
         "kb_space",
@@ -259,7 +381,7 @@ class KeyEvent(Event):
         "kb_delete",
         "kb_insert"
     ]
-    KEYBOARD_EVENT_KEY_CATEGORIES={
+    KEYBOARD_EVENT_KEY_CATEGORIES = {
         "arrows":   ARROW_KEYS,
         "meta":     META_KEYS,
         "keypad":   KEYPAD_KEYS,
@@ -268,10 +390,12 @@ class KeyEvent(Event):
         "function": FUNCTION_KEYS,
         "other":    OTHER_KEYS
     }
-    KEY_EVENTS=(ARROW_KEYS + META_KEYS + KEYPAD_KEYS + DIGIT_KEYS +
-        LETTER_KEYS + PUNCTUATION_KEYS + FUNCTION_KEYS + OTHER_KEYS)
+    #: Complete list of keyboard events
+    KEY_EVENTS = (ARROW_KEYS + META_KEYS + KEYPAD_KEYS + PUNCTUATION_KEYS +
+                  DIGIT_KEYS + LETTER_KEYS + PUNCTUATION_KEYS + FUNCTION_KEYS +
+                  OTHER_KEYS)
 
-    PYGAME_KEY_TO_KEY_EVENT_MAP={
+    PYGAME_KEY_TO_KEY_EVENT_MAP = {
         pygame.K_COMMA       :  "kb_,",
         pygame.K_PERIOD      :  "kb_.",
         pygame.K_SLASH       :  "kb_/",
@@ -373,8 +497,12 @@ class KeyEvent(Event):
         pygame.K_F11         :  "kb_F11",
         pygame.K_F12         :  "kb_F12"
     }
-    KEYBOARD_UP_SUFFIX = re.compile("(.*)(_keyup)$")
-    KEYBOARD_DOWN_SUFFIX = re.compile("(.*)(_keydn)$")
+    #: Append this string to the event name, to specify key release
+    KEYBOARD_UP_SUFFIX = "_keyup"
+    KEYBOARD_UP_SUFFIX_RE = re.compile("(.*)({})$".format(KEYBOARD_UP_SUFFIX))
+    #: Append this string to the event name, to specify key press
+    KEYBOARD_DOWN_SUFFIX = "_keydn"
+    KEYBOARD_DOWN_SUFFIX_RE = re.compile("(.*)({})$".format(KEYBOARD_DOWN_SUFFIX))
     HANDLED_EVENTS=KEY_EVENTS
 
     @classmethod
@@ -382,8 +510,8 @@ class KeyEvent(Event):
         # check for a suffix
         key_event_type = None
         base_event_name = ""
-        up_minfo = cls.KEYBOARD_UP_SUFFIX.search(event_name)
-        dn_minfo = cls.KEYBOARD_DOWN_SUFFIX.search(event_name)
+        up_minfo = cls.KEYBOARD_UP_SUFFIX_RE.search(event_name)
+        dn_minfo = cls.KEYBOARD_DOWN_SUFFIX_RE.search(event_name)
         if up_minfo:
             base_event_name = up_minfo.group(1)
             key_event_type = "up"
@@ -394,23 +522,41 @@ class KeyEvent(Event):
             # default to key down
             base_event_name = str(event_name)
             key_event_type = "down"
-        if not (base_event_name in cls.HANDLED_EVENTS):
-            raise (EventException("KeyEvent: key named '{}' unknown".format(base_event_name)))
+        if base_event_name not in cls.HANDLED_EVENTS:
+            raise (UnknownEventError("KeyEvent: key named '{}' unknown".format(base_event_name)))
         if len(base_event_name) == 0:
-            raise EventException("KeyEvent: '{}' is invalid".format(event_name))
+            raise UnknownEventError("KeyEvent: '{}' is invalid".format(event_name))
         else:
             event_info = (base_event_name, key_event_type)
         return event_info
 
     @classmethod
     def find_event_by_name(cls, event_name):
+        """
+        Override the base class method
+        :py:meth:`Event.find_event_by_name`, which doesn't handle the keyup or
+        keydown suffixes.
+
+        :param event_name: The name of a keyboard event
+        :type event_name: str
+        :return: True if the event is known, False otherwise
+        :rtype: bool
+        """
         try:
             ev_info = cls.find_key_event(event_name)
-        except EventException:
+        except UnknownEventError:
             return False
         return True
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
+        """
+        Create a KeyEvent instance with the given name and parameters.
+
+        :param event_name: The name of an KeyEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
+        """
         self.key_event_type = "up"
         Event.__init__(self, event_name, event_params)
         ev_info = self.find_key_event(event_name)
@@ -422,6 +568,8 @@ class KeyEvent(Event):
             self.name, self.key_event_type, self.repr_event_strings()))
 
 class CollisionEvent(Event):
+    """Wrap collision events."""
+    #: All collision events start with this prefix
     HANDLED_EVENTS=["collision"]
 
     COLLISION_RE=re.compile("collision_(.+)")
@@ -434,23 +582,38 @@ class CollisionEvent(Event):
         if minfo:
             obj_name = minfo.group(1)
         else:
-            raise EventException("CollisionEvent: Invalid event '{}'".format(event_name))
+            raise UnknownEventError("CollisionEvent: Invalid event '{}'".format(event_name))
         ev_info = (ev_name, obj_name)
         return ev_info
 
     @classmethod
     def find_event_by_name(cls, event_name):
+        """
+        Override the base class find_event_by_name, since the collision event
+        name is really just a prefix.
+
+        :param event_name: The name of a collision event
+        :type event_name: str
+        :return: True if the event name
+        """
         try:
             ev_info = cls.find_collision_event(event_name)
-        except EventException:
+        except UnknownEventError:
             return False
         return True
 
-    def __init__(self, event_name, event_params={}):
+    def __init__(self, event_name, event_params=None):
         """
-            CollisionEvent name must match the pattern:
-            "collision_<objname>". The presence of an object objname is not
-            checked.
+        Create a CollisionEvent instance with the given name and parameters.
+
+        CollisionEvent name must match the pattern:
+        "collision_<``objname``>". The existence of an object type matching
+        ``objname`` is not checked.
+
+        :param event_name: The name of a CollisionEvent
+        :type event_name: str
+        :param event_params: A dict containing the event's parameters, or None
+        :type event_params: dict|None
         """
         Event.__init__(self, event_name, event_params)
         ev_info = CollisionEvent.find_collision_event(event_name)
@@ -469,4 +632,3 @@ Event.register_new_event_type(OtherEvent)
 Event.register_new_event_type(DrawEvent)
 Event.register_new_event_type(KeyEvent)
 Event.register_new_event_type(CollisionEvent)
-
