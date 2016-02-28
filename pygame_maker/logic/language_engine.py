@@ -53,40 +53,59 @@ import sys
 from ..support import logging_object
 import run_time_support
 
-class LanguageEngineException(logging_object.LoggingException):
+
+class DuplicateCodeBlockError(logging_object.LoggingException):
     pass
 
-class CodeBlockException(logging_object.LoggingException):
+
+class UnknownCodeBlockError(logging_object.LoggingException):
     pass
+
+
+class OpStackOverflowError(logging_object.LoggingException):
+    pass
+
+
+class OpStackUnderflowError(logging_object.LoggingException):
+    pass
+
 
 class SymbolTable(object):
+    """
+    Store symbols used by the language engine.  Store variables and constants
+    separately; don't allow constants to change once defined.
+
+    The language engine makes use of symbol tables when running the interpreted
+    language code.  Symbol tables support both constants and variables.  An
+    initial set of variables can be passed into initial_symbols.  A callback,
+    if specified in sym_change_callback, will be called whenever a symbol
+    changes.  The callback will be expected to have the signature
+    callback(sym_name, new_value).
+    """
+    #: Any unknown symbol receives this value, to help with debugging
     DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
-    def __init__(self, initial_symbols={}, sym_change_callback=None):
+    def __init__(self, initial_symbols=None, sym_change_callback=None):
         """
-            SymbolTable __init__():
-            The language engine makes use of symbol tables when running the
-             interpreted language code. Symbol tables support both constants
-             and variables. An initial set of variables can be passed into
-             initial_symbols. A callback, if specified in sym_change_callback,
-             will be called whenever a symbol changes. The callback will be
-             expected to have the signature callback(sym_name, new_value).
-            Parameters:
-             sym_change_callback (method ref): The callback to execute whenever
-              the interpreted language changes a symbol's value.
-             initial_symbols (dict): The initial contents to place in the
-              variables portion of the symbol table.
+        Initialize a new symbol table.
+
+        :param initial_symbols: The initial contents to place in the
+            variables section of the symbol table
+        :type initial_symbols: dict
+        :param sym_change_callback: An optional callback to execute whenever
+            the interpreted language changes a symbol's value
+        :type sym_change_callback: callable
         """
         self.vars = {}
-        self.vars.update(initial_symbols)
+        if initial_symbols is not None:
+            self.vars.update(initial_symbols)
         self.sym_change_callback = sym_change_callback
         self.consts = {}
 
-    def dumpVars(self):
+    def dump_vars(self):
         """
-            dumpVars():
-            For debugging, dump the contents of the symbol table. List
-             constants and variables separately.
+        For debugging, dump the contents of the symbol table.  List constants
+        and variables separately.
         """
         constlist = list(self.consts.keys())
         constlist.sort()
@@ -100,9 +119,23 @@ class SymbolTable(object):
             print("{} = {}".format(var, self.vars[var]))
 
     def keys(self):
+        """
+        Return the list of all symbols, whether constants or variables.
+
+        :return: Symbol list
+        :rtype: list
+        """
         return self.vars.keys() + self.consts.keys()
 
     def __setitem__(self, item, val):
+        """
+        Set a variable to a new value.  Don't allow constants to be written
+        this way.
+
+        :param item: The symbol to set
+        :type item: str
+        :param val: The symbol's new value
+        """
         #print("Setting {} to {}".format(item, val))
         # don't allow constants to be written this way
         if not item in self.consts:
@@ -111,6 +144,14 @@ class SymbolTable(object):
                 self.sym_change_callback(item, val)
 
     def __getitem__(self, item):
+        """
+        Retrieve a symbol's value.  If not found, return the uninitialized
+        value.
+
+        :param item: The symbol to find the value of
+        :type item: str
+        :return: The symbol's value
+        """
         new_val = self.DEFAULT_UNINITIALIZED_VALUE
         if item in self.consts:
             new_val = self.consts[item]
@@ -119,26 +160,33 @@ class SymbolTable(object):
         #print("Retrieve item {}: {}".format(item, new_val))
         return new_val
 
-    def setConstant(self, constant_name, constant_value):
+    def set_constant(self, constant_name, constant_value):
         """
-            setConstant():
-            Called from within the game engine to set values that can be
-             read from, but not written to, by user code
+        Called from within the game engine to set values that can be read from,
+        but not written to, by user code.
+
+        User code doesn't (yet) have a way to create constants.
+
+        :param constant_name: The constant's name
+        :type constant_name: str
+        :param constant_value: The constant's value
         """
         self.consts[constant_name] = constant_value
 
 class CodeBlock(logging_object.LoggingObject):
     """
-        CodeBlock class:
-        Helper class that is created by the CodeBlockGenerator class method,
-        that collects the infix form of source code in the C-like language
-        supported by the language engine and converts it to a more readily
-        executable postfix form. Because of the generator's constraints (the
-        pyparsing function re-uses the same object for every parsing run), this
-        class supports deep copying. Optionally, the abstract syntax tree (AST)
-        can be stored within the object.
+    Helper class that is created by the CodeBlockGenerator class method, that
+    collects the infix form of source code in the C-like language supported by
+    the language engine and converts it to a more readily executable postfix
+    form. Because of the generator's constraints (the pyparsing function re-
+    uses the same object for every parsing run), this class supports deep
+    copying.  Optionally, the abstract syntax tree (AST) can be stored within
+    the object.
+
+    PyParsing API documentation can be found at:
+    http://pythonhosted.org/pyparsing/
     """
-    OPERATOR_FUNCTIONS={
+    OPERATOR_FUNCTIONS = {
         "operator.add": ["number", "number"],
         "operator.sub": ["number", "number"],
         "operator.mul": ["number", "number"],
@@ -194,18 +242,25 @@ class CodeBlock(logging_object.LoggingObject):
     GLOBAL_RE=re.compile("^__")
     RETURN_RE=re.compile("  return ")
 
-    def __init__(self, name, module_context, funcmap={}, astree=None):
+    def __init__(self, name, module_context, funcmap=None, astree=None):
         """
-            __init__():
-            name: The name assigned to this code block
-            module_context: A new module for the Python blocks to be loaded into
-            optional args:
-             funcmap: A dict with <function_name>: [arg_type1, .., arg_typeN]
-              entries, representing the external function table made available
-              to the code block. Void argument lists can be represented with an
-              empty list. The number and type of arguments supplied assist with
-              syntax checking.
-             astree: the abstract syntax tree produced by pyparsing
+        Initialize a new code block.
+
+        A function map, if supplied, represents the external function table
+        made available to the code block.  Void argument lists can be
+        represented with an empty list.  The number and type of arguments
+        supplied assist with syntax checking.
+
+        :param name: The name assigned to this code block
+        :type name: str
+        :param module_context: A new module for the Python blocks to be loaded
+            into
+        :type module_context: imp.new_module
+        :param funcmap: A dict with <function_name>: [arg_type1, .., arg_typeN]
+            entries
+        :type funcmap: dict
+        :param astree: the abstract syntax tree produced by pyparsing (stored
+            in an attribute, but not currently used)
         """
         super(CodeBlock, self).__init__(type(self).__name__)
         self.name = name
@@ -217,32 +272,44 @@ class CodeBlock(logging_object.LoggingObject):
         self.scratch = []
         self.inner_block_count = 0
         self.func_name = None
-        self.functionmap = dict(funcmap)
+        self.functionmap = {}
+        self.function_name = ''
+        if funcmap is not None:
+            self.functionmap.update(funcmap)
         self.astree = astree
 
-    def addToFuncMap(self, func_map):
+    def add_to_func_map(self, func_map):
         """
-            addToFuncMap()
-            Supply a dict for <function_name>: [arg_type1, .., arg_typeN]
-             entries. This helps the syntax check phase know how many args
-             to expect. Later, the arg type list can be checked to make sure
-             that supplied argument types match the function call signature.
+        Supply a dict for <function_name>: [arg_type1, .., arg_typeN] entries.
+        This helps the syntax check phase know how many args to expect.  Later,
+        the arg type list can be checked to make sure that supplied argument
+        types match the function call signature.
+
+        :param func_map: The dict containing function name to argument type
+            list mappings
+        :type func_map: dict
         """
-        self.debug("addToFuncMap({})".format(func_map))
+        self.debug("add_to_func_map({})".format(str(func_map)))
         self.functionmap.update(func_map)
 
-    def pushAssignment(self, parsestr, loc, toks):
+    def push_assignment(self, parsestr, loc, toks):
         """
-            pushAssignment():
-            When the parser finds a assignment match, the assignee and '='
-             operator need to be added here, since the parser won't add these
-             itself. Push these and the right-hand side of the assignment
-             (which were already collected in self.scratch) onto the current
-             stack. '=' will always go at the end. An optional "global" keyword
-             can precede the asignee, to make it part of the global symbol
-             table.
+        Append an assignment operation to the current block.
+
+        When the parser finds a assignment match, the assignee and '='
+        operator need to be added here, since the parser won't add these
+        itself.  Push these and the right-hand side of the assignment (which
+        were already collected in self.scratch) onto the current stack.  '='
+        will always go at the end.  An optional ``global`` keyword can precede
+        the asignee, to make it part of the global symbol table.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushAssignment(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_assignment(<code str>, loc={}, toks={}):".format(loc, toks))
         assign_list = []
         global_prefix = ""
         for assign_tok in toks.asList():
@@ -260,25 +327,33 @@ class CodeBlock(logging_object.LoggingObject):
         self.debug("  assignment: {}".format(self.stack[-1]))
         self.scratch = []
 
-    def pushConditionalBlock(self, parsestr, loc, toks):
+    def push_conditional_block(self, parsestr, loc, toks):
         """
-            pushConditionalBlock():
-            When the parser matches a conditional's block, it's time to close
-             it (the instructions were already collected on the current stack).
-             Keep track here of the block level decrement, either from a child
-             inner-node up to its parent, or the top-most inner block up to the
-             outer block. Push a copy of the child inner node onto its parent's
-             stack. This method changes the stack reference.
+        Insert a new conditional block into its container block.  Keep track of
+        nesting.
+
+        When the parser matches a conditional's block, it's time to close it
+        (the instructions were already collected on the current stack).  Keep
+        track here of the block level decrement, either from a child inner-node
+        up to its parent, or the top-most inner block up to the outer block.
+        Push a copy of the child inner node onto its parent's stack.  This
+        method changes the stack reference.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushConditionalBlock(<code str>, loc={}, toks={}):".format(loc, toks))
-        if (self.inner_block_count > 1):
+        self.debug("push_conditional_block(<code str>, loc={}, toks={}):".format(loc, toks))
+        if self.inner_block_count > 1:
             #print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
             self.inner_block_count -= 1
             #print("append to {}".format(self.inner_blocks[self.inner_block_count-1]))
             self.inner_blocks[self.inner_block_count-1].append(list(self.stack))
-            self.debug("  stack now points to inner block #{}".format(self.inner_block_count-1))
+            self.debug("  stack now points to inner block #{:d}".format(self.inner_block_count-1))
             self.stack = self.inner_blocks[self.inner_block_count-1]
-            self.debug("  delete inner_blocks[{}]".format(self.inner_block_count))
+            self.debug("  delete inner_blocks[{:d}]".format(self.inner_block_count))
             del(self.inner_blocks[self.inner_block_count])
         else:
             #print("inner block #0\n{}".format(self.stack))
@@ -289,29 +364,35 @@ class CodeBlock(logging_object.LoggingObject):
             self.stack = self.frame
             self.debug("  stack now points to outer block")
 
-    def pushIfCond(self, parsestr, loc, toks):
+    def push_if_cond(self, parsestr, loc, toks):
         """
-            pushIfCond():
-            When the parser matches if/elseif/else keywords, anticipate that
-             a new block will be added. Increment the block level -- either
-             outer block to topmost inner block, or parent inner block to
-             child inner block. This is optimistic, since the parser might
-             not recognize the pattern following the keyword, but that signals
-             a syntax error, at which point the stack level will be moot.
-             Collect the keyword name and push it onto the parent's stack.
-             This method changes the stack reference.
+        Create a new block for a conditional.
+
+        When the parser matches if/elseif/else keywords, anticipate that a new
+        block will be added. Increment the block level -- either outer block to
+        topmost inner block, or parent inner block to child inner block.  This
+        is optimistic, since the parser might not recognize the pattern
+        following the keyword, but that signals a syntax error, in which case
+        the stack level is moot.  Collect the keyword name and push it onto the
+        parent's stack.  This method changes the stack reference.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
         #print("push {}".format(toks.asList()))
-        self.debug("pushIfCond(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_if_cond(<code str>, loc={}, toks={}):".format(loc, toks))
         if_statement = ""
         for tok in toks:
             if_statement = "_{}".format(tok)
             self.debug("  push if statement: {}".format(if_statement))
             break
         container_block = self.frame
-        if (self.inner_block_count > 0):
+        if self.inner_block_count > 0:
             container_block = self.inner_blocks[-1]
-            self.debug("  container: inner block #{}".format(self.inner_block_count-1))
+            self.debug("  container: inner block #{:d}".format(self.inner_block_count-1))
         else:
             self.debug("  container: outer block")
             pass
@@ -319,50 +400,63 @@ class CodeBlock(logging_object.LoggingObject):
         #print("outer block is now:\n{}".format(self.outer_block))
         self.inner_block_count += 1
         self.inner_blocks.append([])
-        self.debug("  stack now points at inner block #{}".format(self.inner_block_count-1))
+        self.debug("  stack now points at inner block #{:d}".format(self.inner_block_count-1))
         self.stack = self.inner_blocks[-1]
 
-    def pushComparison(self, parsestr, loc, toks):
+    def push_comparison(self, parsestr, loc, toks):
         """
-            pushComparison():
-            When the parser matches a comparison, push it onto the current
-             stack.
+        When the parser matches a comparison, push it onto the current stack.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushComparison(<code str>, loc={}, toks={}):".format(loc, toks))
-        self.debug("  append comparison {} to stack".format(self.scratch))
+        self.debug("push_comparison(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("  append comparison {} to stack".format(str(self.scratch)))
         self.stack.append(list(self.scratch))
         self.scratch = []
 
-    def countFunctionArgs(self, parsestr, loc, toks):
+    def count_function_args(self, parsestr, loc, toks):
         """
-            countFunctionArgs():
-            This is where the parser needs help, since it has no idea how many
-             args a function expects. The external function table in
-             functionmap is checked against the supplied function name to
-             determine its argument count. Unfortunately, in the case where
-             function results are placed directly into function args, the
-             whole mess appears in the toks list. The saving grace is that
-             functions are checked from inner -> outer, so it's possible to
-             skip over later toks containing function names, assuming that
-             their argument lists will be checked separately. This still
-             implies that the other functions in the list need to be checked
-             to find out how many args will be skipped (and even then, it's
-             only important for functions that have more than 1 arg, since
-             the arg count is based on how many ','s are found).
-             TODO: Argument type-checking. Assume this is as simple as number
-              vs. string, and strings aren't supported yet.
+        Count the arguments supplied in a function call.  Throw an exception
+        if the count doesn't match the function signature.
+
+        This is where the parser needs help, since it has no idea how many args
+        a function expects.  The external function table in functionmap is
+        checked against the supplied function name to determine its argument
+        count.  Unfortunately, in the case where function results are placed
+        directly into function args, the whole mess appears in the ``toks``
+        list.  The saving grace is that functions are checked from inner ->
+        outer, so it's possible to skip over later ``toks`` containing function
+        names, assuming that their argument lists will be checked separately.
+        This still implies that the other functions in the list need to be
+        checked to find out how many args will be skipped (and even then, it's
+        only important for functions that have more than 1 arg, since the arg
+        count is based on how many ','s are found).
+
+        TODO: Argument type-checking. Assume this is as simple as number vs.
+        string, and strings aren't supported yet.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
+        :raise: ParseFatalException for function call errors
         """
         #print("function w/ args: {}".format(toks))
         # assume embedded function calls have been validated, just skip
         #  them to count the args in the outer function call
-        self.debug("countFunctionArgs(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("count_function_args(<code str>, loc={}, toks={}):".format(loc, toks))
         func_call = False
         func_name = ""
         skip_count = 0
         arg_count = 0
         tok_idx = 0
         for tok in toks:
-            if (tok_idx == 0):
+            if tok_idx == 0:
                 if tok in self.functionmap:
                     func_call = True
                     func_name = str(tok)
@@ -372,7 +466,6 @@ class CodeBlock(logging_object.LoggingObject):
                     # unknown function encountered
                     self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
                     raise(ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok)))
-                    break
             if func_call:
                 if arg_count == 0:
                     arg_count = 1
@@ -407,13 +500,21 @@ class CodeBlock(logging_object.LoggingObject):
                 self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
                 raise(ParseFatalException(parsestr, loc=loc, msg="Too many arguments to function \"{}\"".format(func_name)))
 
-    def pushFuncArgs(self, parsestr, loc, toks):
+    def push_func_args(self, parsestr, loc, toks):
         """
-            pushFuncArgs():
-            Collect the function name and arguments from a function definition.
-            Validate the argument types. Create a new block within the
-            functionmap and point the frame at it, so future constructs will be
-            placed in the function.
+        Collect the function name and arguments from a function definition.
+
+        Validate the argument types.  Create a new block within the functionmap
+        and point the frame at it, so future constructs will be placed in the
+        function.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
+        :raise: ParseFatalException if the function already exists, has
+            invalid argument types, or has anything following ``void``
         """
         self.debug("pushFunctionArgs(<code str>, loc={}, toks={}):".format(loc, toks))
         func_name = None
@@ -446,7 +547,7 @@ class CodeBlock(logging_object.LoggingObject):
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
                         arg_with_type = None
-        self.debug("  Function args: {}".format(arg_list))
+        self.debug("  Function args: {}".format(str(arg_list)))
         if arg_list[0]["type"] != "void":
             self.functionmap[func_name] = { "arglist": arg_list }
         else:
@@ -457,18 +558,23 @@ class CodeBlock(logging_object.LoggingObject):
         self.frame = self.functionmap[func_name]["block"]
         self.function_name = func_name
 
-    def pushFuncBlock(self, parsestr, loc, toks):
+    def push_func_block(self, parsestr, loc, toks):
         """
-            Take the current function block frame and reduce it, before
-            switching the frame back to the outer_block.
+        Take the current function block frame and reduce it, before switching
+        the frame back to the outer_block.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
         # reduce the function source
-        self.debug("pushFuncBlock(<code str>, loc={}, toks={}):".format(loc, toks))
-        self.reduceBlock(self.frame)
+        self.debug("push_func_block(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.reduce_block(self.frame)
         func_loc = [0,0]
-        param_list = [ fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
-        function_body = self.toPythonBlock(self.frame, func_loc,
-            self.function_name)
+        param_list = [fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
+        function_body = self.to_python_block(self.frame, func_loc, self.function_name)
         param_list.append("count=0")
         func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name, ",".join(param_list))]
         func_lines += [
@@ -478,9 +584,9 @@ class CodeBlock(logging_object.LoggingObject):
         func_lines += function_body
         ret_minfo = self.RETURN_RE.match(func_lines[-1])
         if not ret_minfo:
-            # force all functions to return a value. if the final line is
-            #  not a return, return the "uninitialized" value
-            func_lines.append("  return {}".format(-sys.maxint - 1))
+            # Force all functions to return a value.  If the final line is
+            #  not 'return', return the "uninitialized" value
+            func_lines.append("  return {:d}".format(-sys.maxint - 1))
         function_code = "\n".join(func_lines)
         self.info("  Function code:\n{}".format(function_code))
         self.functionmap[self.function_name]['compiled'] = compile(function_code,
@@ -490,22 +596,27 @@ class CodeBlock(logging_object.LoggingObject):
         self.stack = self.outer_block
         self.frame = self.outer_block
 
-    def pushAtom(self, parsestr, loc, toks):
+    def push_atom(self, parsestr, loc, toks):
         """
-            pushAtom():
-            When the parser finds an "atom": PI, e, a number, a function call,
-            a '(' ')' delimited expression, or bare identifier, it will be
-            pushed onto scratch. A copy of the scratch list is later pushed
-            onto the current stack reference when a grouping is found
-            (an assignment or conditional block).
+        When the parser finds an "atom": PI, e, a number, a function call, a
+        '(' ')' delimited expression, or bare identifier, it will be pushed
+        onto a scratch list.  A copy of the scratch list is later pushed onto
+        the current stack reference when a logical grouping is found (an
+        assignment statement or conditional block).
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushAtom(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_atom(<code str>, loc={}, toks={}):".format(loc, toks))
         tok_n = 0
         add_not = False
         add_tok = None
         for tok in toks:
-            if (tok_n == 0):
-                if (tok == 'not'):
+            if tok_n == 0:
+                if tok == 'not':
                     add_not = True
                     tok_n += 1
                     continue
@@ -521,7 +632,7 @@ class CodeBlock(logging_object.LoggingObject):
         #print("atom: {}".format(toks.asList()))
         if func_call:
             self.scratch += infix_to_postfix.convert_infix_to_postfix([add_tok],
-                self.OPERATOR_REPLACEMENTS)
+                                                                      self.OPERATOR_REPLACEMENTS)
             if add_not:
                 self.scratch.append("operator.not_")
         else:
@@ -531,57 +642,72 @@ class CodeBlock(logging_object.LoggingObject):
                 self.OPERATOR_REPLACEMENTS)
         #print("scratch is now: {}".format(self.scratch))
 
-    def pushFirst(self, parsestr, loc, toks):
+    def push_first(self, parsestr, loc, toks):
         """
-            pushFirst():
-            When the parser finds an operator ('^', '*', "/", "%", "+", "-",
-            "<", "<=", ">", ">=", "==", "!="), this is called to place it onto
-            scratch, using the converter to rename it to an actual python
-            method.
+        When the parser finds an operator ('^', '*', "/", "%", "+", "-", "<",
+        "<=", ">", ">=", "==", "!="), this is called to place it onto a
+        scratch list, using operator replacements to rename it to an actual
+        python method.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
         #print("pre-op: {}".format(toks.asList()))
-        self.debug("pushFirst(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_first(<code str>, loc={}, toks={}):".format(loc, toks))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
             self.OPERATOR_REPLACEMENTS)
-        self.debug("  op + scratch is now: {}".format(self.scratch))
+        self.debug("  op + scratch is now: {}".format(str(self.scratch)))
 
-    def pushUMinus(self, parsestr, loc, toks):
+    def push_u_minus(self, parsestr, loc, toks):
         """
-            pushUMinus():
-            From the original fourFn.py demo. Push 'unary -' to keep track
-             of any terms that have been negated.
+        From the original fourFn.py demo. Push 'unary -' to keep track of any
+        terms that have been negated.
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushUMinus(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_u_inus(<code str>, loc={}, toks={}):".format(loc, toks))
         for t in toks:
             if t == '-': 
                 self.scratch.append( 'unary -' )
             else:
                 break
 
-    def pushReturn(self, parsestr, loc, toks):
+    def push_return(self, parsestr, loc, toks):
         """
-            pushReturn()
-            Push the stack containing the arguments for a return keyword,
-            followed by "_return"
+        Push the stack containing the arguments for a return keyword, followed
+        by "_return".
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
         """
-        self.debug("pushReturn(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_return(<code str>, loc={}, toks={}):".format(loc, toks))
         self.stack.append(list(self.scratch) + ["_return"])
         self.scratch = []
 
-    def reduceLine(self, code_line):
+    def reduce_line(self, code_line):
         """
-            reduceLine():
-            Iterate over a list containing an expression, pre-calculating
-             simple numeric operations and replacing the operands and operator
-             with the result. Repeat until no more changes are made.
+        Iterate over a list containing an expression, pre-calculating
+        simple numeric operations and replacing the operands and operator
+        with the result.  Repeat until no more changes are made.
+
+        :param code_line: The list of the terms in an expression
+        :type code_line: list
         """
-        self.debug("    reduceLine(code_line={}):".format(code_line))
-        marker_list = []
+        self.debug("    reduce_line(code_line={}):".format(str(code_line)))
         changed_line = True
-        while (changed_line):
+        while changed_line:
             line_idx = 0
             changed_line = False
-            result_type = int
             while line_idx < len(code_line):
                 check_op = "{}".format(code_line[line_idx])
                 #print("check op: {}".format(check_op))
@@ -597,7 +723,8 @@ class CodeBlock(logging_object.LoggingObject):
                                 all_numbers = False
                                 break
                         if all_numbers:
-                            op_result = self.executeOperation(check_op, code_line[line_idx-op_len:line_idx])
+                            op_result = self.execute_operation(check_op,
+                                                               code_line[line_idx-op_len:line_idx])
                             code_line[line_idx-op_len] = op_result
                             for dead_idx in range(op_len):
                                 del code_line[line_idx-op_len+1]
@@ -605,58 +732,73 @@ class CodeBlock(logging_object.LoggingObject):
                             break
                 elif check_op == "unary -":
                     # the special case
-                    if (line_idx > 0):
-                        if (isinstance(code_line[line_idx-1], numbers.Number)):
+                    if line_idx > 0:
+                        if isinstance(code_line[line_idx-1], numbers.Number):
                             code_line[line_idx-1] = -1 * code_line[line_idx-1]
                             del code_line[line_idx]
                             changed_line = True
                             break
                 line_idx += 1
 
-    def reduceBlock(self, block):
+    def reduce_block(self, block):
         """
-            reduceBlock():
-            Iterate through each line within the given block of postfix
-            expressions and recursively through sub-blocks, reducing numeric
-            operations when found.
+        Iterate through each line within the given block of postfix expressions
+        and recursively through sub-blocks, reducing numeric operations when
+        found.
+
+        :param block: A list of code lines, which are either lists themselves,
+            or the marker strings '_if', '_elseif', or '_else'
+        :type block: list containing lists and/or strings
         """
-        self.debug("  reduceBlock(block={}):".format(block))
+        self.debug("  reduce_block(block={}):".format(block))
         block_idx = 0
         while block_idx < len(block):
             code_line = block[block_idx]
             if (isinstance(code_line, str) and
                 code_line in ['_if', '_elseif', '_else']):
                 # handle the conditional block here, it's a list inside a list
-                self.reduceBlock(block[block_idx+1])
+                self.reduce_block(block[block_idx+1])
                 block_idx += 2
                 continue
             if isinstance(code_line, list):
                 #print("Reduce line: {}".format(code_line))
-                self.reduceLine(code_line)
+                self.reduce_line(code_line)
             block_idx += 1
 
     def reduce(self):
         """
-            reduce():
-            Perform as much argument reduction as possible. Operations on
-            numeric values can be replaced with the results.
+        Perform as much argument reduction as possible.  Operations on numeric
+        values can be replaced with the results.
         """
         self.debug("reduce():")
-        self.reduceBlock(self.outer_block)
+        self.reduce_block(self.outer_block)
 
-    def toPythonLine(self, code_line, loc=[0,0], func_name=None):
+    def to_python_line(self, code_line, loc=(0,0), func_name=None):
         """
-            toPythonLine():
-            The hard work of arranging the postfix representation of a line of
-            code into a line of executable Python code happens here. The
-            round-trip serves 2 purposes: the game language is essentially
-            used for calculations, so doesn't need the full features of Python;
-            and this effectively isolates and sanitizes user-written code to
-            prevent it from adversely affecting the game engine.
+        Convert a line of game language into Python code.
+
+        The hard work of arranging the postfix representation of a line of code
+        into a line of executable Python code happens here.  The round-trip
+        serves 2 purposes: the game language is essentially used for
+        calculations, so doesn't need the full features of Python; and this
+        effectively isolates and sanitizes user-written code to prevent it from
+        adversely affecting the game engine.
+
+        :param code_line: A list of postfix expression tokens for conversion
+        :type code_line: list
+        :param loc: The location of the line of code in the original source
+        :type loc: 2-element array-like
+        :param func_name: If this line is part of a function definition, the
+            function's name
+        :type func_name: None | str
+        :raise: OpStackOverflowError if tokens were left over, or
+            OpStackUnderflowError if expected tokens were missing
+        :return: A line of Python code
+        :rtype: str
         """
-        self.debug("    toPythonLine(code_line={}, loc={}, func_name={}):".format(code_line, loc, func_name))
+        self.debug("    to_python_line(code_line={}, loc={}, func_name={}):".format(
+            str(code_line), loc, func_name))
         op_stack = []
-        current_value = 0
         symbol = None
         start_pos = 0
         type_upgrade = False
@@ -691,7 +833,7 @@ class CodeBlock(logging_object.LoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise(CodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+                        raise(OpStackUnderflowError("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -728,14 +870,14 @@ class CodeBlock(logging_object.LoggingObject):
                     if len(op_stack) > 0:
                         last_op_val = op_stack[-1]["val"]
                         last_op_type = op_stack[-1]["type"]
-                        if (last_op_type in ["int", "float"]):
+                        if last_op_type in ["int", "float"]:
                             op_stack.insert(-1, {"type": last_op_type, "val": "operator.mul(-1, {})".format(last_op_val)})
                             del op_stack[-1]
                 elif opname in ["and", "or"]:
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise(CodeBlockException("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+                        raise(OpStackUnderflowError("Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
                     params = list(op_stack[id_start:id_end])
                     for dead_idx in range(2):
                         del(op_stack[-1])
@@ -766,53 +908,76 @@ class CodeBlock(logging_object.LoggingObject):
                             "val": "{}".format(opname)})
             #print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            raise(CodeBlockException("Stack overflow at line {} when assembling the line:\n{}".format(loc[0], code_line), self.error))
+            raise(OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".format(
+                loc[0], code_line), self.error))
         # apply the (possibly upgraded) result type to the remaining item
-        self.debug("      Result of {}: {}".format(code_line, op_stack))
+        self.debug("      Result of {}: {}".format(str(code_line), op_stack))
         python_code_line = "{}{}".format(' '*loc[1], op_stack[-1]['val'])
         loc[0] += 1
         return python_code_line
 
-    def toPythonBlock(self, block, loc=[0,0], func_name=None):
+    def to_python_block(self, block, loc=(0,0), func_name=None):
         """
-            toPythonBlock():
-            When supplied a block of code objects, produce the Python
-            representations for contained conditionals and assignments using
-            appropriate indentation.
+        When supplied a block of code objects, produce the Python source code
+        for contained conditionals and assignments, using appropriate
+        indentation.
+
+        :param block: The list of code lines in the block
+        :type block: list of lists
+        :param loc: The location of the source block in game language code
+        :type loc: 2-element array-like
+        :param func_name: If the block is inside a function definition, supply
+            the function's name
+        :type func_name: None | str
+        :return: The list of Python source code lines
+        :rtype: list
         """
-        self.debug("  toPythonBlock(block={}, loc={}, func_name={}):".format(block, loc, func_name))
+        self.debug("  to_python_block(block={}, loc={}, func_name={}):".format(str(block),
+                                                                               str(loc), func_name))
         python_code_lines=[]
         loc[1] += 2
         #print("block start: col is now: {}".format(loc[1]))
-        py_code = ""
         block_idx = 0
         while block_idx < len(block):
             code_line = block[block_idx]
             if code_line in ["_if", "_elseif", "_else"]:
                 cond_name = code_line[1:]
-                python_code_lines += self.toPythonConditional(cond_name,
+                python_code_lines += self.to_python_conditional(cond_name,
                     block[block_idx+1], loc, func_name)
                 block_idx += 2
                 continue
             else:
-                python_code_lines.append(self.toPythonLine(code_line, loc, func_name))
+                python_code_lines.append(self.to_python_line(code_line, loc, func_name))
                 block_idx += 1
         loc[1] -= 2
         #print("block end: col is now: {}".format(loc[1]))
         return python_code_lines
 
-    def toPythonConditional(self, conditional_name, block, loc=[0,0], func_name=None):
+    def to_python_conditional(self, conditional_name, block, loc=(0,0), func_name=None):
         """
-            toPythonConditional():
-            When a conditional is found in a code block, produce an executable
-            line of Python containing the condition name, possibly followed
-            by a condition (e.g. if, elseif), then a list of all the lines
-            (and/or other conditionals) within its code block.
+        When a conditional is found in a code block, produce an executable line
+        of Python source code containing the condition name, possibly followed
+        by a condition (e.g. if, elseif), then a list of all the lines (and/or
+        other conditionals) within its code block.
+
+        :param conditional_name: The conditional's keyword (if, elseif, else)
+        :type conditional_name: str
+        :param block: The list of game engine source code lines inside the
+            conditional
+        :type block: list of lists
+        :param loc: The location of the conditional in the game language
+            source code
+        :type loc: 2-element array-like
+        :param func_name: If the conditional is inside a function definition,
+            supply the function's name
+        :type func_name: None | str
+        :return: The list of lines of Python source code
+        :rtype: list
         """
-        self.debug("  toPythonConditional(conditional_name={}, loc={}, func_name={}):".format(conditional_name, loc, func_name))
+        self.debug("  to_python_conditional(conditional_name={}, loc={}, func_name={}):".format(conditional_name, loc, func_name))
         python_code_lines=[]
         #print("{} {{{}}} to python".format(conditional_name, block))
-        conditional_code = self.toPythonLine(block[0], [loc[0],0], func_name)
+        conditional_code = self.to_python_line(block[0], [loc[0],0], func_name)
         py_cond_name = str(conditional_name)
         block_start_idx = 1
         if conditional_name == "elseif":
@@ -824,36 +989,40 @@ class CodeBlock(logging_object.LoggingObject):
             python_code_lines.append("{}{}:".format(' '*loc[1],
                 py_cond_name))
             block_start_idx = 0
-        python_code_lines += self.toPythonBlock(block[block_start_idx:], loc,
+        python_code_lines += self.to_python_block(block[block_start_idx:], loc,
             func_name)
         return python_code_lines
 
-    def toPython(self):
+    def to_python(self):
         """
-            toPython():
-            Convert the postfix code representation into executable Python
-            code, then compile it.
+        Convert the postfix code representation into executable Python code.
+
+        :return: The Python source code, inside a single string
+        :rtype: str
         """
-        self.debug("toPython():")
+        self.debug("to_python():")
         code_loc = [0, 0]
         python_code = ""
         # the code block has to have SOMETHING in it, but if it only contains
         #  function definitions, don't construct the run() method
         if len(self.outer_block) > 0:
             python_lines = ["def run(_symbols):".format(self.name)]
-            python_lines += self.toPythonBlock(self.outer_block, code_loc)
+            python_lines += self.to_python_block(self.outer_block, code_loc)
             python_code = "\n".join(python_lines)
             #print("Python code:\n{}".format("\n".join(python_lines)))
         return python_code
 
-    def executeOperation(self, op_name, args):
+    def execute_operation(self, op_name, args):
         """
-            executeOperation():
-            Given a valid Python operation and a list containing its args,
-            convert them into a string and eval() it.
+        Given a valid Python operation and a list containing its args, convert
+        them into a string and eval() it.
+
+        :param op_name: The name of the operator
+        :type op_name: str
+        :param args: The list of arguments to the operator
+        :type args: list
         """
-        self.debug("executeOperation(op_name={}, args={}):".format(op_name, args))
-        eval_str = ""
+        self.debug("execute_operation(op_name={}, args={}):".format(op_name, args))
         res = None
         stargs = [str(a) for a in args]
         result_type = int
@@ -876,41 +1045,47 @@ class CodeBlock(logging_object.LoggingObject):
 
     def load(self, import_list=None):
         """
-            load():
-            Place all functions and executable code into the module's __dict__
+        Place all functions and executable code into the source code module's
+        __dict__.
+
+        :param import_list: The list of modules that need to be imported into
+            the module
+        :type import_list: None | list
         """
-        self.debug("load(import_list={}):".format(import_list))
+        self.debug("load(import_list={}):".format(str(import_list)))
         for userfunc in self.functionmap:
-            #print("exec {}".format(userfunc))
+            # print("exec {}".format(userfunc))
             if 'compiled' in self.functionmap[userfunc]:
                 exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
         import_lines = "from pygame_maker.logic.run_time_support import *\n"
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
-        exec_code = self.toPython()
+        exec_code = self.to_python()
         if len(exec_code) > 0:
-            pyth_code = import_lines + self.toPython()
+            pyth_code = import_lines + exec_code
             self.info("  Run program:\n{}".format(pyth_code))
             exec pyth_code in self.module_context.__dict__
 
     def run(self, sym_tables):
         """
-            run():
-            Execute the code block.
-            Parameter:
-             sym_tables (dict): A mapping of 'globals' => global symbol table,
-                                'locals' => local symbol table
-        """
-        self.debug("run(sym_tables={}):".format(sym_tables))
-        if "run" in self.module_context.__dict__:
-            return(self.module_context.run(sym_tables))
+        Execute the ``run()`` function inside the Python code block.
 
-    def copyTo(self, other):
+        :param sym_tables: A mapping of 'globals' => global symbol table,
+            'locals' => local symbol table
+        :type sym_tables: dict
         """
-            copyTo():
-            Perform a deep copy to another code block object.
+        self.debug("run(sym_tables={}):".format(str(sym_tables)))
+        if "run" in self.module_context.__dict__:
+            return self.module_context.run(sym_tables)
+
+    def copy_to(self, other):
         """
-        self.debug("copyTo():")
+        Perform a deep copy to another code block object.
+
+        :param other: The code block instance to copy to
+        :type other: :py:class:`CodeBlock`
+        """
+        self.debug("copy_to():")
         #other.stack = list(self.stack)
         #other.frame = list(self.frame)
         #other.scratch = list(self.scratch)
@@ -919,13 +1094,10 @@ class CodeBlock(logging_object.LoggingObject):
         #print("Copied outer block:\n{}".format(other.outer_block))
         if self.astree:
             other.astree = list(self.astree)
-        other.addToFuncMap(self.functionmap)
+        other.add_to_func_map(self.functionmap)
 
     def clear(self):
-        """
-            clear():
-            Clear out all lists in preparation for a new parsing operation.
-        """
+        """Clear out all lists in preparation for a new parsing operation."""
         self.debug("clear():")
         self.name = ""
         self.scratch = []
@@ -940,48 +1112,62 @@ class CodeBlock(logging_object.LoggingObject):
 
 class CodeBlockGenerator(object):
     """
-        CodeBlockGenerator class:
-        Generate a CodeBlock using the wrap_code_block() class method upon a
-         supplied source code string. A class member holds a code block object
-         that is copied to a new code object, which is returned to the caller.
-        args:
-         source_code_str: A string containing C-like source code
-         funcmap: A dict containing <function_name>: [arg_type1, .., arg_typeN]
-          mappings, which will be supplied to the code block's external
-          function table so it knows type and number of args for function call
-          prototypes.
+    Generate a CodeBlock using the wrap_code_block() class method upon a
+    supplied source code string. A class member holds a code block object that
+    is copied to a new code object, which is returned to the caller.
     """
     bnf = None
+    #: The fixed code block every source code string is converted into.  A copy
+    #: is returned to the wrap_code_block() caller before it is cleared for
+    #: re-use
     code_block = CodeBlock("none", None)
     @classmethod
-    def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=[]):
+    def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=None):
+        """
+        Create a new code block with the given program data.
+
+        :param program_name: The name of the program
+        :type program_name: str
+        :param module_context: The module to place the code into
+        :type module_context: imp.new_module
+        :param source_code_str: A string containing the game language source
+        :type source_code_str: str
+        :param funcmap: A dict mapping function names to argument type info
+        :type funcmap: dict
+        :return: A new executable code block
+        :rtype: :py:class:`CodeBlock`
+        """
         if module_context:
             cls.code_block.module_context = module_context
-        if len(funcmap) > 0:
-            cls.code_block.addToFuncMap(funcmap)
+        if funcmap is not None:
+            cls.code_block.add_to_func_map(funcmap)
         cls.bnf = BNF(cls.code_block)
         try:
             astree = cls.bnf.parseString(source_code_str)
             cls.code_block.reduce()
             new_block = CodeBlock(program_name, module_context,
                 funcmap, astree)
-            cls.code_block.copyTo(new_block)
+            cls.code_block.copy_to(new_block)
         finally:
             cls.code_block.clear()
         return new_block
 
 class LanguageEngine(logging_object.LoggingObject):
     """
-        LanguageEngine class:
-        Execute code blocks. Requires managing tables of variables and
-        functions that can be accessed by and/or created within the code block.
+    Interpret, initialize, and execute code blocks.  Requires managing tables
+    of variables and functions that can be accessed by and/or created within
+    the code block.
     """
     def __init__(self):
+        """
+        Initialize a new language engine.
+        """
         super(LanguageEngine, self).__init__(type(self).__name__)
+        #: The language engine's global symbol table
         self.global_symbol_table = SymbolTable()
-        self.global_symbol_table.setConstant('pi', math.pi)
-        self.global_symbol_table.setConstant('e', math.e)
-        self.function_table = {}
+        self.global_symbol_table.set_constant('pi', math.pi)
+        self.global_symbol_table.set_constant('e', math.e)
+        #: A dict containing known function signatures
         self.functionmap = {
             'distance': { "arglist":
             [{"type": "number", "name":"start"},{"type":"number", "name":"end"}],
@@ -995,21 +1181,29 @@ class LanguageEngine(logging_object.LoggingObject):
             'block': ["time.time", "_return"]
             }
         }
+        #: Code blocks registered in the language engine
         self.code_blocks = {}
+        #: Local symbol tables associated with each code block
         self.local_tables = {}
 
     def register_code_block(self, block_name, code_string):
         """
-            register_code_block():
-            Supply <code_string>, containing the source code in a single string.
-            The executable code block will be placed in the code block hash,
-             using its name as the key.
+        Register a block of game language code with the language engine.
+
+        The executable code block will be placed in the code block hash,
+        using its name as the key.
+
+        :param block_name: The name to register the code block with
+        :type block_name: str
+        :param code_string: The game language source code block
+        :type code_string: str
+        :raise: DuplicateCodeBlockError if the block name is already registered
         """
         self.info("Register handle '{}'".format(block_name))
         self.debug("  code block:\n{}".format(code_string))
-        code_block_runnable = None
         if block_name in self.code_blocks:
-            raise(LanguageEngineException("Attempt to register another code block named '{}'".format(block_name), self.error))
+            raise(DuplicateCodeBlockError("Attempt to register another code block named '{}'".format(block_name),
+                                          self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
@@ -1018,12 +1212,23 @@ class LanguageEngine(logging_object.LoggingObject):
 
     def execute_code_block(self, block_name, local_symbol_table):
         """
-            execute_code_block():
-            Supply the name of a registered code block that will be executed.
+        Supply the name of a registered code block that will be executed.
+
+        Local and global symbols may be accessed and/or created during code
+        execution.  Symbols changed or created in the local symbol table will
+        trigger a symbol change callback associated with the symbol table.
+
+        :param block_name: The name of a registered code block
+        :type block_name: str
+        :param local_symbol_table: The local symbols to make available to the
+            code block
+        :type local_symbol_table: :py:class:`SymbolTable`
+        :raise: UnknownCodeBlockError if the block name is not found
         """
         self.info("Execute code with handle '{}'".format(block_name))
         if not block_name in self.code_blocks:
-            raise(LanguageEngineException("Attempt to execute unknown code block named '{}'".format(block_name), self.error))
+            raise(UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".format(block_name),
+                                        self.error))
         if local_symbol_table:
             if not block_name in self.local_tables:
                 self.local_tables[block_name] = {}
@@ -1034,8 +1239,10 @@ class LanguageEngine(logging_object.LoggingObject):
 
     def unregister_code_block(self, block_name):
         """
-            unregister_code_block():
-            Remove a code block that is no longer needed.
+        Remove a code block that is no longer needed.
+
+        :param block_name: The name of a registered code block
+        :type block_name: str
         """
         self.info("Unregister code block handle '{}'".format(block_name))
         if block_name in self.code_blocks.keys():
@@ -1044,33 +1251,38 @@ class LanguageEngine(logging_object.LoggingObject):
 bnf = None
 def BNF(code_block_obj):
     """
-    decimal_digit :: '0' .. '9'
-    lower_case    :: 'a' .. 'z'
-    upper_case    :: 'A' .. 'Z'
-    boolean_op    :: 'or' | 'and'
-    boolnot       :: 'not'
-    conditional_keyword   :: 'if' | 'elseif' | 'else'
-    identifier    :: lower_case | upper_case [ lower_case | upper_case | decimal_digit | '_' | '.' ]*
-    equalop :: '='
-    compareop :: '==' | '!=' | '<' | '>' | '>=' | '<='
-    expop   :: '^'
-    multop  :: '*' | '/'
-    addop   :: '+' | '-'
-    integer :: ['+' | '-'] '0'..'9'+
-    atom    :: identifier | PI | E | real | fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
-    factor  :: atom [ expop factor ]*
-    term    :: factor [ multop factor ]*
-    expr    :: term [ addop term ]*
-    combinatorial :: [boolnot] expr [ boolean_op [boolnot] expr ]*
-    function_def  :: 'function' identifier '('[ identifier ] [',' identifier]* ')' block
-    assignment    :: identifier equalop combinatorial
-    comparison    :: combinatorial compareop combinatorial
-    conditional   :: conditional_keyword '(' comparison ')' block
-    block         :: '{' assignment | conditional '}'
+    See https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form
+
+    * decimal_digit :: '0' .. '9'
+    * lower_case    :: 'a' .. 'z'
+    * upper_case    :: 'A' .. 'Z'
+    * boolean_op    :: 'or' | 'and'
+    * boolnot       :: 'not'
+    * conditional_keyword   :: 'if' | 'elseif' | 'else'
+    * identifier    :: lower_case | upper_case [ lower_case | upper_case | decimal_digit | '_' | '.' ]*
+    * equalop :: '='
+    * compareop :: '==' | '!=' | '<' | '>' | '>=' | '<='
+    * expop   :: '^'
+    * multop  :: '*' | '/'
+    * addop   :: '+' | '-'
+    * integer :: ['+' | '-'] '0'..'9'+
+    * atom    :: identifier | PI | E | real | fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
+    * factor  :: atom [ expop factor ]*
+    * term    :: factor [ multop factor ]*
+    * expr    :: term [ addop term ]*
+    * combinatorial :: [boolnot] expr [ boolean_op [boolnot] expr ]*
+    * function_def  :: 'function' identifier '('[ identifier ] [',' identifier]* ')' block
+    * assignment    :: identifier equalop combinatorial
+    * comparison    :: combinatorial compareop combinatorial
+    * conditional   :: conditional_keyword '(' comparison ')' block
+    * block         :: '{' assignment | conditional '}'
+
+    :param code_block_obj: A code block object supplying parse methods
+    :type code_block_obj: :py:class:`CodeBlock`
     """
     global bnf
     if not bnf:
-        point = Literal( "." )
+        # point = Literal( "." )
         #~ fnumber = Combine( Word( "+-"+nums, nums ) + 
                            #~ Optional( point + Optional( Word( nums ) ) ) +
                            #~ Optional( e + Word( "+-"+nums, nums ) ) )
@@ -1117,29 +1329,28 @@ def BNF(code_block_obj):
         comments = comment_sym + uptolineend
         combinatorial = Forward()
         expr = Forward()
-        atom = ((0,None)*minus + ( ( ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.countFunctionArgs) | fnumber | ident ).setParseAction(code_block_obj.pushAtom) | 
-                Group( lpar + combinatorial + rpar ))).setParseAction(code_block_obj.pushUMinus)
+        atom = ((0,None)*minus + ( ( ( ident + lpar + Optional( combinatorial + ZeroOrMore( "," + combinatorial ) ) + rpar ).setParseAction(code_block_obj.count_function_args) | fnumber | ident ).setParseAction(code_block_obj.push_atom) |
+                Group( lpar + combinatorial + rpar ))).setParseAction(code_block_obj.push_u_minus)
         
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
         factor = Forward()
-        factor <<= ( atom + ZeroOrMore( ( expop + factor ).setParseAction(code_block_obj.pushFirst) ) )
-        term = ( factor + ZeroOrMore( ( multop + factor ).setParseAction(code_block_obj.pushFirst) ) )
-        expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.pushFirst) ) )
-        combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( ( boolop | compareop ) + Optional( boolnot ) + expr ).setParseAction(code_block_obj.pushFirst) ) )
-        returnline = Group( ret + combinatorial ).setParseAction(code_block_obj.pushReturn)
-        assignment = Group( Optional( glbl ) + ident + assignop + combinatorial ).setParseAction(code_block_obj.pushAssignment)
+        factor <<= ( atom + ZeroOrMore( ( expop + factor ).setParseAction(code_block_obj.push_first) ) )
+        term = ( factor + ZeroOrMore( ( multop + factor ).setParseAction(code_block_obj.push_first) ) )
+        expr <<= ( term + ZeroOrMore( ( addop + term ).setParseAction(code_block_obj.push_first) ) )
+        combinatorial <<= ( Optional( boolnot ) + expr + ZeroOrMore( ( ( boolop | compareop ) + Optional( boolnot ) + expr ).setParseAction(code_block_obj.push_first) ) )
+        returnline = Group( ret + combinatorial ).setParseAction(code_block_obj.push_return)
+        assignment = Group( Optional( glbl ) + ident + assignop + combinatorial ).setParseAction(code_block_obj.push_assignment)
 #        comparison = Forward()
-#        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.pushFirst) ).setParseAction(code_block_obj.pushComparison)
+#        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(code_block_obj.push_first) ).setParseAction(code_block_obj.push_comparison)
         block = Forward()
-        conditional_start = ( ifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block.setParseAction(code_block_obj.pushConditionalBlock) )
-        conditional_continue = ( elseifcond.setParseAction(code_block_obj.pushIfCond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.pushComparison) + block.setParseAction(code_block_obj.pushConditionalBlock) )
-        conditional_else = ( elsecond.setParseAction(code_block_obj.pushIfCond) + block.setParseAction(code_block_obj.pushConditionalBlock) )
+        conditional_start = ( ifcond.setParseAction(code_block_obj.push_if_cond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.push_comparison) + block.setParseAction(code_block_obj.push_conditional_block) )
+        conditional_continue = ( elseifcond.setParseAction(code_block_obj.push_if_cond) + Group( lpar + combinatorial + rpar ).setParseAction(code_block_obj.push_comparison) + block.setParseAction(code_block_obj.push_conditional_block) )
+        conditional_else = ( elsecond.setParseAction(code_block_obj.push_if_cond) + block.setParseAction(code_block_obj.push_conditional_block) )
         conditional_set = Group( conditional_start + ZeroOrMore( conditional_continue ) + Optional( conditional_else ) )
         block <<= Group( lbrack + ZeroOrMore( comments.suppress() | assignment | conditional_set ) + rbrack )
-        func_def_args = Group( ident + lpar + ( ( typestring + ident + ZeroOrMore( "," + typestring + ident ) ) | void ) + rpar ).setParseAction(code_block_obj.pushFuncArgs)
-        function_block = Group( lbrack + ZeroOrMore( comments.suppress() | assignment | conditional_set | returnline ) + rbrack ).setParseAction(code_block_obj.pushFuncBlock)
+        func_def_args = Group( ident + lpar + ( ( typestring + ident + ZeroOrMore( "," + typestring + ident ) ) | void ) + rpar ).setParseAction(code_block_obj.push_func_args)
+        function_block = Group( lbrack + ZeroOrMore( comments.suppress() | assignment | conditional_set | returnline ) + rbrack ).setParseAction(code_block_obj.push_func_block)
         func_def = Group( func + func_def_args + function_block )
         bnf = OneOrMore( comments.suppress() | func_def | assignment | conditional_set ) + stringEnd
     return bnf
-

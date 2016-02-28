@@ -6,6 +6,9 @@
 
 # convert infix token stack into postfix (aka RPN) form
 
+# Taken from the wikipedia page describing RPN:
+# https://en.wikipedia.org/wiki/Reverse_Polish_notation#Postfix_algorithm
+
 # While there are tokens to be read:
 #
 #  Read a token.
@@ -53,8 +56,10 @@
 
 import re
 
-OPERATORS=['^', '*', '/', '%', '-', '+', 'not', '<', '<=', '>', '>=', '==', '!=', '=', 'and', 'or']
-PRECEDENCE_TABLE=[
+#: Known operators
+OPERATORS = ['^', '*', '/', '%', '-', '+', 'not', '<', '<=', '>', '>=', '==', '!=', '=', 'and', 'or']
+#: Operator precedence table
+PRECEDENCE_TABLE = [
     ('not',11),
     ('^',10),
     ('*',9), ('/',9), ('%', 9),
@@ -63,9 +68,12 @@ PRECEDENCE_TABLE=[
     ('and',6), ('or',6),
     ('=', 5)
 ]
-LEFT=0
-RIGHT=1
-ASSOCIATIVITY={
+#: Left associativity
+LEFT = 0
+#: Right associativity
+RIGHT = 1
+#: Table to keep track of operator associativity
+ASSOCIATIVITY = {
     'not': RIGHT,
     '^': RIGHT,
     '*': LEFT,
@@ -87,10 +95,23 @@ ASSOCIATIVITY={
 FLOAT_RE = re.compile("^\d+\.\d+$")
 INT_RE = re.compile("^\d+$")
 
+
 class ExpressionException(Exception):
     pass
 
+
 def convert_infix_to_postfix(tok_list, replacement_ops=None):
+    """
+    Convert a list of tokens in infix notation into postfix notation.
+
+    :param tok_list: The list of infix tokens (or a single token string)
+    :type tok_list: str | list
+    :param replacement_ops: Optional dict containing mappings from an infix
+        operator to a postfix operator (E.G. {'+': operator.add, ...})
+    :type replacement_ops: dict
+    :return: A list of the tokens in postfix order
+    :rtype: list
+    """
     stack = []
     op_stack = []
     item_list = tok_list
@@ -98,7 +119,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
         item_list = [tok_list]
     for tok in item_list:
         val = None
-        if (isinstance(tok, str)):
+        if isinstance(tok, str):
             minfo = FLOAT_RE.search(tok)
             if minfo:
                 val = float(tok)
@@ -116,7 +137,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
                         ((ASSOCIATIVITY[op_stack[0]] == LEFT) and
                         (prec_diff <= 0))):
                         stack.append(op_stack[0])
-                        if (len(op_stack) > 1):
+                        if len(op_stack) > 1:
                             op_stack = op_stack[1:]
                         else:
                             op_stack = []
@@ -135,7 +156,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
             stack = stack + convert_infix_to_postfix(tok, replacement_ops)
     while len(op_stack) > 0:
         stack.append(op_stack[0])
-        if (len(op_stack) > 1):
+        if len(op_stack) > 1:
             op_stack = op_stack[1:]
         else:
             op_stack = []
@@ -148,6 +169,17 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
     return stack
 
 def precedence_check(a, b):
+    """
+    Sort two operators by precedence.
+
+    :param a: First operator
+    :type a: str
+    :param b: Second operator
+    :type b: str
+    :return: negative if a has lower precedence than b, 0 if both operators
+        have the same precedence, positive if a has higher precedence
+    :rtype: int
+    """
     prec_a = -1
     prec_b = -1
     for prec in PRECEDENCE_TABLE:
@@ -155,7 +187,7 @@ def precedence_check(a, b):
             prec_a = prec[1]
         if b == prec[0]:
             prec_b = prec[1]
-        if ((prec_a >= 0) and (prec_b >= 0)):
+        if (prec_a >= 0) and (prec_b >= 0):
             break
     diff = prec_a - prec_b
     return diff
