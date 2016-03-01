@@ -21,11 +21,19 @@ from pygame_maker.events import event
 from pygame_maker.events import event_engine
 from pygame_maker.logic import language_engine
 
+
 class GameEngineException(Exception):
     pass
 
+
 class GameEngine(logging_object.LoggingObject):
-    MOUSE_EVENT_TABLE=[
+    """
+    The main game engine class.  Only one instance of this class is expected
+    to be created.
+
+    Call the :py:meth:`run` method to begin the main game loop.
+    """
+    MOUSE_EVENT_TABLE = [
         {"instance_event_name": "mouse_nobutton",
          "global_event_name": "mouse_global_nobutton"},
         {"instance_event_name": "mouse_button_left",
@@ -59,14 +67,14 @@ class GameEngine(logging_object.LoggingObject):
     ]
     # directories where game resources are expected to reside. The path names
     #  must match the resource key names
-    RESOURCE_TABLE=[
+    RESOURCE_TABLE = [
         ('sprites', object_sprite.ObjectSprite),
         ('sounds', sound.Sound),
         ('objects', object_type.ObjectType),
         ('backgrounds', background.Background),
         ('rooms', room.Room),
     ]
-    DEFAULT_GAME_SETTINGS={
+    DEFAULT_GAME_SETTINGS = {
         "game_name": "PyGameMaker Game",
         "screen_dimensions": (640,480),
         "frames_per_second": 60,
@@ -127,17 +135,26 @@ class GameEngine(logging_object.LoggingObject):
           },
         },
     }
-    GAME_SETTINGS_FILE="game_settings.yaml"
-    GAME_ENGINE_ACTIONS=[
+    GAME_SETTINGS_FILE = "game_settings.yaml"
+    GAME_ENGINE_ACTIONS = [
         "play_sound",
         "create_object",
         "create_object_with_velocity"
     ]
 
     def __init__(self):
+        """
+        Initialize the game engine instance.
+        """
+        #: The game's event engine
         self.event_engine = event_engine.EventEngine()
+        #: The game's language engine
         self.language_engine = language_engine.LanguageEngine()
+        #: The game's symbol table for keeping constants, such as mouse.x,
+        #: mouse.y, and others the game resources may need
         self.symbols = language_engine.SymbolTable()
+        #: The dict for organizing the game's resources, so each resource
+        #: can find the others
         self.resources = {
             'sprites': {},
             'sounds': {},
@@ -145,16 +162,31 @@ class GameEngine(logging_object.LoggingObject):
             'objects': {},
             'rooms': []
         }
+        #: The dict containing the game settings
         self.game_settings = dict(self.DEFAULT_GAME_SETTINGS)
-        self.last_key_down = None
+        #: The main game screen created by :py:func:`pygame.display.set_mode`
         self.screen = None
+        #: The surface drawn upon by other resources, copied to the main game
+        #: screen each frame.  This makes it possible to create pygame
+        #: sub-surfaces, which is not supported directly on hardware-
+        #: accelerated screens
         self.draw_surface = None
+        #: Set True to end the main game loop
         self.done = False
+        #: The mouse coordinate saved each time a mouse motion event occurs
         self.mouse_pos = [0,0]
-        self.action_blocks = {}
+        #: The list where pygame events get stored, so that the pygame event
+        #: FIFO doesn't fill up
         self.current_events = []
+        #: The list containing new objects whose creation was triggered by
+        #: create_object type events
         self.new_object_queue = []
+        #: The index into the ``resources['rooms']`` list, updated when a new
+        #: room is loaded
         self.room_index = 0
+        #: Store a :py:class:`pygame.time.Clock` instance, used for
+        #: controlling the frame rate
+        self.clock = None
 
         self.load_game_settings()
 
@@ -163,6 +195,8 @@ class GameEngine(logging_object.LoggingObject):
         else:
             logging.setLevel(logging.WARNING)
 
+        # Now that logging has been configured, initialize the LoggingObject
+        # base class.
         super(GameEngine, self).__init__(type(self).__name__)
 
         self.info("Loading game resources..")
@@ -174,8 +208,57 @@ class GameEngine(logging_object.LoggingObject):
 
     def load_game_settings(self):
         """
-            load_game_settings():
-            Collect the settings for the game itself
+        Collect the settings for the game itself, expected to be found in a
+        file in the base game directory named ``game_settings.yaml``.
+
+        The YAML format follows::
+
+            game_name: <name>
+            screen_dimensions: [<width>, <height>]
+            logging_config:
+              version: 1
+              formatters:
+                normal:
+                  format: '%(name)s [%(levelname)s]:%(message)s'
+                timestamped:
+                  format: '%(asctime)s - %(name)s [%(levelname)s]:%(message)s'
+              handlers:
+                console:
+                  class: logging.StreamHandler
+                  level: WARNING
+                  formatter: normal
+                  stream: ext://sys.stdout
+            # uncomment the lines below starting with 'file:' to create a log file
+            # remember to change the 'handlers:' lines below to add the file handler, E.G.:
+            # handlers: [console, file]
+            #    file:
+            #      class: logging.FileHandler
+            #      level: WARNING
+            #      formatter: timestamped
+            #      filename: pygame_maker_game_engine.log
+            #      mode: w
+              loggers:
+                GameEngine:
+                  level: INFO
+                  handlers: [console]
+                CodeBlock:
+                  level: INFO
+                  handlers: [console]
+                LanguageEngine:
+                  level: INFO
+                  handlers: [console]
+                EventEngine:
+                  level: INFO
+                  handlers: [console]
+                ObjectType:
+                  level: INFO
+                  handlers: [console]
+                ObjectInstance:
+                  level: INFO
+                  handlers: [console]
+                Room:
+                  level: INFO
+                  handlers: [console]
         """
         if os.path.exists(self.GAME_SETTINGS_FILE):
             with open(self.GAME_SETTINGS_FILE, "r") as yaml_f:
@@ -187,19 +270,20 @@ class GameEngine(logging_object.LoggingObject):
 
     def load_game_resources(self):
         """
-            load_game_resources():
-            Bring in resource YAML files from their expected directories:
-            sprites, backgrounds, sounds, objects, and rooms
+        Bring in resource YAML files from their expected directories:
+        ``sprites/``, ``backgrounds/``, ``sounds/``, ``objects/``, and
+        ``rooms/``
         """
         topdir = os.getcwd()
         for res_path, res_type in self.RESOURCE_TABLE:
             self.info("Loading {}..".format(res_path))
-            if (not os.path.exists(res_path)):
+            if not os.path.exists(res_path):
                 continue
             # resource directories are expected to contain YAML descriptions
-            #  for each of their respective resource types. Sprites and sounds
+            #  for each of their respective resource types.  Sprites and sounds
             #  may also contain image or sound files, respectively, so filter
-            #  out files with other extensions
+            #  out files with other extensions.  Any file name(s) in the
+            #  resource directories ending in .yaml or .yml will be processed.
             res_files = os.listdir(res_path)
             res_yaml_files = []
             for rf in res_files:
@@ -227,11 +311,15 @@ class GameEngine(logging_object.LoggingObject):
 
     def execute_action(self, action, event):
         """
-            execute_action():
-            Perform an action that is not specific to existing objects.
-            Parameters:
-             action (Action): The action instance to be executed.
-             event (Event): The event that triggered the action.
+        Perform an action that is not specific to existing objects.
+
+        Many actions are handled by object instances, but the rest must be
+        handled here.
+
+        :param action: The action instance to be executed
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
+        :param event: The event that triggered the action
+        :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         # filter the action parameters
         action_params = {}
@@ -241,7 +329,7 @@ class GameEngine(logging_object.LoggingObject):
             action_params[param] = action.get_parameter_expression_result(
                 param, self.symbols, self.language_engine)
 
-        #print("Engine received action: {}".format(action))
+        # print("Engine received action: {}".format(action))
         self.debug("Handle action '{}'".format(action.name))
         self.bump_indent_level()
         if action.name == "play_sound":
@@ -267,15 +355,16 @@ class GameEngine(logging_object.LoggingObject):
 
     def send_key_event(self, key_event):
         """
-            send_key_event():
-            Called with a keyboard event from pygame, or None if no key events
-             were collected this frame. Pygame key codes will be translated
-             into KeyEvents with _keyup or _keydn appended to the
-             name based on the pygame event received. If no keyboard event was
-             received during the frame, fire off the kb_no_key event.
-            Parameters:
-             key_event (pygame.event): The pygame keyboard event, or None to
-              signal that no button event occurred during the frame.
+        Handle a keyboard event received from pygame.
+
+        Pygame key codes will be translated into KeyEvents with _keyup or
+        _keydn appended to the name based on the pygame event received.  If no
+        keyboard event was received during the frame, fire off the kb_no_key
+        event.
+
+        :param key_event: The pygame keyboard event, or None to
+            signal that no button event occurred during the frame.
+        :type key_event: None | :py:class:`~pygame_maker.events.event.Event`
         """
         pk_map = event.KeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
         key_event_init_name = None
@@ -290,31 +379,31 @@ class GameEngine(logging_object.LoggingObject):
             elif key_event.type == pygame.KEYUP:
                 key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
         ev = event.KeyEvent(key_event_init_name)
-        #print("queue event: {}".format(ev))
+        # print("queue event: {}".format(ev))
         self.event_engine.queue_event(ev)
-        #print("xmit event: {}".format(key_event_name))
+        # print("xmit event: {}".format(key_event_name))
         self.event_engine.transmit_event(key_event_name)
         self.debug("Event '{}' queued and transmitted".format(key_event_init_name))
 
     def send_mouse_event(self, mouse_event):
         """
-            send_mouse_event():
-            Called with a mouse event collected from pygame, or None if no
-             mouse button events were collected this frame. Motion events will
-             simply capture the x, y of the mouse cursor. Button events will
-             trigger MouseEvents of the appropriate global and
-             instance press or release types. If no button event was received,
-             fire off the nobutton global and instance events.
-            Parameters:
-             mouse_event (pygame.event): The pygame mouse event, or None to
-              signal that no button event occurred during the frame.
+        Handle a mouse event received from pygame.
+
+        Motion events will simply capture the x, y of the mouse cursor.  Button
+        events will trigger MouseEvents of the appropriate global and instance
+        press or release types.  If no button event was received, fire off the
+        nobutton global and instance events.
+
+        :param mouse_event: The pygame mouse event, or None to signal that no
+            button event occurred during the frame.
+        :type mouse_event: None | :py:class:`~pygame_maker.events.event.Event`
         """
         if mouse_event:
             self.mouse_pos[0] = mouse_event.pos[0]
             self.mouse_pos[1] = mouse_event.pos[1]
-            self.language_engine.global_symbol_table.setConstant('mouse.x',
+            self.language_engine.global_symbol_table.set_constant('mouse.x',
                 self.mouse_pos[0])
-            self.language_engine.global_symbol_table.setConstant('mouse.y',
+            self.language_engine.global_symbol_table.set_constant('mouse.y',
                 self.mouse_pos[1])
             if mouse_event.type == pygame.MOUSEMOTION:
                 return
@@ -323,7 +412,7 @@ class GameEngine(logging_object.LoggingObject):
             mouse_button = mouse_event.button
             if len(self.MOUSE_EVENT_TABLE) > mouse_button:
                 ev_table_entry = self.MOUSE_EVENT_TABLE[mouse_button]
-                #print("select mouse entries {}".format(ev_table_entry))
+                # print("select mouse entries {}".format(ev_table_entry))
                 # queue the instance version of the event (each object type
                 #  listening for this kind of event only passes it on
                 #  to instances that intersect with the mouse position)
@@ -334,7 +423,7 @@ class GameEngine(logging_object.LoggingObject):
                     )
                 )
                 event_names.append(ev_table_entry["instance_event_name"])
-                #print("queue {}".format(event_names[-1]))
+                # print("queue {}".format(event_names[-1]))
                 self.event_engine.queue_event(
                     event.MouseEvent(
                         ev_table_entry["global_event_name"],
@@ -342,7 +431,7 @@ class GameEngine(logging_object.LoggingObject):
                     )
                 )
                 event_names.append(ev_table_entry["global_event_name"])
-                #print("queue {}".format(event_names[-1]))
+                # print("queue {}".format(event_names[-1]))
                 # press/release events exist only for a subset
                 if mouse_event.type == pygame.MOUSEBUTTONDOWN:
                     if 'instance_pressed_name' in ev_table_entry:
@@ -353,7 +442,7 @@ class GameEngine(logging_object.LoggingObject):
                             )
                         )
                         event_names.append(ev_table_entry["instance_pressed_name"])
-                        #print("queue {}".format(event_names[-1]))
+                        # print("queue {}".format(event_names[-1]))
                         self.event_engine.queue_event(
                             event.MouseEvent(
                                 ev_table_entry["global_pressed_name"],
@@ -361,7 +450,7 @@ class GameEngine(logging_object.LoggingObject):
                             )
                         )
                         event_names.append(ev_table_entry["global_pressed_name"])
-                        #print("queue {}".format(event_names[-1]))
+                        # print("queue {}".format(event_names[-1]))
                 if mouse_event.type == pygame.MOUSEBUTTONUP:
                     if 'instance_released_name' in ev_table_entry:
                         self.event_engine.queue_event(
@@ -371,7 +460,7 @@ class GameEngine(logging_object.LoggingObject):
                             )
                         )
                         event_names.append(ev_table_entry["instance_released_name"])
-                        #print("queue {}".format(event_names[-1]))
+                        # print("queue {}".format(event_names[-1]))
                         self.event_engine.queue_event(
                             event.MouseEvent(
                                 ev_table_entry["global_released_name"],
@@ -379,7 +468,7 @@ class GameEngine(logging_object.LoggingObject):
                             )
                         )
                         event_names.append(ev_table_entry["global_released_name"])
-                        #print("queue {}".format(event_names[-1]))
+                        # print("queue {}".format(event_names[-1]))
         else:
             self.event_engine.queue_event(
                 event.MouseEvent("mouse_nobutton",
@@ -399,20 +488,19 @@ class GameEngine(logging_object.LoggingObject):
 
     def setup(self, screen):
         """
-            setup():
-            Called by the pygame template when pygame has been initialized.
-             This is a good place to put any initialization that needs pygame
-             to be set up already -- e.g. loading images and audio.
-            Parameters:
-             screen (pygame.Surface): The full pygame display surface itself.
-              This is passed to objects so they know where the screen boundaries
-              are, for transmitting boundary collision events.
+        Called by :py:meth:`run` after pygame has been initialized.
+
+        This is a good place to put any initialization that needs pygame to be
+        set up already -- e.g. loading images and audio.
+
+        :param screen: The main pygame display surface
+        :type screen: :py:class:`pygame.Surface`
         """
         self.info("Setup:")
         with logging_object.Indented(self):
             self.screen = screen
-            self.symbols.setConstant('screen_width', screen.get_width())
-            self.symbols.setConstant('screen_height', screen.get_height())
+            self.symbols.set_constant('screen_width', screen.get_width())
+            self.symbols.set_constant('screen_height', screen.get_height())
             self.info("Pre-load game resources..")
             with logging_object.Indented(self):
                 self.setup_game_resources()
@@ -421,6 +509,9 @@ class GameEngine(logging_object.LoggingObject):
                 self.load_room(0)
 
     def setup_game_resources(self):
+        """
+        Call the ``setup()`` method of every resource type that supplies one.
+        """
         topdir = os.getcwd()
         if os.path.exists('sprites'):
             os.chdir('sprites')
@@ -449,13 +540,14 @@ class GameEngine(logging_object.LoggingObject):
 
     def load_room(self, room_n):
         """
-            load_room():
-            Initialize the given room number: create objects, run its init block
-             (if any).
-            Parameters:
-             room_n (int): The number of the room to load (starting from 0)
+        Initialize the given room number.
+
+        Create the room's objects and run its init block (if any).
+
+        :param room_n: The number of the room to load (starting from 0)
+        :type room_n: int
         """
-        self.info("Loading room {} ('{}')..".format(room_n,
+        self.info("Loading room {:d} ('{}')..".format(room_n,
             self.resources['rooms'][room_n].name))
         self.room_index = room_n
         room_width = self.resources['rooms'][room_n].width
@@ -466,25 +558,27 @@ class GameEngine(logging_object.LoggingObject):
         self.draw_surface = pygame.Surface( (room_width, room_height) )
         self.resources['rooms'][room_n].draw_room_background(self.draw_surface)
         self.resources['rooms'][room_n].load_room(self.draw_surface)
-        self.symbols.setConstant('room_width', room_width)
-        self.symbols.setConstant('room_height', room_height)
-        self.info("Room {} loaded.".format(room_n))
+        self.symbols.set_constant('room_width', room_width)
+        self.symbols.set_constant('room_height', room_height)
+        self.info("Room {:d} loaded.".format(room_n))
 
     def collect_event(self, event):
         """
-            collect_event():
-            The pygame event queue will lose events unless they are handled.
-            This method is called by the pygame template to move the events
-            out of pygame and into an instance list.
+        The pygame event queue will lose events unless they are handled.  This
+        method is called by :py:meth:`run` to move the events out of pygame and
+        into a list.
+
+        :param event: The event received from pygame
+        :type event: :py:class:`pygame.event.EventType`
         """
         self.current_events.append(event)
 
     def update(self):
         """
-            update():
-            Called by the pygame template to update object positions. This is
-             also a good time to check for any keyboard or mouse events, and to
-             check for and send collision events.
+        Called by :py:meth:`run()` to update all object instance positions.
+
+        This is also a good time to check for any keyboard or mouse events, and
+        to check for and send collision events.
         """
         # keep track of whether any mouse button or key events have been
         #  received this frame
@@ -540,10 +634,7 @@ class GameEngine(logging_object.LoggingObject):
                 self.event_engine.transmit_event(coll_type)
 
     def draw_objects(self):
-        """
-            draw_objects():
-            Called by the pygame template to draw the foreground items.
-        """
+        """Called by :py:meth:`run` to draw the foreground items."""
         # end_step happens just before drawing object instances
         ev = event.StepEvent('end_step')
         self.event_engine.queue_event(ev)
@@ -554,10 +645,7 @@ class GameEngine(logging_object.LoggingObject):
             self.resources['objects'][obj_name].draw(self.draw_surface)
 
     def draw_background(self):
-        """
-            draw_background():
-            Called by the pygame template to draw the background.
-        """
+        """Called by :py:meth:`run` to draw the room background."""
         if (self.room_index < len(self.resources['rooms'])):
             self.resources['rooms'][self.room_index].draw_room_background(self.draw_surface)
 
@@ -569,6 +657,13 @@ class GameEngine(logging_object.LoggingObject):
         return self.done
 
     def run(self):
+        """
+        The main game event loop.
+
+        Run :py:func:`pygame.init` first, then call :py:meth:`setup` to run
+        all operations that require ``pygame.init()``, prior to entering the
+        loop.
+        """
         pygame.init()
         self.screen = pygame.display.set_mode(self.game_settings['screen_dimensions'])
         self.setup(self.screen)
@@ -601,4 +696,3 @@ class GameEngine(logging_object.LoggingObject):
 if __name__ == "__main__":
     game_engine = GameEngine()
     game_engine.run()
-
