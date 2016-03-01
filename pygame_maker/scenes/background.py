@@ -11,13 +11,33 @@ import os.path
 import yaml
 import re
 
+
 class BackgroundException(Exception):
     pass
 
+
 class TileProperties(object):
+    """
+    Wrap tiling properties.
+    """
     DEFAULT_TILE_WIDTH=16
     DEFAULT_TILE_HEIGHT=16
     def __init__(self, **kwargs):
+        """
+        Initialize a new TileProperties instance.
+
+        :param kwargs: Dict containing parameter settings to apply to the new
+            instance:
+
+            * tile_width (int): Horizontal width of tiles [16]
+            * tile_height (int): Vertical height of tiles [16]
+            * horizontal_offset (int): X coordinate of the left edge of the
+              tileset [0]
+            * vertical_offset (int): Y coordinate of the top edge of the
+              tileset [0]
+            * horizontal_padding (int): Horizontal gap between tiles [0]
+            * vertical_padding (int): Vertical gap between tiles [0]
+        """
         self.tile_width = self.DEFAULT_TILE_WIDTH
         self.tile_height = self.DEFAULT_TILE_HEIGHT
         self.horizontal_offset = 0
@@ -46,15 +66,19 @@ class TileProperties(object):
             (self.vertical_offset == other.vertical_offset) and
             (self.horizontal_padding == other.horizontal_padding))
 
+
 class Background(object):
+    """
+    The Background resource used by Rooms.
+    """
     DEFAULT_NAME="bkg_"
 
     @staticmethod
     def load_from_yaml(yaml_stream, unused=None):
         """
-            load_from_yaml():
-            Create background(s) from a YAML-formatted file.
-            Expected format (missing fields will receive default values):
+        Create background(s) from a YAML-formatted file.
+        Expected format (missing fields will receive default values)::
+
             - bkg_name1:
                 filename: <image_file_name>
                 smooth_edges: True|False
@@ -67,8 +91,14 @@ class Background(object):
                 vertical_offset: <# >= 0>
                 horizontal_padding: <# >= 0>
                 vertical_padding: <# >= 0>
+
+        :param yaml_stream: A stream containing YAML-formatted strings
+        :type yaml_stream: file-like
+        :param unused: A placeholder, since other load_from_yaml() methods
+            receive a game engine handle here
+        :return: A list of new Background instances for all valid backgrounds
+            defined in the YAML stream
         """
-        yaml_repr = None
         new_background_list = []
         yaml_repr = yaml.load(yaml_stream)
         if yaml_repr:
@@ -99,11 +129,30 @@ class Background(object):
                     kwargs['horizontal_padding'] = bkg_yaml['horizontal_padding']
                 if 'vertical_padding' in bkg_yaml.keys():
                     kwargs['vertical_padding'] = bkg_yaml['vertical_padding']
-                new_background_list.append(Background(bkg_name,
-                    **kwargs))
+                new_background_list.append(Background(bkg_name, **kwargs))
         return new_background_list
 
     def __init__(self, name, **kwargs):
+        """
+        Initialize a new Background instance.
+
+        :param name: The name for the new background
+        :type name: str
+        :param kwargs: The list of parameters to set in the new instance:
+
+            * filename (str): The filename to use as a background image [""]
+            * smooth_edges (bool): Whether to smooth edges (NYI) [False]
+            * preload_texture (bool): Whether to preload the background image
+              [False]
+            * transparent (bool): Whether the background image should have
+              pixel transparency [False]
+            * tileset (bool): Whether the background image is a tile set
+              [False]
+
+            Parameters recognized by TileProperties will be passed on, and
+            wrapped in a :py:class:`TileProperties` instance.
+        :return:
+        """
         self.name = name
         self.filename = ""
         self.tile_properties = TileProperties(**kwargs)
@@ -132,17 +181,19 @@ class Background(object):
 
     def setup(self):
         """
-            setup():
-            Preload the image if preload_texture is set. Must be done after
-             pygame.init().
+        Preload the image if ``preload_texture`` is set.
+
+        Only call this method after pygame.init().
         """
         if self.filename and self.preload_texture and self.check_filename():
             self.load_graphic()
 
     def load_graphic(self):
         """
-            load_graphic():
-            Load the background image from the file.
+        Load the background image from the file.
+
+        Use a black background in case there are transparent pixels in the
+        image, and the transparent attribute is False.
         """
         if len(self.filename) > 0 and self.check_filename():
             img = pygame.image.load(self.filename).convert_alpha()
@@ -160,14 +211,15 @@ class Background(object):
 
     def draw_background(self, screen, xy_offset=(0,0)):
         """
-            draw_background():
-            Draw the background color and image (with tiling if specified) to
-             the supplied screen
-            Parameters:
-             screen (pygame.Surface): The screen to draw this background onto
-             xy_offset (tuple/list): X, Y offset for the upper left corner of
-              the image/tileset (in addition to the background's configured
-              horizontal/vertical offsets if it's a tileset)
+        Draw the background color and image (with tiling if specified) to the
+        supplied screen.
+
+        :param screen: The screen to draw this background onto
+        :type screen: :py:class:`pygame.Surface`
+        :param xy_offset: X, Y offset for the upper left corner of
+            the image/tileset (in addition to the background's configured
+            horizontal/vertical offsets if it's a tileset)
+        :type xy_offset: 2-element array-like
         """
         if (len(self.filename) > 0) and self.check_filename():
             if not self.image:
@@ -211,14 +263,24 @@ class Background(object):
                             area=self.tile_rect)
 
     def check_filename(self):
-        """Error-check filename"""
+        """
+        Error-check filename.
+
+        :raise: BackgroundException if the filename is not a string, or if the
+            file was missing or empty
+        :return: True if the filename is found, and not empty
+        :rtype: bool
+        """
         if not isinstance(self.filename, str):
-            raise BackgroundException("Background error ({}): filename '{}' is not a string".format(self,self.filename))
+            raise BackgroundException("Background error ({}): filename '{}' is not a string".format(str(self),
+                                                                                                    self.filename))
         elif len(self.filename) == 0:
-            raise BackgroundException("Background error ({}): filename is empty".format(self,self.filename))
+            raise BackgroundException("Background error ({}): filename is empty".format(str(self),
+                                                                                        self.filename))
         if len(self.filename) > 0:
             if not os.path.exists(self.filename):
-                raise BackgroundException("Background error ({}): filename '{}' not found".format(self,self.filename))
+                raise BackgroundException("Background error ({}): filename '{}' not found".format(str(self),
+                                                                                                  self.filename))
         return True
 
     def __eq__(self, other):
@@ -232,5 +294,4 @@ class Background(object):
             (self.tile_properties == other.tile_properties))
 
     def __repr__(self):
-        return("<{} name='{}'>".format(type(self).__name__, self.name))
-
+        return "<{} name='{}'>".format(type(self).__name__, self.name)
