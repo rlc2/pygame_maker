@@ -21,7 +21,7 @@ class UnknownEventError(Exception):
 
 class Event(object):
     """Base class for events."""
-    HANDLED_EVENTS=[]
+    HANDLED_EVENTS = []
 
     event_type_registry = []
 
@@ -129,16 +129,17 @@ class Event(object):
 
     def __repr__(self):
         return("<{} \"{}\"{}>".format(self.__class__.__name__,
-            self.name, self.repr_event_strings()))
+                                      self.name, self.repr_event_strings()))
+
 
 class ObjectStateEvent(Event):
     """Wrap object state events."""
-    OBJECT_STATE_EVENTS=[
+    OBJECT_STATE_EVENTS = [
         "create",
         "destroy"
     ]
     #: Complete list of object state event names
-    HANDLED_EVENTS=OBJECT_STATE_EVENTS
+    HANDLED_EVENTS = OBJECT_STATE_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -149,16 +150,17 @@ class ObjectStateEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("ObjectStateEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
+
 class AlarmEvent(Event):
     """Wrap alarm events."""
-    ALARM_COUNT=12
-    ALARM_EVENTS=["alarm{:d}".format(n) for n in range(0,ALARM_COUNT)]
+    ALARM_COUNT = 12
+    ALARM_EVENTS = ["alarm{:d}".format(n) for n in range(0, ALARM_COUNT)]
     #: Complete list of alarm event names
-    HANDLED_EVENTS=ALARM_EVENTS
+    HANDLED_EVENTS = ALARM_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -169,19 +171,20 @@ class AlarmEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("AlarmEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
+
 class StepEvent(Event):
     """Wrap step events."""
-    STEP_EVENTS=[
+    STEP_EVENTS = [
         "normal_step",
         "begin_step",
         "end_step"
     ]
     #: Complete list of step event names
-    HANDLED_EVENTS=STEP_EVENTS
+    HANDLED_EVENTS = STEP_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -192,13 +195,14 @@ class StepEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("StepEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
+
 class MouseEvent(Event):
     """Wrap mouse events."""
-    MOUSE_EVENTS=[
+    MOUSE_EVENTS = [
         "mouse_button_left",
         "mouse_button_right",
         "mouse_button_middle",
@@ -233,7 +237,7 @@ class MouseEvent(Event):
         "mouse_global_wheeldown"
     ]
     #: Complete list of mouse events
-    HANDLED_EVENTS=MOUSE_EVENTS
+    HANDLED_EVENTS = MOUSE_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -244,13 +248,14 @@ class MouseEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("MouseEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
+
 class OtherEvent(Event):
     """Wrap miscellaneous events."""
-    OTHER_EVENTS=[
+    OTHER_EVENTS = [
         "outside_room",
         "intersect_boundary",
         "game_start",
@@ -274,7 +279,7 @@ class OtherEvent(Event):
         "sound_loaded"
     ]
     #: Complete list of 'other' events
-    HANDLED_EVENTS=OTHER_EVENTS
+    HANDLED_EVENTS = OTHER_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -285,19 +290,20 @@ class OtherEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("OtherEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
 
+
 class DrawEvent(Event):
     """Wrap draw events."""
-    DRAW_EVENTS=[
+    DRAW_EVENTS = [
         "draw",
         "gui",
         "resize"
     ]
     #: Complete list of draw events
-    HANDLED_EVENTS=DRAW_EVENTS
+    HANDLED_EVENTS = DRAW_EVENTS
 
     def __init__(self, event_name, event_params=None):
         """
@@ -308,9 +314,10 @@ class DrawEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        if not event_name in self.HANDLED_EVENTS:
+        if event_name not in self.HANDLED_EVENTS:
             raise UnknownEventError("DrawEvent: Unknown event '{}'".format(event_name))
         Event.__init__(self, event_name, event_params)
+
 
 class KeyEvent(Event):
     """Wrap keyboard events."""
@@ -364,9 +371,9 @@ class KeyEvent(Event):
         "kb_`",
         "kb_\\"
     ]
-    DIGIT_KEYS = ["kb_{}".format(str(k)) for k in range(0,10)]
+    DIGIT_KEYS = ["kb_{}".format(str(k)) for k in range(0, 10)]
     LETTER_KEYS = ["kb_{}".format(chr(l)) for l in range(65, 65+26)]
-    FUNCTION_KEYS = ["kb_F{:d}".format(n) for n in range(1,13)]
+    FUNCTION_KEYS = ["kb_F{:d}".format(n) for n in range(1, 13)]
     OTHER_KEYS = [
         "kb_no_key",
         "kb_any_key",
@@ -396,106 +403,106 @@ class KeyEvent(Event):
                   OTHER_KEYS)
 
     PYGAME_KEY_TO_KEY_EVENT_MAP = {
-        pygame.K_COMMA       :  "kb_,",
-        pygame.K_PERIOD      :  "kb_.",
-        pygame.K_SLASH       :  "kb_/",
-        pygame.K_SEMICOLON   :  "kb_;",
-        pygame.K_QUOTE       :  "kb_'",
-        pygame.K_LEFTBRACKET :  "kb_[",
+        pygame.K_COMMA:         "kb_,",
+        pygame.K_PERIOD:        "kb_.",
+        pygame.K_SLASH:         "kb_/",
+        pygame.K_SEMICOLON:     "kb_;",
+        pygame.K_QUOTE:         "kb_'",
+        pygame.K_LEFTBRACKET:   "kb_[",
         pygame.K_RIGHTBRACKET:  "kb_]",
-        pygame.K_MINUS       :  "kb_-",
-        pygame.K_EQUALS      :  "kb_=",
-        pygame.K_BACKQUOTE   :  "kb_`",
-        pygame.K_BACKSLASH   :  "kb_\\",
-        pygame.K_0           :  "kb_0",
-        pygame.K_1           :  "kb_1",
-        pygame.K_2           :  "kb_2",
-        pygame.K_3           :  "kb_3",
-        pygame.K_4           :  "kb_4",
-        pygame.K_5           :  "kb_5",
-        pygame.K_6           :  "kb_6",
-        pygame.K_7           :  "kb_7",
-        pygame.K_8           :  "kb_8",
-        pygame.K_9           :  "kb_9",
-        pygame.K_a           :  "kb_A",
-        pygame.K_b           :  "kb_B",
-        pygame.K_c           :  "kb_C",
-        pygame.K_d           :  "kb_D",
-        pygame.K_e           :  "kb_E",
-        pygame.K_f           :  "kb_F",
-        pygame.K_g           :  "kb_G",
-        pygame.K_h           :  "kb_H",
-        pygame.K_i           :  "kb_I",
-        pygame.K_j           :  "kb_J",
-        pygame.K_k           :  "kb_K",
-        pygame.K_l           :  "kb_L",
-        pygame.K_m           :  "kb_M",
-        pygame.K_n           :  "kb_N",
-        pygame.K_o           :  "kb_O",
-        pygame.K_p           :  "kb_P",
-        pygame.K_q           :  "kb_Q",
-        pygame.K_r           :  "kb_R",
-        pygame.K_s           :  "kb_S",
-        pygame.K_t           :  "kb_T",
-        pygame.K_u           :  "kb_U",
-        pygame.K_v           :  "kb_V",
-        pygame.K_w           :  "kb_W",
-        pygame.K_x           :  "kb_X",
-        pygame.K_y           :  "kb_Y",
-        pygame.K_z           :  "kb_Z",
-        pygame.K_LEFT        :  "kb_left",
-        pygame.K_RIGHT       :  "kb_right",
-        pygame.K_UP          :  "kb_up",
-        pygame.K_DOWN        :  "kb_down",
-        pygame.K_LCTRL       :  "kb_lctrl",
-        pygame.K_RCTRL       :  "kb_rctrl",
-        pygame.K_LALT        :  "kb_lalt",
-        pygame.K_RALT        :  "kb_ralt",
-        pygame.K_LSHIFT      :  "kb_lshift",
-        pygame.K_RSHIFT      :  "kb_rshift",
-        pygame.K_LMETA       :  "kb_lmeta",
-        pygame.K_RMETA       :  "kb_rmeta",
-        pygame.K_LSUPER      :  "kb_lsuper",
-        pygame.K_RSUPER      :  "kb_rsuper",
-        pygame.K_SPACE       :  "kb_space",
-        pygame.K_RETURN      :  "kb_enter",
-        pygame.K_BACKSPACE   :  "kb_backspace",
-        pygame.K_ESCAPE      :  "kb_escape",
-        pygame.K_HOME        :  "kb_home",
-        pygame.K_END         :  "kb_end",
-        pygame.K_PAGEUP      :  "kb_pageup",
-        pygame.K_PAGEDOWN    :  "kb_pagedown",
-        pygame.K_DELETE      :  "kb_delete",
-        pygame.K_INSERT      :  "kb_insert",
-        pygame.K_KP0         :  "kb_np0",
-        pygame.K_KP1         :  "kb_np1",
-        pygame.K_KP2         :  "kb_np2",
-        pygame.K_KP3         :  "kb_np3",
-        pygame.K_KP4         :  "kb_np4",
-        pygame.K_KP5         :  "kb_np5",
-        pygame.K_KP6         :  "kb_np6",
-        pygame.K_KP7         :  "kb_np7",
-        pygame.K_KP8         :  "kb_np8",
-        pygame.K_KP9         :  "kb_np9",
-        pygame.K_KP_DIVIDE   :  "kb_np/",
-        pygame.K_KP_MULTIPLY :  "kb_np*",
-        pygame.K_KP_MINUS    :  "kb_np-",
-        pygame.K_KP_PLUS     :  "kb_np+",
-        pygame.K_KP_PERIOD   :  "kb_np.",
-        pygame.K_KP_EQUALS   :  "kb_np=",
-        pygame.K_KP_ENTER    :  "kb_npenter",
-        pygame.K_F1          :  "kb_F1",
-        pygame.K_F2          :  "kb_F2",
-        pygame.K_F3          :  "kb_F3",
-        pygame.K_F4          :  "kb_F4",
-        pygame.K_F5          :  "kb_F5",
-        pygame.K_F6          :  "kb_F6",
-        pygame.K_F7          :  "kb_F7",
-        pygame.K_F8          :  "kb_F8",
-        pygame.K_F9          :  "kb_F9",
-        pygame.K_F10         :  "kb_F10",
-        pygame.K_F11         :  "kb_F11",
-        pygame.K_F12         :  "kb_F12"
+        pygame.K_MINUS:         "kb_-",
+        pygame.K_EQUALS:        "kb_=",
+        pygame.K_BACKQUOTE:     "kb_`",
+        pygame.K_BACKSLASH:     "kb_\\",
+        pygame.K_0:             "kb_0",
+        pygame.K_1:             "kb_1",
+        pygame.K_2:             "kb_2",
+        pygame.K_3:             "kb_3",
+        pygame.K_4:             "kb_4",
+        pygame.K_5:             "kb_5",
+        pygame.K_6:             "kb_6",
+        pygame.K_7:             "kb_7",
+        pygame.K_8:             "kb_8",
+        pygame.K_9:             "kb_9",
+        pygame.K_a:             "kb_A",
+        pygame.K_b:             "kb_B",
+        pygame.K_c:             "kb_C",
+        pygame.K_d:             "kb_D",
+        pygame.K_e:             "kb_E",
+        pygame.K_f:             "kb_F",
+        pygame.K_g:             "kb_G",
+        pygame.K_h:             "kb_H",
+        pygame.K_i:             "kb_I",
+        pygame.K_j:             "kb_J",
+        pygame.K_k:             "kb_K",
+        pygame.K_l:             "kb_L",
+        pygame.K_m:             "kb_M",
+        pygame.K_n:             "kb_N",
+        pygame.K_o:             "kb_O",
+        pygame.K_p:             "kb_P",
+        pygame.K_q:             "kb_Q",
+        pygame.K_r:             "kb_R",
+        pygame.K_s:             "kb_S",
+        pygame.K_t:             "kb_T",
+        pygame.K_u:             "kb_U",
+        pygame.K_v:             "kb_V",
+        pygame.K_w:             "kb_W",
+        pygame.K_x:             "kb_X",
+        pygame.K_y:             "kb_Y",
+        pygame.K_z:             "kb_Z",
+        pygame.K_LEFT:          "kb_left",
+        pygame.K_RIGHT:         "kb_right",
+        pygame.K_UP:            "kb_up",
+        pygame.K_DOWN:          "kb_down",
+        pygame.K_LCTRL:         "kb_lctrl",
+        pygame.K_RCTRL:         "kb_rctrl",
+        pygame.K_LALT:          "kb_lalt",
+        pygame.K_RALT:          "kb_ralt",
+        pygame.K_LSHIFT:        "kb_lshift",
+        pygame.K_RSHIFT:        "kb_rshift",
+        pygame.K_LMETA:         "kb_lmeta",
+        pygame.K_RMETA:         "kb_rmeta",
+        pygame.K_LSUPER:        "kb_lsuper",
+        pygame.K_RSUPER:        "kb_rsuper",
+        pygame.K_SPACE:         "kb_space",
+        pygame.K_RETURN:        "kb_enter",
+        pygame.K_BACKSPACE:     "kb_backspace",
+        pygame.K_ESCAPE:        "kb_escape",
+        pygame.K_HOME:          "kb_home",
+        pygame.K_END:           "kb_end",
+        pygame.K_PAGEUP:        "kb_pageup",
+        pygame.K_PAGEDOWN:      "kb_pagedown",
+        pygame.K_DELETE:        "kb_delete",
+        pygame.K_INSERT:        "kb_insert",
+        pygame.K_KP0:           "kb_np0",
+        pygame.K_KP1:           "kb_np1",
+        pygame.K_KP2:           "kb_np2",
+        pygame.K_KP3:           "kb_np3",
+        pygame.K_KP4:           "kb_np4",
+        pygame.K_KP5:           "kb_np5",
+        pygame.K_KP6:           "kb_np6",
+        pygame.K_KP7:           "kb_np7",
+        pygame.K_KP8:           "kb_np8",
+        pygame.K_KP9:           "kb_np9",
+        pygame.K_KP_DIVIDE:     "kb_np/",
+        pygame.K_KP_MULTIPLY:   "kb_np*",
+        pygame.K_KP_MINUS:      "kb_np-",
+        pygame.K_KP_PLUS:       "kb_np+",
+        pygame.K_KP_PERIOD:     "kb_np.",
+        pygame.K_KP_EQUALS:     "kb_np=",
+        pygame.K_KP_ENTER:      "kb_npenter",
+        pygame.K_F1:            "kb_F1",
+        pygame.K_F2:            "kb_F2",
+        pygame.K_F3:            "kb_F3",
+        pygame.K_F4:            "kb_F4",
+        pygame.K_F5:            "kb_F5",
+        pygame.K_F6:            "kb_F6",
+        pygame.K_F7:            "kb_F7",
+        pygame.K_F8:            "kb_F8",
+        pygame.K_F9:            "kb_F9",
+        pygame.K_F10:           "kb_F10",
+        pygame.K_F11:           "kb_F11",
+        pygame.K_F12:           "kb_F12"
     }
     #: Append this string to the event name, to specify key release
     KEYBOARD_UP_SUFFIX = "_keyup"
@@ -503,7 +510,7 @@ class KeyEvent(Event):
     #: Append this string to the event name, to specify key press
     KEYBOARD_DOWN_SUFFIX = "_keydn"
     KEYBOARD_DOWN_SUFFIX_RE = re.compile("(.*)({})$".format(KEYBOARD_DOWN_SUFFIX))
-    HANDLED_EVENTS=KEY_EVENTS
+    HANDLED_EVENTS = KEY_EVENTS
 
     @classmethod
     def find_key_event(cls, event_name):
@@ -565,14 +572,16 @@ class KeyEvent(Event):
 
     def __repr__(self):
         return("<{} '{}' when {}{}>".format(self.__class__.__name__,
-            self.name, self.key_event_type, self.repr_event_strings()))
+                                            self.name, self.key_event_type,
+                                            self.repr_event_strings()))
+
 
 class CollisionEvent(Event):
     """Wrap collision events."""
     #: All collision events start with this prefix
-    HANDLED_EVENTS=["collision"]
+    HANDLED_EVENTS = ["collision"]
 
-    COLLISION_RE=re.compile("collision_(.+)")
+    COLLISION_RE = re.compile("collision_(.+)")
 
     @classmethod
     def find_collision_event(cls, event_name):
@@ -617,12 +626,13 @@ class CollisionEvent(Event):
         """
         Event.__init__(self, event_name, event_params)
         ev_info = CollisionEvent.find_collision_event(event_name)
-        #self.name = ev_info[0]
+        # self.name = ev_info[0]
         self.collision_object_name = ev_info[1]
 
     def __repr__(self):
         return("<{} vs \"{}\"{}>".format(self.__class__.__name__,
-            self.collision_object_name, self.repr_event_strings()))
+                                         self.collision_object_name,
+                                         self.repr_event_strings()))
 
 Event.register_new_event_type(ObjectStateEvent)
 Event.register_new_event_type(AlarmEvent)

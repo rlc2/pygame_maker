@@ -60,12 +60,12 @@ import re
 OPERATORS = ['^', '*', '/', '%', '-', '+', 'not', '<', '<=', '>', '>=', '==', '!=', '=', 'and', 'or']
 #: Operator precedence table
 PRECEDENCE_TABLE = [
-    ('not',11),
-    ('^',10),
-    ('*',9), ('/',9), ('%', 9),
-    ('-',8), ('+',8),
-    ('<',7), ('<=',7), ('>',7), ('>=',7), ('==',7), ('!=',7),
-    ('and',6), ('or',6),
+    ('not', 11),
+    ('^', 10),
+    ('*', 9), ('/', 9), ('%', 9),
+    ('-', 8), ('+', 8),
+    ('<', 7), ('<=', 7), ('>', 7), ('>=', 7), ('==', 7), ('!=', 7),
+    ('and', 6), ('or', 6),
     ('=', 5)
 ]
 #: Left associativity
@@ -135,7 +135,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
                     if (((ASSOCIATIVITY[op_stack[0]] == RIGHT) and
                         (prec_diff < 0)) or
                         ((ASSOCIATIVITY[op_stack[0]] == LEFT) and
-                        (prec_diff <= 0))):
+                         (prec_diff <= 0))):
                         stack.append(op_stack[0])
                         if len(op_stack) > 1:
                             op_stack = op_stack[1:]
@@ -167,6 +167,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
             if stack[idx] in replacement_ops:
                 stack[idx] = replacement_ops[stack[idx]]
     return stack
+
 
 def precedence_check(a, b):
     """
@@ -226,15 +227,14 @@ if __name__ == "__main__":
             tok_list = [['a', '+', '1'], '*', '2', '^', ['32', '-', '4']]
             postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
             expected = ['_a', 1, 'operator.add', 2, 32, 4, 'operator.sub',
-                'math.pow', 'operator.mul']
+                        'math.pow', 'operator.mul']
             self.assertEqual(expected, postfix)
 
         def test_020boolean(self):
             tok_list = ['not', ['a', '>', '1'], 'or', ['a', '==', '4']]
             postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
             expected = ['_a', 1, 'operator.gt', 'operator.not_', '_a', 4,
-                'operator.eq', 'or']
+                        'operator.eq', 'or']
             self.assertEqual(expected, postfix)
 
     unittest.main()
-

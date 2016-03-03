@@ -15,7 +15,8 @@ from pygame_maker.logic.language_engine import SymbolTable
 __all__ = ["Action", "AccountingAction", "CodeAction", "DrawAction",
            "GameAction", "InfoAction", "MotionAction", "ObjectAction",
            "OtherAction", "ParticleAction", "QuestionAction", "ResourceAction",
-           "RoomAction", "SoundAction", "TimingAction", "VariableAction"]
+           "RoomAction", "SoundAction", "TimingAction", "VariableAction",
+           "ActionException", "ActionParameterException"]
 
 
 class ActionException(Exception):

@@ -13,7 +13,8 @@ from pygame_maker.actions.action import *
 
 __all__ = ["ActionSequence", "ActionSequenceStatement",
            "ActionSequenceConditional", "ActionSequenceConditionalIf",
-           "ActionSequenceConditionalElse", "ActionSequenceBlock"]
+           "ActionSequenceConditionalElse", "ActionSequenceBlock",
+           "ActionSequenceStatementException"]
 
 
 class ActionSequenceStatementException(Exception):

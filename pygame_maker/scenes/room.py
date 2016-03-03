@@ -22,31 +22,31 @@ class Room(logging_object.LoggingObject):
     Represent "rooms" in PyGameMaker, which are where all actions happen.
     """
     #: Room background color used if not specified
-    DEFAULT_BACKGROUND_COLOR = color.Color( (0,0,0) )
+    DEFAULT_BACKGROUND_COLOR = color.Color((0, 0, 0))
     #: Room dimensions used if not specified
-    DEFAULT_DIMENSIONS=(640, 480)
+    DEFAULT_DIMENSIONS = (640, 480)
     #: Room frame rate used if not specified
-    DEFAULT_FRAME_RATE=30
-    DEFAULT_NAME="rm_"
-    ATTRIBUTES_TABLE={
-        'width':                        int,
-        'height':                       int,
-        'speed':                        float,
-        'persistent':                   bool,
-        'init_code':                    str,
-        'background':                   str,
-        'background_color':             color.Color,
-        'draw_background_color':        bool,
+    DEFAULT_FRAME_RATE = 30
+    DEFAULT_NAME = "rm_"
+    ATTRIBUTES_TABLE = {
+        'width': int,
+        'height': int,
+        'speed': float,
+        'persistent': bool,
+        'init_code': str,
+        'background': str,
+        'background_color': color.Color,
+        'draw_background_color': bool,
         'background_horizontal_offset': int,
-        'background_vertical_offset':   int,
-        'background_visible':           bool,
-        'tile_horizontal':              bool,
-        'tile_vertical':                bool,
-        'stretch:':                     bool,
-        'grid_x_offset':                int,
-        'grid_y_offset':                int,
-        'grid_width':                   int,
-        'grid_height':                  int,
+        'background_vertical_offset': int,
+        'background_visible': bool,
+        'tile_horizontal': bool,
+        'tile_vertical': bool,
+        'stretch:': bool,
+        'grid_x_offset': int,
+        'grid_y_offset': int,
+        'grid_width': int,
+        'grid_height': int,
     }
 
     @staticmethod
@@ -101,8 +101,7 @@ class Room(logging_object.LoggingObject):
                         kwargs[attr] = room_yaml[attr]
                 if 'object_instances' in room_yaml.keys():
                     kwargs['object_instances'] = room_yaml['object_instances']
-                new_room_list.append(Room(room_name, game_engine,
-                    **kwargs))
+                new_room_list.append(Room(room_name, game_engine, **kwargs))
         return new_room_list
 
     def __init__(self, name, game_engine, **kwargs):
@@ -187,14 +186,14 @@ class Room(logging_object.LoggingObject):
         self._background_horizontal_offset = 0
         self._background_vertical_offset = 0
         #: The upper left pixel coordinate to draw the background at
-        self.background_offsets = [0,0]
+        self.background_offsets = [0, 0]
         #: True if the background will be drawn
         self.background_visible = True
         #: A pygame Rect representing the snap grid width, height, and upper
         #:  left coordinate
-        self.grid = pygame.Rect(0,0,16,16)
+        self.grid = pygame.Rect(0, 0, 16, 16)
         self._cached_background = None
-        self._cached_rect = pygame.Rect(0,0,0,0)
+        self._cached_rect = pygame.Rect(0, 0, 0, 0)
         #: The width of the background, determined after its image is loaded
         self.bkg_width = 0
         #: The height of the background, determined after its image is loaded
@@ -223,27 +222,28 @@ class Room(logging_object.LoggingObject):
                     err_msg = ""
                     init_code = None
                     obj_name = obj_check.keys()[0]
-                    if not 'position' in obj_check[obj_name]:
+                    if 'position' not in obj_check[obj_name]:
                         obj_ok = False
                         err_msg = "Missing position for object '{}'".format(obj_name)
                     pos_list = list(obj_check[obj_name]['position'])
                     if len(pos_list) < 2:
                         obj_ok = False
-                        err_msg = "Invalid position '{}' for object '{}'".format(obj_check[obj_name]['position'], obj_name)
+                        err_msg = "Invalid position '{}' for object '{}'".format(obj_check[obj_name]['position'],
+                                                                                 obj_name)
                     if 'init_code' in obj_check[obj_name].keys():
-                        if (not isinstance(obj_check[obj_name]['init_code'],
-                            str)):
+                        if not isinstance(obj_check[obj_name]['init_code'], str):
                             obj_ok = False
-                            err_msg = "Invalid code block '{}' for object '{}'".format(obj_check[obj_name]['init_code'], obj_name)
+                            err_msg = "Invalid code block '{}' for object '{}'".format(obj_check[obj_name]['init_code'],
+                                                                                       obj_name)
                         init_code = obj_check[obj_name]['init_code']
                     if not obj_ok:
                         self.error("{}: Failed to create room: {}".format(type(self).__name__,
                                                                           err_msg))
-                        raise(RoomException("{}: Failed to create room: {}".format(type(self).__name__,
-                                                                                   err_msg)))
+                        raise (RoomException("{}: Failed to create room: {}".format(type(self).__name__,
+                                                                                    err_msg)))
                     self.add_init_object_instance_at(obj_name,
-                        obj_check[obj_name]['position'], init_code)
-
+                                                     obj_check[obj_name]['position'],
+                                                     init_code)
 
     @property
     def init_code(self):
@@ -273,7 +273,7 @@ class Room(logging_object.LoggingObject):
         self.background_offsets[1] = value
 
     def add_init_object_instance_at(self, object_type_name, locationxy,
-        init_code=None):
+                                    init_code=None):
         """
         Add to the list of object instances that should be created when the
         room is loaded.
@@ -290,10 +290,10 @@ class Room(logging_object.LoggingObject):
                                                                      locationxy,
                                                                      init_code))
         loc = [int(locationxy[0]), int(locationxy[1])]
-        self.init_object_instances.append( (object_type_name, loc, init_code) )
+        self.init_object_instances.append((object_type_name, loc, init_code))
 
     def add_object_instance_at(self, surface, object_type_name, locationxy,
-        init_code):
+                               init_code):
         """
         Create a new object instance in the room.
 
@@ -315,15 +315,15 @@ class Room(logging_object.LoggingObject):
             self.object_instances.append(self.game_engine.resources['objects'][object_type_name].create_instance(
                 surface, position=locationxy))
             new_obj = self.object_instances[-1]
-            self.info("  Room {}: Created obj {} id {}".format(self.name,
-                                                               object_type_name,
-                                                               new_obj._id))
+            self.info("  Room {}: Created obj {} id {:d}".format(self.name,
+                                                                 object_type_name,
+                                                                 new_obj.inst_id))
             if init_code is not None:
                 # Create a throw-away code action, and send it to the new
                 #  instance's execute_code method.
                 code_action = action.CodeAction('execute_code', code=init_code)
                 self.object_instances[-1].execute_code(code_action,
-                    keep_code_block=False)
+                                                       keep_code_block=False)
 
     def set_init_code_block(self, code_block_string):
         """
@@ -357,7 +357,7 @@ class Room(logging_object.LoggingObject):
         self.debug("load_room({}):".format(surface))
         self.info("  load room named '{}'".format(self.name))
         if (self.background and (self.background in
-            self.game_engine.resources['backgrounds'].keys())):
+                                 self.game_engine.resources['backgrounds'].keys())):
             self.game_engine.resources['backgrounds'][self.background].load_graphic()
         if self.init_code_block:
             self.game_engine.language_engine.execute_code_block(
@@ -365,7 +365,7 @@ class Room(logging_object.LoggingObject):
         # instantiate objects in the init_object_instances list
         for an_object, positionxy, init_code in self.init_object_instances:
             self.add_object_instance_at(surface, an_object, positionxy,
-                init_code)
+                                        init_code)
 
     def draw_room_background(self, surface):
         """
@@ -384,18 +384,19 @@ class Room(logging_object.LoggingObject):
             if self.background in self.game_engine.resources['backgrounds'].keys():
                 bkg = self.game_engine.resources['backgrounds'][self.background]
                 if ((self.disp_width != surface.get_width()) or
-                    (self.disp_height != surface.get_height())):
+                        (self.disp_height != surface.get_height())):
                     if self._cached_background is not None:
                         # What happened here?!
                         self.error("room {} draw_room_background(): display surface changed dimensions!".format(name))
-                        raise(RoomException("room {} draw_room_background(): display surface changed dimensions!".format(name)))
+                        raise (RoomException(
+                            "room {} draw_room_background(): display surface changed dimensions!".format(name)))
                     self.disp_width = surface.get_width()
                     self.disp_height = surface.get_height()
                 if self._cached_background:
                     # The background is already done, so copy it to the display
                     surface.blit(self._cached_background,
-                        (self._cached_rect[0],self._cached_rect[1]),
-                        area=self._cached_rect)
+                                 (self._cached_rect[0], self._cached_rect[1]),
+                                 area=self._cached_rect)
                 elif bkg.image:
                     # Draw to the background cache so these calculations only
                     #  need to happen once.
@@ -414,7 +415,7 @@ class Room(logging_object.LoggingObject):
                         self._cached_rect.width = self.disp_width - self.background_offsets[0]
                         self._cached_rect.height = self.disp_height - self.background_offsets[1]
                         bkg.draw_background(self._cached_background,
-                            self.background_offsets)
+                                            self.background_offsets)
                     else:
                         # A simple background image can be tiled
                         #  horizontally and/or vertically using room
@@ -441,4 +442,4 @@ class Room(logging_object.LoggingObject):
                                            self.background_offsets[1] +
                                            bkg_row * self.bkg_height]
                                 bkg.draw_background(self._cached_background,
-                                    offsets)
+                                                    offsets)

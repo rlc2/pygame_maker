@@ -64,8 +64,7 @@ class Sound(object):
                     sound_args['sound_type'] = yaml_info_hash['sound_type']
                 if 'preload' in yaml_info_hash.keys():
                     sound_args['preload'] = yaml_info_hash['preload']
-                new_sound_list.append(Sound(sound_name,
-                    **sound_args))
+                new_sound_list.append(Sound(sound_name, **sound_args))
                 new_sound_list[-1].check()
         return new_sound_list
 
@@ -101,10 +100,10 @@ class Sound(object):
         if "sound_file" in kwargs:
             self.sound_file = kwargs["sound_file"]
         if (("sound_type" in kwargs) and
-            (kwargs["sound_type"] in self.SOUND_TYPES)):
+                (kwargs["sound_type"] in self.SOUND_TYPES)):
             self.sound_type = kwargs["sound_type"]
         if "preload" in kwargs:
-            self.preload = (kwargs["preload"] == True) # convert to boolean
+            self.preload = (kwargs["preload"] == True)  # convert to boolean
 
     def setup(self):
         """
@@ -174,7 +173,7 @@ class Sound(object):
         :raise: SoundException if the type string is unrecognized
         :return: True if the sound type is known
         """
-        if not self.sound_type in self.SOUND_TYPES:
+        if self.sound_type not in self.SOUND_TYPES:
             raise SoundException("Sound: Unknown sound type '{}'".format(self.sound_type))
         return True
 
@@ -189,7 +188,7 @@ class Sound(object):
 
     def __eq__(self, other):
         return(isinstance(other, Sound) and
-            (self.name == other.name) and
-            (self.sound_file == other.sound_file) and
-            (self.sound_type == other.sound_type) and
-            (self.preload == other.preload))
+               (self.name == other.name) and
+               (self.sound_file == other.sound_file) and
+               (self.sound_type == other.sound_type) and
+               (self.preload == other.preload))

@@ -51,7 +51,7 @@ def sprite_collision_test(sprite_a, sprite_b):
     if not sprite_a.image or not sprite_b.image:
         return False
     coll_types = (sprite_a.kind.sprite_resource.collision_type,
-        sprite_b.kind.sprite_resource.collision_type)
+                  sprite_b.kind.sprite_resource.collision_type)
     # simple cases first: both rectangular or disk collision types
     if coll_types == ("rectangle", "rectangle"):
         return pygame.sprite.collide_rect(sprite_a, sprite_b)
@@ -61,7 +61,8 @@ def sprite_collision_test(sprite_a, sprite_b):
         # any mismatches fall back to mask collisions
         return pygame.sprite.collide_mask(sprite_a, sprite_b)
 
-def mask_from_surface(surface, threshold = 127):
+
+def mask_from_surface(surface, threshold=127):
     """
     Create a precise mask of an ObjectSprite's pixels.
 
@@ -85,14 +86,15 @@ def mask_from_surface(surface, threshold = 127):
     if key:
         for y in range(surface.get_height()):
             for x in range(surface.get_width()):
-                if surface.get_at((x,y)) != key:
-                    mask.set_at((x,y),1)
+                if surface.get_at((x, y)) != key:
+                    mask.set_at((x, y), 1)
     else:
         for y in range(surface.get_height()):
-            for x in range (surface.get_width()):
-                if surface.get_at((x,y))[3] > threshold:
-                    mask.set_at((x,y),1)
+            for x in range(surface.get_width()):
+                if surface.get_at((x, y))[3] > threshold:
+                    mask.set_at((x, y), 1)
     return mask
+
 
 def get_collision_normal(instance_a, instance_b):
     """
@@ -110,23 +112,24 @@ def get_collision_normal(instance_a, instance_b):
     """
     offset = get_offset_between_instances(instance_a, instance_b)
     overlap = get_mask_overlap(instance_a, instance_b)
-    #print("Solid collision overlap for normal: {}".format(overlap))
+    # print("Solid collision overlap for normal: {}".format(overlap))
     if overlap == 0:
         # no collision here..
         return None
     nx = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-        (offset[0]+1,offset[1]))-
-        instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-            (offset[0]-1,offset[1])))
+                                            (offset[0]+1, offset[1])) -
+          instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+                                            (offset[0]-1, offset[1])))
     ny = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-        (offset[0],offset[1]+1))-
-        instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-            (offset[0],offset[1]-1)))
+                                            (offset[0], offset[1] + 1)) -
+          instance_a.kind.mask.overlap_area(instance_b.kind.mask,
+                                            (offset[0], offset[1] - 1)))
     if (nx == 0) and (ny == 0):
         # can't get a normal when one object is inside another..
         return None
-    n = (nx,ny)
+    n = (nx, ny)
     return n
+
 
 def get_offset_between_instances(instance_a, instance_b):
     """
@@ -143,8 +146,9 @@ def get_offset_between_instances(instance_a, instance_b):
     instance_a_pos = (instance_a.rect.x, instance_a.rect.y)
     instance_b_pos = (instance_b.rect.x, instance_b.rect.y)
     offset = (instance_b_pos[0]-instance_a_pos[0],
-        instance_b_pos[1]-instance_a_pos[1])
+              instance_b_pos[1]-instance_a_pos[1])
     return offset
+
 
 def get_mask_overlap(instance_a, instance_b):
     """
@@ -161,7 +165,8 @@ def get_mask_overlap(instance_a, instance_b):
     overlap = instance_a.kind.mask.overlap_area(instance_b.kind.mask, offset)
     return overlap
 
-def dot_product(v1,v2):
+
+def dot_product(v1, v2):
     """
     Calculate a dot product between 2 vectors.
 
@@ -172,7 +177,8 @@ def dot_product(v1,v2):
     :return: The dot product
     :rtype: float
     """
-    return v1[0]*v2[0]+v1[1]*v2[1]
+    return v1[0] * v2[0] + v1[1] * v2[1]
+
 
 class ObjectType(logging_object.LoggingObject):
     """
@@ -221,7 +227,7 @@ class ObjectType(logging_object.LoggingObject):
         "destroy": event.ObjectStateEvent,
         "collision": event.CollisionEvent,
     }
-    GLOBAL_MOUSE_RE=re.compile("global")
+    GLOBAL_MOUSE_RE = re.compile("global")
 
     @staticmethod
     def load_from_yaml(yaml_stream, game_engine):
@@ -277,15 +283,17 @@ class ObjectType(logging_object.LoggingObject):
                 if "sprite" in obj_yaml.keys():
                     kwargs["sprite"] = str(obj_yaml["sprite"])
                 if "events" in obj_yaml.keys():
-                    #print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
+                    # print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
                     for ev_seq in obj_yaml["events"]:
-                        game_engine.debug("{}: create event sequence from '{}'".format(obj_name, obj_yaml['events'][ev_seq]))
-                        kwargs["event_action_sequences"][ev_seq] = action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
+                        game_engine.debug("{}: create event sequence from '{}'".format(obj_name,
+                                                                                       obj_yaml['events'][ev_seq]))
+                        kwargs["event_action_sequences"][ev_seq] = \
+                            action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
                         game_engine.debug("Loaded sequence {}:".format(ev_seq))
                         if game_engine.logger.level <= logging.DEBUG:
                             kwargs["event_action_sequences"][ev_seq].pretty_print()
                 new_object_list.append(ObjectType(obj_name, game_engine,
-                    **kwargs))
+                                                  **kwargs))
         return new_object_list
 
     def __init__(self, object_name, game_engine, **kwargs):
@@ -309,8 +317,7 @@ class ObjectType(logging_object.LoggingObject):
             * sprite (str): Name of a sprite resource used as the image [None]
         """
         super(ObjectType, self).__init__(type(self).__name__)
-        self.debug("New object {}, with args {}".format(object_name,
-            kwargs))
+        self.debug("New object {}, with args {}".format(object_name, kwargs))
         if object_name:
             self.name = object_name
         else:
@@ -350,15 +357,14 @@ class ObjectType(logging_object.LoggingObject):
                 if (kw == "sprite") and kwargs[kw]:
                     if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
                         assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
-                        if not (isinstance(assigned_sprite,
-                            object_sprite.ObjectSprite)):
-                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]), self.error))
+                        if not isinstance(assigned_sprite, object_sprite.ObjectSprite):
+                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]),
+                                                      self.error))
                         self.sprite_resource = assigned_sprite
                 if (kw == "event_action_sequences") and kwargs[kw]:
                     ev_dict = kwargs[kw]
                     for ev_name in ev_dict:
-                        if not isinstance(ev_dict[ev_name],
-                            action_sequence.ActionSequence):
+                        if not isinstance(ev_dict[ev_name], action_sequence.ActionSequence):
                             raise(ObjectTypeException("Event '{}' does not contain an ActionSequence", self.error))
                         self[ev_name] = ev_dict[ev_name]
 
@@ -371,7 +377,7 @@ class ObjectType(logging_object.LoggingObject):
 
     @visible.setter
     def visible(self, is_visible):
-        vis = (is_visible == True)
+        vis = (is_visible is True)
         if self._visible != vis:
             self._visible = vis
             for instance in self.group:
@@ -426,17 +432,17 @@ class ObjectType(logging_object.LoggingObject):
             to the settings dict
         """
         self.debug("create_instance(screen={}, settings={}, kwargs={}):".format(screen, settings, kwargs))
-        #print("Create new instance of {}".format(self))
-        #print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
-        self.info("  Create instance of {} with args {}, {}".format(self.name,
-          settings, kwargs))
+        # print("Create new instance of {}".format(self))
+        # print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
+        self.info("  Create instance of {} with args {}, {}".format(self.name, settings, kwargs))
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = object_instance.ObjectInstance(self,
-            screen_dims, self._id, settings, **kwargs)
+        new_instance = object_instance.ObjectInstance(self, screen_dims, self._id, settings, **kwargs)
         self.group.add(new_instance)
         self._id += 1
         # queue the creation event for the new instance
-        self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create", { "type": self, "instance": new_instance }))
+        self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create",
+                                                                                        {"type": self,
+                                                                                         "instance": new_instance}))
         self.game_engine.event_engine.transmit_event('create')
         return new_instance
 
@@ -461,37 +467,35 @@ class ObjectType(logging_object.LoggingObject):
                 # skip self collision detection if there's only one sprite
                 continue
             collision_map = pygame.sprite.groupcollide(self.group,
-                other_obj.group, 0, 0, collided=sprite_collision_test)
+                                                       other_obj.group, 0, 0,
+                                                       collided=sprite_collision_test)
             for collider in collision_map.keys():
                 collision_normal = None
                 for other_inst in collision_map[collider]:
                     overlap = get_mask_overlap(collider, other_inst)
                     # print("Solid collision overlap: {}".format(overlap))
-                    collision_normal = get_collision_normal(collider,
-                        other_inst)
+                    collision_normal = get_collision_normal(collider, other_inst)
                     # print("Collision normal: {}".format(collision_normal))
                     # in the event of a collision with a solid object (i.e.
                     #  stationary), kick the sprite outside of the other
                     #  object's collision mask
                     if other_inst.kind.solid and collision_normal:
-                        divisor = float(dot_product(collision_normal,
-                            collision_normal))
+                        divisor = float(dot_product(collision_normal, collision_normal))
                         distance = 0
                         if divisor != 0:
                             distance = (float(overlap) / divisor + 0.5)
-                        #print("Distance: {}, divisor {}".format(distance, divisor))
-                        adj_x = math.floor(distance * collision_normal[0] +
-                            0.5)
-                        adj_y = math.floor(distance * collision_normal[1] +
-                            0.5)
-                        #print("Moving obj {}, {}".format(adj_x, adj_y))
+                        # print("Distance: {}, divisor {}".format(distance, divisor))
+                        adj_x = math.floor(distance * collision_normal[0] + 0.5)
+                        adj_y = math.floor(distance * collision_normal[1] + 0.5)
+                        # print("Moving obj {}, {}".format(adj_x, adj_y))
                         collider.position.x += adj_x
                         collider.position.y += adj_y
                 collision_name = "collision_{}".format(other_obj.name)
-                if not collision_name in collision_types_queued:
+                if collision_name not in collision_types_queued:
                     collision_types_queued.append(collision_name)
                 self.info("{} inst {}: Queue collision {}".format(self.name,
-                    collider._id, collision_name))
+                                                                  collider.inst_id,
+                                                                  collision_name))
                 collision_event_info = {
                     "type": self, "instance": collider,
                     "others": collision_map[collider]
@@ -500,7 +504,7 @@ class ObjectType(logging_object.LoggingObject):
                     collision_event_info['normal'] = collision_normal
                 self.game_engine.event_engine.queue_event(
                     self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
-                    collision_event_info)
+                                                             collision_event_info)
                 )
         return collision_types_queued
 
@@ -548,7 +552,7 @@ class ObjectType(logging_object.LoggingObject):
         :rtype: :py:class:`pygame.mask.Mask`
         """
         self.debug("create_rectangle_mask(orig_rect={}):".format(orig_rect))
-        self.mask = pygame.mask.Mask( (orig_rect.width, orig_rect.height) )
+        self.mask = pygame.mask.Mask((orig_rect.width, orig_rect.height))
         self.mask.fill()
 
     def get_disk_radius(self, precise_mask, orig_rect):
@@ -566,7 +570,7 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("get_disk_radius(precise_mask={}, orig_rect={}):".format(precise_mask, orig_rect))
         # find the radius of a circle that contains bound_rect for the worst
         #  case
-        disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
+        disk_mask_center = (orig_rect.width/2, orig_rect.height/2)
         bound_rect = self.bounding_box_rect
         bound_right = bound_rect.x + bound_rect.width
         bound_bottom = bound_rect.y + bound_rect.height
@@ -576,8 +580,8 @@ class ObjectType(logging_object.LoggingObject):
         bottom_center_distance = abs(disk_mask_center[1]-bound_bottom)
         largest_x_distance = max(left_center_distance, right_center_distance)
         largest_y_distance = max(top_center_distance, bottom_center_distance)
-        max_bound_radius = math.sqrt(largest_x_distance*largest_x_distance +
-            largest_y_distance*largest_y_distance)
+        max_bound_radius = math.sqrt(largest_x_distance * largest_x_distance +
+                                     largest_y_distance * largest_y_distance)
         # determine whether a smaller radius could be used (i.e.
         #  no corner pixels within the bounding rect are set)
         max_r = 0
@@ -585,8 +589,8 @@ class ObjectType(logging_object.LoggingObject):
             for x in range(bound_rect.x, bound_rect.width):
                 circ_x = disk_mask_center[0]-x
                 circ_y = disk_mask_center[1]-y
-                if precise_mask.get_at((x,y)) > 0:
-                    r = math.sqrt(circ_x*circ_x + circ_y*circ_y)
+                if precise_mask.get_at((x, y)) > 0:
+                    r = math.sqrt(circ_x * circ_x + circ_y * circ_y)
                     if r > max_r:
                         max_r = r
         bound_radius = max_bound_radius
@@ -621,13 +625,12 @@ class ObjectType(logging_object.LoggingObject):
         #  radius, but will be a circle with the correct radius that is clipped
         #  at the sprite's rect dimensions
         self.debug("create_disk_mask(orig_rect={}):".format(orig_rect))
-        disk_mask_center = (orig_rect.width/2,orig_rect.height/2)
+        disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
         disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height),
-            depth=8)
+                                           depth=8)
         disk_mask_surface.set_colorkey(pygame.Color("#000000"))
         disk_mask_surface.fill(pygame.Color("#000000"))
-        pygame.draw.circle(disk_mask_surface,
-            pygame.Color("#ffffff"), disk_mask_center, self.radius)
+        pygame.draw.circle(disk_mask_surface, pygame.Color("#ffffff"), disk_mask_center, self.radius)
         self.mask = mask_from_surface(disk_mask_surface)
 
     def get_image(self):
@@ -682,7 +685,8 @@ class ObjectType(logging_object.LoggingObject):
                     # queue the image_loaded event
                     self.game_engine.event_engine.queue_event(
                         self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
-                            { "type": self, "sprite": self.sprite_resource })
+                                                                    {"type": self,
+                                                                     "sprite": self.sprite_resource})
                     )
                     self.info("  Queued 'image_loaded' event")
             return self.image
@@ -710,9 +714,9 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("get_applied_instance_list(action={}, event={}):".format(action, event))
         apply_to_instances = []
         if (('instance' in event.event_params) and 
-            (event.event_params['instance'] in self.group)):
+                (event.event_params['instance'] in self.group)):
             apply_to_instances = [event['instance']]
-        if not 'apply_to' in action.action_data:
+        if 'apply_to' not in action.action_data:
             return apply_to_instances
         if action["apply_to"] == "other":
             if 'others' in event:
@@ -753,7 +757,7 @@ class ObjectType(logging_object.LoggingObject):
                     if (targets is not None) and len(targets) > 0:
                         self.info("  Apply to target(s) {}".format(str(targets)))
                         for target in targets:
-                            if not action.name in self.game_engine.GAME_ENGINE_ACTIONS:
+                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
                                 target.execute_action(action, event)
                             else:
                                 self.game_engine.execute_action(action, event)
@@ -761,7 +765,7 @@ class ObjectType(logging_object.LoggingObject):
                         affected_instance_list = self.get_applied_instance_list(action, event)
                         self.info("  Apply to: {}".format(action, affected_instance_list))
                         for target in affected_instance_list:
-                            #print("applying to {}".format(target))
+                            # print("applying to {}".format(target))
                             target.execute_action(action, event)
                     else:
                         self.info("  call game engine execute_action for {}".format(action))
@@ -800,7 +804,7 @@ class ObjectType(logging_object.LoggingObject):
         if gl_minfo:
             self.execute_action_sequence(event)
         else:
-            clicked=self.group.get_sprites_at(event['position'])
+            clicked = self.group.get_sprites_at(event['position'])
             if len(clicked) > 0:
                 self.execute_action_sequence(event, clicked)
 
@@ -824,7 +828,7 @@ class ObjectType(logging_object.LoggingObject):
                         matched_seq = event.name
                         break
                 elif (ev_seq.endswith('_keyup') and 
-                    (event.key_event_type == "up")):
+                        (event.key_event_type == "up")):
                     matched_seq = event.name
                     break
         if matched_seq:
@@ -953,11 +957,11 @@ class ObjectType(logging_object.LoggingObject):
         # register our handler for this event
         new_handler = self._select_event_handler(itemname)
         if new_handler:
-            self.info("{}: Register handler for event '{}'".format(self.name,
-                itemname))
+            self.info("{}: Register handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.register_event_handler(itemname, new_handler)
         else:
-            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".format(itemname), self.error))
+            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".format(itemname),
+                                      self.error))
 
     def __delitem__(self, itemname):
         """
@@ -976,6 +980,5 @@ class ObjectType(logging_object.LoggingObject):
             del(self.event_action_sequences[itemname])
 
     def __repr__(self):
-        rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name,
-            self.sprite_resource)
+        rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name, self.sprite_resource)
         return rpr

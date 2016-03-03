@@ -32,7 +32,7 @@ class EventEngine(logging_object.LoggingObject):
         :type event_handler: callable
         """
         self.debug("register_event_handler({}, <hdlr>):".format(event_name))
-        if not event_name in self.event_handlers.keys():
+        if event_name not in self.event_handlers.keys():
             self.info("  add event handler #1 for {}".format(event_name))
             self.event_handlers[event_name] = [event_handler]
         else:
@@ -63,19 +63,19 @@ class EventEngine(logging_object.LoggingObject):
         """
         Add the given event to the event queue.
 
-        :param event: The event to add to the queue
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param an_event: The event to add to the queue
+        :type an_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("queue_event({}):".format(an_event))
-        ename = event.name
-        if not ename in self.event_queues.keys():
+        ename = an_event.name
+        if ename not in self.event_queues.keys():
             self.debug("  queue event #1 named {}".format(ename))
             self.event_queues[ename] = [an_event]
         else:
             idx = len(self.event_queues[ename]) + 1
-            self.debug("  queue event #{} named {}".format(idx, ename))
+            self.debug("  queue event #{:d} named {}".format(idx, ename))
             self.event_queues[ename].append(an_event)
-        #print("queues: {}".format(self.event_queues))
+        # print("queues: {}".format(self.event_queues))
 
     def transmit_event(self, event_name):
         """
@@ -87,16 +87,16 @@ class EventEngine(logging_object.LoggingObject):
         :param event_name: The name of the event to transmit to its handlers
         :type event_name: str
         """
-        #print("check for {} handlers..".format(event_name))
+        # print("check for {} handlers..".format(event_name))
         self.debug("transmit_event({}):".format(event_name))
         if event_name in self.event_handlers.keys():
-            #print("found. check for event queues..")
+            # print("found. check for event queues..")
             queue_len = len(self.event_queues[event_name])
             if queue_len > 0:
                 self.debug("  found {:d} queued {} events".format(queue_len,
                                                                   event_name))
             for queued in self.event_queues[event_name]:
-                #print("handle queue item {}".format(queued))
+                # print("handle queue item {}".format(queued))
                 for idx, handler in enumerate(self.event_handlers[event_name]):
                     self.debug("    call handler #{:d}".format(idx+1))
                     handler(queued)
@@ -117,4 +117,3 @@ class EventEngine(logging_object.LoggingObject):
         self.debug("transmit_event_type({})".format(event_type))
         for event_name in event_type.HANDLED_EVENTS:
             self.transmit_event(event_name)
-

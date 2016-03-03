@@ -59,7 +59,7 @@ class ObjectSprite(object):
             formatted data
         :type sprite_yaml_stream: File-like object
         :param unused: This is a placeholder, since other load_from_yaml()
-            methods take an additional argument.
+            resource methods take an additional argument.
         :return: An empty list, if the YAML-defined sprite(s) is (are) invalid,
             or a list of new sprites, for those with YAML fields that pass
             basic checks

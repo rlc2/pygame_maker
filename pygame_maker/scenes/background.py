@@ -20,8 +20,9 @@ class TileProperties(object):
     """
     Wrap tiling properties.
     """
-    DEFAULT_TILE_WIDTH=16
-    DEFAULT_TILE_HEIGHT=16
+    DEFAULT_TILE_WIDTH = 16
+    DEFAULT_TILE_HEIGHT = 16
+
     def __init__(self, **kwargs):
         """
         Initialize a new TileProperties instance.
@@ -60,18 +61,18 @@ class TileProperties(object):
 
     def __eq__(self, other):
         return(isinstance(other, TileProperties) and
-            (self.tile_width == other.tile_width) and
-            (self.tile_height == other.tile_height) and
-            (self.horizontal_offset == other.horizontal_offset) and
-            (self.vertical_offset == other.vertical_offset) and
-            (self.horizontal_padding == other.horizontal_padding))
+               (self.tile_width == other.tile_width) and
+               (self.tile_height == other.tile_height) and
+               (self.horizontal_offset == other.horizontal_offset) and
+               (self.vertical_offset == other.vertical_offset) and
+               (self.horizontal_padding == other.horizontal_padding))
 
 
 class Background(object):
     """
     The Background resource used by Rooms.
     """
-    DEFAULT_NAME="bkg_"
+    DEFAULT_NAME = "bkg_"
 
     @staticmethod
     def load_from_yaml(yaml_stream, unused=None):
@@ -111,12 +112,11 @@ class Background(object):
                 if 'smooth_edges' in bkg_yaml.keys():
                     kwargs['smooth_edges'] = (bkg_yaml['smooth_edges'] == True)
                 if 'preload_texture' in bkg_yaml.keys():
-                    kwargs['preload_texture'] = (bkg_yaml['preload_texture'] ==
-                        True)
+                    kwargs['preload_texture'] = (bkg_yaml['preload_texture'] is True)
                 if 'transparent' in bkg_yaml.keys():
-                    kwargs['transparent'] = (bkg_yaml['transparent'] == True)
+                    kwargs['transparent'] = (bkg_yaml['transparent'] is True)
                 if 'tileset' in bkg_yaml.keys():
-                    kwargs['tileset'] = (bkg_yaml['tileset'] == True)
+                    kwargs['tileset'] = (bkg_yaml['tileset'] is True)
                 if 'tile_width' in bkg_yaml.keys():
                     kwargs['tile_width'] = bkg_yaml['tile_width']
                 if 'tile_height' in bkg_yaml.keys():
@@ -161,7 +161,7 @@ class Background(object):
         self.transparent = False
         self.tileset = False
         self.image = None
-        self.image_size = (0,0)
+        self.image_size = (0, 0)
         self.tile_rect = None
         self.tile_row_spacing = -1
         self.max_tile_rows = -1
@@ -202,14 +202,14 @@ class Background(object):
                 #  black background so there will no longer be transparent
                 #  pixels on the display
                 backfill = pygame.Surface.copy(img)
-                backfill.fill( (0,0,0) )
-                backfill.blit(img, (0,0))
+                backfill.fill((0, 0, 0))
+                backfill.blit(img, (0, 0))
                 self.image = backfill
             else:
                 self.image = img
             self.image_size = self.image.get_size()
 
-    def draw_background(self, screen, xy_offset=(0,0)):
+    def draw_background(self, screen, xy_offset=(0, 0)):
         """
         Draw the background color and image (with tiling if specified) to the
         supplied screen.
@@ -229,38 +229,38 @@ class Background(object):
             else:
                 if not self.tile_rect:
                     self.tile_rect = pygame.Rect(0, 0,
-                        self.tile_properties.tile_width,
-                        self.tile_properties.tile_height)
+                                                 self.tile_properties.tile_width,
+                                                 self.tile_properties.tile_height)
                 if self.tile_row_spacing < 0:
                     self.tile_row_spacing = (self.tile_properties.tile_height +
-                        self.tile_properties.vertical_padding)
-                    #print("row spacing: {}".format(self.tile_row_spacing))
+                                             self.tile_properties.vertical_padding)
+                    # print("row spacing: {}".format(self.tile_row_spacing))
                 if self.max_tile_rows < 0:
                     self.max_tile_rows = ((screen.get_height() - xy_offset[1] -
-                        self.tile_properties.vertical_offset) /
-                        self.tile_row_spacing)
-                    #print("max rows: {}".format(self.max_tile_rows))
+                                          self.tile_properties.vertical_offset) /
+                                          self.tile_row_spacing)
+                    # print("max rows: {}".format(self.max_tile_rows))
                 if self.tile_col_spacing < 0:
                     self.tile_col_spacing = (self.tile_properties.tile_width +
-                        self.tile_properties.horizontal_padding)
-                    #print("col spacing: {}".format(self.tile_col_spacing))
+                                             self.tile_properties.horizontal_padding)
+                    # print("col spacing: {}".format(self.tile_col_spacing))
                 if self.max_tile_cols < 0:
                     self.max_tile_cols = ((screen.get_width() -
-                        self.tile_properties.horizontal_offset) /
-                        self.tile_col_spacing)
-                    #print("max cols: {}".format(self.max_tile_cols))
+                                          self.tile_properties.horizontal_offset) /
+                                          self.tile_col_spacing)
+                    # print("max cols: {}".format(self.max_tile_cols))
                 for col in range(self.max_tile_cols):
                     for row in range(self.max_tile_rows):
                         position_x = (self.tile_properties.horizontal_offset +
-                            xy_offset[0] + col *
-                            (self.tile_properties.tile_width +
-                                self.tile_properties.horizontal_padding))
+                                      xy_offset[0] + col *
+                                      (self.tile_properties.tile_width +
+                                       self.tile_properties.horizontal_padding))
                         position_y = (self.tile_properties.vertical_offset +
-                            xy_offset[1] + row *
-                            (self.tile_properties.tile_height +
-                                self.tile_properties.vertical_padding))
+                                      xy_offset[1] + row *
+                                      (self.tile_properties.tile_height +
+                                       self.tile_properties.vertical_padding))
                         screen.blit(self.image, (position_x, position_y),
-                            area=self.tile_rect)
+                                    area=self.tile_rect)
 
     def check_filename(self):
         """
@@ -285,13 +285,13 @@ class Background(object):
 
     def __eq__(self, other):
         return(isinstance(other, Background) and
-            (self.name == other.name) and
-            (self.filename == other.filename) and
-            (self.smooth_edges == other.smooth_edges) and
-            (self.preload_texture == other.preload_texture) and
-            (self.transparent == other.transparent) and
-            (self.tileset == other.tileset) and
-            (self.tile_properties == other.tile_properties))
+               (self.name == other.name) and
+               (self.filename == other.filename) and
+               (self.smooth_edges == other.smooth_edges) and
+               (self.preload_texture == other.preload_texture) and
+               (self.transparent == other.transparent) and
+               (self.tileset == other.tileset) and
+               (self.tile_properties == other.tile_properties))
 
     def __repr__(self):
         return "<{} name='{}'>".format(type(self).__name__, self.name)
