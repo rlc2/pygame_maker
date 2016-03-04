@@ -239,8 +239,8 @@ class Room(logging_object.LoggingObject):
                     if not obj_ok:
                         self.error("{}: Failed to create room: {}".format(type(self).__name__,
                                                                           err_msg))
-                        raise (RoomException("{}: Failed to create room: {}".format(type(self).__name__,
-                                                                                    err_msg)))
+                        raise RoomException("{}: Failed to create room: {}".format(type(self).__name__,
+                                                                                   err_msg))
                     self.add_init_object_instance_at(obj_name,
                                                      obj_check[obj_name]['position'],
                                                      init_code)
@@ -388,8 +388,8 @@ class Room(logging_object.LoggingObject):
                     if self._cached_background is not None:
                         # What happened here?!
                         self.error("room {} draw_room_background(): display surface changed dimensions!".format(name))
-                        raise (RoomException(
-                            "room {} draw_room_background(): display surface changed dimensions!".format(name)))
+                        raise RoomException(
+                              "room {} draw_room_background(): display surface changed dimensions!".format(name))
                     self.disp_width = surface.get_width()
                     self.disp_height = surface.get_height()
                 if self._cached_background:

@@ -466,7 +466,7 @@ class CodeBlock(logging_object.LoggingObject):
                 else:
                     # unknown function encountered
                     self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
-                    raise (ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok)))
+                    raise ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok))
             if func_call:
                 if arg_count == 0:
                     arg_count = 1
@@ -474,8 +474,8 @@ class CodeBlock(logging_object.LoggingObject):
                 self.debug("  check {} call vs function map".format(tok))
                 if len(self.functionmap[func_name]["arglist"]) == 0:
                     self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
-                    raise (ParseFatalException(parsestr, loc=loc,
-                                               msg="Too many arguments to function \"{}\"".format(func_name)))
+                    raise ParseFatalException(parsestr, loc=loc,
+                                              msg="Too many arguments to function \"{}\"".format(func_name))
                 # check whether an embedded function call should be skipped
                 # print("checking {}..".format(tok))
                 if tok in self.functionmap:
@@ -497,14 +497,12 @@ class CodeBlock(logging_object.LoggingObject):
         if func_call:
             if arg_count < len(self.functionmap[func_name]["arglist"]):
                 self.error("{} at {}: Too few arguments to function \"{}\"".format(parsestr, loc, func_name))
-                raise (
-                    ParseFatalException(parsestr, loc=loc,
-                                        msg="Too few arguments to function \"{}\"".format(func_name)))
+                raise ParseFatalException(parsestr, loc=loc,
+                                          msg="Too few arguments to function \"{}\"".format(func_name))
             elif arg_count > len(self.functionmap[func_name]["arglist"]):
                 self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
-                raise (
-                    ParseFatalException(parsestr, loc=loc,
-                                        msg="Too many arguments to function \"{}\"".format(func_name)))
+                raise ParseFatalException(parsestr, loc=loc,
+                                          msg="Too many arguments to function \"{}\"".format(func_name))
 
     def push_func_args(self, parsestr, loc, toks):
         """
@@ -535,8 +533,8 @@ class CodeBlock(logging_object.LoggingObject):
                     self.debug("  New function: {}".format(func_name))
                     if func_name in self.functionmap:
                         self.error("{} at {}: Redefinition of existing function '{}'".format(parsestr, loc, func_name))
-                        raise (ParseFatalException(parsestr, loc=loc,
-                                                   msg="Redefinition of existing function '{}'".format(func_name)))
+                        raise ParseFatalException(parsestr, loc=loc,
+                                                  msg="Redefinition of existing function '{}'".format(func_name))
                     continue
                 if func_name:
                     if not arg_with_type:
@@ -545,9 +543,9 @@ class CodeBlock(logging_object.LoggingObject):
                             self.error(
                                 "{} at {}: Missing type name in declaration of function '{}'".format(parsestr, loc,
                                                                                                      func_name))
-                            raise (ParseFatalException(parsestr, loc=loc,
-                                                       msg="Missing type name in declaration of function '{}'".format(
-                                                           func_name)))
+                            raise ParseFatalException(parsestr, loc=loc,
+                                                      msg="Missing type name in declaration of function '{}'".format(
+                                                           func_name))
                         arg_with_type = {"type": typename}
                         if typename == "void":
                             arg_list.append(dict(arg_with_type))
@@ -556,9 +554,9 @@ class CodeBlock(logging_object.LoggingObject):
                             self.error(
                                 "{} at {}: Extraneous token following void in declaration of function '{}'".format(
                                     parsestr, loc, func_name))
-                            raise (ParseFatalException(parsestr, loc=loc,
-                                                       msg="Extraneous token following void in declaration of function '{}'".format(
-                                                           func_name)))
+                            raise ParseFatalException(parsestr, loc=loc,
+                                                      msg="Extraneous token following void in declaration of function '{}'".format(
+                                                           func_name))
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
                         arg_with_type = None
@@ -594,7 +592,7 @@ class CodeBlock(logging_object.LoggingObject):
         func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name, ",".join(param_list))]
         func_lines += [
             "  if (count > 100):",
-            "    raise(CodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\"))".format(self.function_name)
+            "    raise CodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\")".format(self.function_name)
         ]
         func_lines += function_body
         ret_minfo = self.RETURN_RE.match(func_lines[-1])
@@ -846,9 +844,9 @@ class CodeBlock(logging_object.LoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise (OpStackUnderflowError(
-                            "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
-                            self.error))
+                        raise OpStackUnderflowError(
+                              "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
+                              self.error)
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -893,9 +891,9 @@ class CodeBlock(logging_object.LoggingObject):
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise (OpStackUnderflowError(
-                            "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
-                            self.error))
+                        raise OpStackUnderflowError(
+                              "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
+                              self.error)
                     params = list(op_stack[id_start:id_end])
                     for dead_idx in range(2):
                         del(op_stack[-1])
@@ -927,8 +925,8 @@ class CodeBlock(logging_object.LoggingObject):
                                          "val": "{}".format(opname)})
                         # print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            raise (OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".format(
-                loc[0], code_line), self.error))
+            raise OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".format(
+                  loc[0], code_line), self.error)
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(str(code_line), op_stack))
         python_code_line = "{}{}".format(' ' * loc[1], op_stack[-1]['val'])
@@ -1226,8 +1224,8 @@ class LanguageEngine(logging_object.LoggingObject):
         self.info("Register handle '{}'".format(block_name))
         self.debug("  code block:\n{}".format(code_string))
         if block_name in self.code_blocks.keys():
-            raise (DuplicateCodeBlockError("Attempt to register another code block named '{}'".format(block_name),
-                                           self.error))
+            raise DuplicateCodeBlockError("Attempt to register another code block named '{}'".format(block_name),
+                                          self.error)
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
@@ -1251,8 +1249,8 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.info("Execute code with handle '{}'".format(block_name))
         if block_name not in self.code_blocks:
-            raise (UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".format(block_name),
-                                         self.error))
+            raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".format(block_name),
+                                        self.error)
         if local_symbol_table:
             if block_name not in self.local_tables:
                 self.local_tables[block_name] = {}
