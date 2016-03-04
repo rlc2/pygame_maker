@@ -29,9 +29,9 @@ class TestLanguageEngine(unittest.TestCase):
     def dumpSymtables(self, symtables):
         print("Symbol table:")
         print("globals:")
-        symtables['globals'].dumpVars()
+        symtables['globals'].dump_vars()
         print("locals:")
-        symtables['locals'].dumpVars()
+        symtables['locals'].dump_vars()
 
     def symChangeCallback(self, item, val):
         self.symbol_change_list.append( {item: val} )
@@ -255,11 +255,11 @@ circumference = 2.0 * pi * radius
         language_engine.execute_code_block("testB", testb_locals)
         language_engine.execute_code_block("testA", testa_locals)
         print("Global symbol table:")
-        language_engine.global_symbol_table.dumpVars()
+        language_engine.global_symbol_table.dump_vars()
         print("test A symbol table:")
-        testa_locals.dumpVars()
+        testa_locals.dump_vars()
         print("test B symbol table:")
-        testb_locals.dumpVars()
+        testb_locals.dump_vars()
         testa_answers = { "a": 26, "b": -259, "x": 64, "y": 12 }
         testb_answers = { "radius": 2,
             "circumference": 2 * math.pi * 2 }
@@ -287,7 +287,7 @@ sym4 = 42
         """
         language_engine.register_code_block("testA", code_block)
         test_locals = SymbolTable({}, sym_change_callback=lambda s, v: self.symChangeCallback(s, v))
-        test_locals.setConstant('sym2', 64)
+        test_locals.set_constant('sym2', 64)
         language_engine.execute_code_block("testA", test_locals)
         expected_changes = [{'sym1': 24}, {'sym3': 25}, {'sym4': 42}]
         self.assertEqual(self.symbol_change_list, expected_changes)
