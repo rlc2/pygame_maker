@@ -15,8 +15,6 @@
     height: 768
     background_color: '#444444'
     background: bkg_image_normal
-    tile_horizontal: False
-    tile_vertical: False
 - rm_background_tile_x:
     width: 1024
     height: 768
@@ -36,6 +34,8 @@
     height: 768
     background_color: '#444444'
     background: bkg_image_normal
+    tile_horizontal: True
+    tile_vertical: True
 - rm_background_offset_x:
     width: 1024
     height: 768
