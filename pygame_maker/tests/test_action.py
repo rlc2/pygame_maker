@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 
+import yaml
 import unittest
 from pygame_maker.actions.action import *
 

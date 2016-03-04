@@ -2,6 +2,7 @@
 
 from pygame_maker.actions.action import *
 from pygame_maker.actions.action_sequence import *
+import yaml
 import unittest
 
 class TestActionSequence(unittest.TestCase):
