@@ -73,9 +73,9 @@ class TestEvent(unittest.TestCase):
         self.assertEqual(good_event11["mouse.xy"], (43,120))
 
     def test_045invalid_events(self):
-        with self.assertRaises(EventException):
+        with self.assertRaises(UnknownEventError):
             bad_event1 = KeyEvent("bad_event1")
-        with self.assertRaises(EventException):
+        with self.assertRaises(UnknownEventError):
             bad_event2 = Event.get_event_instance_by_event_name("bogus_keyup")
 
 unittest.main()
