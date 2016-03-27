@@ -49,6 +49,9 @@ class TestLanguageEngine(unittest.TestCase):
             },
             'time': { "arglist": [],
             'block': ["time.time", "_return"]
+            },
+            'debug': { "arglist": [{"type": "string", "name": "debug_str"}],
+            'block': []
             }
         }
         self.sym_tables = { "globals": SymbolTable(),
@@ -75,6 +78,15 @@ class TestLanguageEngine(unittest.TestCase):
         code_block.run(sym_tables)
         self.dumpSymtables(sym_tables)
         self.assertTrue(sym_tables['globals']['y'] == 49)
+        a_string = "mystr = \"This is a string\""
+        code_block = CodeBlockGenerator.wrap_code_block("goodstringassignment",
+            self.module_context, a_string, self.functionmap)
+        code_block.load(['operator', 'math'])
+        sym_tables = { "globals": SymbolTable(),
+            "locals": SymbolTable() }
+        code_block.run(sym_tables)
+        self.dumpSymtables(sym_tables)
+        self.assertTrue(sym_tables['locals']['mystr'] == "This is a string")
 
     def test_006global_vs_local_symbols(self):
         symbol_test="""
@@ -178,6 +190,34 @@ x = distance(12, 19)
         code_block.run(sym_tables)
         self.dumpSymtables(sym_tables)
         self.assertEqual(sym_tables['locals']['x'], 7)
+        debug_function_call = """
+y = debug("THIS IS A DEBUG STRING")
+        """
+        code_block = CodeBlockGenerator.wrap_code_block("debugfunccall",
+            self.module_context, debug_function_call, self.functionmap)
+        code_block.load(['operator', 'math'])
+        sym_tables = { "globals": SymbolTable(),
+            "locals": SymbolTable() }
+        code_block.run(sym_tables)
+
+    def test_029func_arg_string(self):
+        module_context = imp.new_module('for_func_arg_string')
+        str_func_arg_code="""
+function string_arg(string a_str) {
+    a = debug(a_str)
+    return "I returned a string"
+}
+b = string_arg("THIS IS A STRING ARG with a known function name userfunc_time")
+"""
+        code_block = CodeBlockGenerator.wrap_code_block("func_arg_string",
+            module_context, str_func_arg_code, self.functionmap)
+        code_block.load(['operator', 'math'])
+        sym_tables = { "globals": SymbolTable(),
+            "locals": SymbolTable() }
+        code_block.run(sym_tables)
+        self.assertEqual(sym_tables['locals']['a'], 
+            "THIS IS A STRING ARG with a known function name userfunc_time")
+        self.assertEqual(sym_tables['locals']['b'], "I returned a string")
 
     def test_030invalid_syntax(self):
         module_context = imp.new_module('for_errors')

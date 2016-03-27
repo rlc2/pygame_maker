@@ -456,6 +456,7 @@ class CodeBlock(logging_object.LoggingObject):
         skip_count = 0
         arg_count = 0
         tok_idx = 0
+        in_string = False
         for tok in toks:
             if tok_idx == 0:
                 if tok in self.functionmap:
@@ -467,6 +468,9 @@ class CodeBlock(logging_object.LoggingObject):
                     # unknown function encountered
                     self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
                     raise ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok))
+            if tok == "\"":
+                # keep track of strings, to ignore functions named inside a string
+                in_string = not in_string
             if func_call:
                 if arg_count == 0:
                     arg_count = 1
@@ -478,7 +482,7 @@ class CodeBlock(logging_object.LoggingObject):
                                               msg="Too many arguments to function \"{}\"".format(func_name))
                 # check whether an embedded function call should be skipped
                 # print("checking {}..".format(tok))
-                if tok in self.functionmap:
+                if tok in self.functionmap and not in_string:
                     skips = len(self.functionmap[tok]["arglist"])
                     if skips > 0:
                         skips -= 1  # future commas imply > 1 arg to skip
@@ -627,12 +631,17 @@ class CodeBlock(logging_object.LoggingObject):
         tok_n = 0
         add_not = False
         add_tok = None
+        is_string = False
         for tok in toks:
             if tok_n == 0:
                 if tok == 'not':
                     add_not = True
                     tok_n += 1
                     continue
+                elif tok.startswith('"'):
+                    is_string = True
+                    add_tok = tok
+                    break
                 else:
                     add_tok = tok
                     break
@@ -651,8 +660,11 @@ class CodeBlock(logging_object.LoggingObject):
         else:
             if add_not:
                 self.debug("  not tokens:".format(toks.asList()))
-            self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
-                                                                      self.OPERATOR_REPLACEMENTS)
+            if not is_string:
+                self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
+                                                                          self.OPERATOR_REPLACEMENTS)
+            else:
+                self.scratch += ["str({})".format("".join(toks.asList()))]
             # print("scratch is now: {}".format(self.scratch))
 
     def push_first(self, parsestr, loc, toks):
@@ -906,6 +918,8 @@ class CodeBlock(logging_object.LoggingObject):
                     last_op_val = "update_symbol(_symbols, '{}', {})".format(symbol, last_op_val)
                     op_stack[-1]['val'] = last_op_val
                     break
+                elif opname.startswith("str("):
+                    op_stack.append({"type": "str", "val": opname})
                 elif opname == 'return':
                     last_op_val = op_stack[-1]["val"]
                     last_op_val = "return {}".format(last_op_val)
@@ -919,7 +933,7 @@ class CodeBlock(logging_object.LoggingObject):
                             func_arg = True
                     if not func_arg:
                         op_stack.append({"type": "int",
-                                         "val": "get_symbol(_symbols, '{}')".format(opname)})
+                                        "val": "get_symbol(_symbols, '{}')".format(opname)})
                     else:
                         op_stack.append({"type": "int",
                                          "val": "{}".format(opname)})
@@ -1201,7 +1215,11 @@ class LanguageEngine(logging_object.LoggingObject):
                         },
             'time': {"arglist": [],
                      'block': ["time.time", "_return"]
-                     }
+                     },
+            'debug': {"argslist":
+                      [{"type": "string", "name": "debug_str"}],
+                      'block': []
+                      }
         }
         #: Code blocks registered in the language engine
         self.code_blocks = {}
@@ -1281,16 +1299,19 @@ def BNF(code_block_obj):
     * decimal_digit :: '0' .. '9'
     * lower_case    :: 'a' .. 'z'
     * upper_case    :: 'A' .. 'Z'
+    * alpha         :: lower_case | upper_case
     * boolean_op    :: 'or' | 'and'
     * boolnot       :: 'not'
     * conditional_keyword   :: 'if' | 'elseif' | 'else'
-    * identifier    :: lower_case | upper_case [ lower_case | upper_case | decimal_digit | '_' | '.' ]*
+    * identifier    :: alpha [ alpha | decimal_digit | '_' | '.' ]*
     * equalop :: '='
     * compareop :: '==' | '!=' | '<' | '>' | '>=' | '<='
     * expop   :: '^'
     * multop  :: '*' | '/'
     * addop   :: '+' | '-'
     * integer :: ['+' | '-'] '0'..'9'+
+    * float   :: ['+' | '-'] '0'..'9'+ [ '.' '0' .. '9'+ ] [ 'e' | 'E' ['+' | '-'] '0' .. '9'+ ]
+    * string  :: '"' [ alpha | decimal_digit | [`~!@#$%^&*()_=+;:',<.>/? -]* ] '"'
     * atom    :: identifier | PI | E | real | fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
     * factor  :: atom [ expop factor ]*
     * term    :: factor [ multop factor ]*
@@ -1313,6 +1334,8 @@ def BNF(code_block_obj):
         # ~ Optional( e + Word( "+-"+nums, nums ) ) )
         fnumber = Regex(r"[+-]?\d+(:?\.\d*)?(:?[eE][+-]?\d+)?")
         ident = Word(alphas, alphas + nums + "._$")
+        quote = Literal("\"")
+        string = quote + Regex(r"[^\"]+") + quote
 
         uptolineend = Regex(r".*{}".format(os.linesep))
         comment_sym = Literal("#")
@@ -1356,7 +1379,7 @@ def BNF(code_block_obj):
         expr = Forward()
         atom = ((0, None) * minus + (((ident + lpar + Optional(
             combinatorial + ZeroOrMore("," + combinatorial)) + rpar).setParseAction(
-            code_block_obj.count_function_args) | fnumber | ident).setParseAction(code_block_obj.push_atom) |
+            code_block_obj.count_function_args) | fnumber | ident | string).setParseAction(code_block_obj.push_atom) |
                                      Group(lpar + combinatorial + rpar))).setParseAction(code_block_obj.push_u_minus)
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of
@@ -1369,7 +1392,7 @@ def BNF(code_block_obj):
         combinatorial <<= (Optional(boolnot) + expr + ZeroOrMore(
             ((boolop | compareop) + Optional(boolnot) + expr).setParseAction(code_block_obj.push_first)))
         returnline = Group(ret + combinatorial).setParseAction(code_block_obj.push_return)
-        assignment = Group(Optional(glbl) + ident + assignop + combinatorial).setParseAction(
+        assignment = Group(Optional(glbl) + ident + assignop + combinatorial | string).setParseAction(
             code_block_obj.push_assignment)
         #        comparison = Forward()
         #        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(

@@ -61,7 +61,7 @@ def get_symbol(_symbols, symname):
     return symval
 
 
-def userfunc_distance(_symbols, start, end):
+def userfunc_distance(_symbols, start, end, count=0):
     """
     Make a ``distance`` function that calculates the distance between two
     values available to game language code.
@@ -77,7 +77,7 @@ def userfunc_distance(_symbols, start, end):
     return abs(start - end)
 
 
-def userfunc_randint(_symbols, max_int):
+def userfunc_randint(_symbols, max_int, count=0):
     """
     Make a ``randint`` function that creates a random integer available to game
     language code.
@@ -102,7 +102,7 @@ def userfunc_randint(_symbols, max_int):
     return val
 
 
-def userfunc_time(_symbols):
+def userfunc_time(_symbols, count=0):
     """
     Make a ``time`` function that returns the current number of seconds since
     the Epoch available to game language code.
@@ -113,3 +113,13 @@ def userfunc_time(_symbols):
     :rtype: int
     """
     return int(time.time())
+
+def userfunc_debug(_symbols, debug_str, count=0):
+    """
+    Make a ``debug`` function that displays a string to stderr.
+
+    :param _symbols: The symbols dict
+    :type _symbols: dict
+    """
+    sys.stderr.write("{}\n".format(debug_str))
+    return debug_str
