@@ -642,10 +642,6 @@ class GameEngine(logging_object.LoggingObject):
         ev = event.DrawEvent('draw')
         self.event_engine.queue_event(ev)
         self.event_engine.transmit_event(ev.name)
-        #for obj_name in self.resources['objects'].keys():
-        #    self.info("Draw {} on surface {}".format(obj_name,
-        #        self.draw_surface))
-        #    self.resources['objects'][obj_name].draw(self.draw_surface)
 
     def draw_background(self):
         """Called by :py:meth:`run` to draw the room background."""

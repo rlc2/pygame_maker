@@ -136,6 +136,7 @@ class MyGameManager(logging_object.LoggingObject):
 
     def setup(self, screen):
         self.screen = screen
+        self.draw_surface = self.screen
         self.font = pygame.font.Font(None, 16)
         for spr in self.resources['sprites'].keys():
             print("Setup {}".format(spr))
@@ -338,8 +339,9 @@ class MyGameManager(logging_object.LoggingObject):
         self.screen.blit(textobj[1], textpos)
 
     def draw_objects(self):
-        for obj in self.resources['objects'].keys():
-            self.resources['objects'][obj].draw(self.screen)
+        ev = event.DrawEvent('draw')
+        self.event_engine.queue_event(ev)
+        self.event_engine.transmit_event(ev.name)
         # draw text over the top of other objects
         for line, ob in enumerate(self.text_objects):
             self.draw_text(ob, line)

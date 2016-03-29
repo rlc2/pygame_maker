@@ -215,6 +215,7 @@ class TestGameManager(object):
     def setup(self, screen):
         self.screen = screen
         self.game_engine.screen = screen
+        self.game_engine.draw_surface = screen
         self.game_engine.resources['sprites']['spr_test'] = object_sprite.ObjectSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
         self.game_engine.resources['sprites']['spr_solid'] = object_sprite.ObjectSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
         self.game_engine.resources['sounds']['snd_test'] = sound.Sound("snd_test", sound_file="unittest_files/Pop.wav")
@@ -280,8 +281,9 @@ class TestGameManager(object):
             for coll_type in collision_types:
                 self.game_engine.event_engine.transmit_event(coll_type)
     def draw_objects(self):
-        for obj_name in self.game_engine.resources['objects'].keys():
-            self.game_engine.resources['objects'][obj_name].draw(self.screen)
+        ev = event.DrawEvent('draw')
+        self.game_engine.event_engine.queue_event(ev)
+        self.game_engine.event_engine.transmit_event(ev.name)
         self.game_engine.draw_mask(self.screen,
             self.game_engine.resources['objects']['obj_test'])
         if self.game_engine.resources['objects']['obj_test'].image:
