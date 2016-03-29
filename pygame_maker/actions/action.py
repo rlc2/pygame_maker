@@ -155,10 +155,7 @@ common_parameters:
     common_apply_to:
         type: from_list
         default: self
-        accepted_list:
-            - self
-            - other
-            - object_name
+        accepted_list: [self, other, object_name]
     common_relative:
         type: bool
         default: False
@@ -185,9 +182,7 @@ common_parameters:
     common_collision_type:
         type: from_list
         default: solid
-        accepted_list:
-            - solid
-            - any
+        accepted_list: [solid, any]
     common_object:
         type: str
         default: ''
@@ -522,9 +517,7 @@ actions:
         horizontal_direction:
             type: from_list
             default: right
-            accepted_list:
-                - right
-                - left
+            accepted_list: [right, left]
         horizontal_speed: common_speed
         relative: common_relative
     set_vertical_speed:
@@ -532,9 +525,7 @@ actions:
         vertical_direction:
             type: from_list
             default: up
-            accepted_list:
-                - up
-                - down
+            accepted_list: [up, down]
         vertical_speed: common_speed
         relative: common_relative
     apply_gravity:
@@ -571,10 +562,7 @@ actions:
         wrap_direction:
             type: from_list
             default: horizontal
-            accepted_list:
-                - horizontal
-                - vertical
-                - both
+            accepted_list: [horizontal, vertical, both]
     move_until_collision:
         apply_to: common_apply_to
         direction:
@@ -589,9 +577,7 @@ actions:
         precision:
             type: from_list
             default: imprecise
-            accepted_list:
-                - precise
-                - imprecise
+            accepted_list: [precise, imprecise]
         bounce_collision_type: common_collision_type
     set_path:
         apply_to: common_apply_to
@@ -1627,6 +1613,187 @@ class DrawAction(Action):
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = DRAW_ACTIONS + DRAW_SETTINGS_ACTIONS + OTHER_DRAW_ACTIONS
 
+    DRAW_ACTION_DATA_YAML = """
+actions:
+    draw_sprte_at_location:
+        apply_to: common_apply_to
+        sprite:
+            type: str
+            default: ''
+        position.x: common_position
+        position.y: common_position
+        subimage:
+            type: int
+            default: -1
+        relative: common_relative
+    draw_background_at_location:
+        background:
+            type: str
+            default: ''
+        position.x: common_position
+        position.y: common_position
+        tile:
+            type: bool
+            default: False
+        relative: common_relative
+    draw_text_at_location:
+        apply_to: common_apply_to
+        text:
+            type: str
+            default: ''
+        position.x: common_position
+        position.y: common_position
+        relative: common_relative
+    draw_transformed_text_at_location:
+        apply_to: common_apply_to
+        text:
+            type: str
+            default: ''
+        position.x: common_position
+        position.y: common_position
+        hor_scale:
+            type: float
+            default: 1.0
+        ver_scale:
+            type: float
+            default: 1.0
+        angle:
+            type: float
+            default: 0
+        relative: common_relative
+    draw_rectangle:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        filled:
+            type: from_list
+            default: filled
+            accepted_list: [filled, outline]
+        relative: common_relative
+    draw_horizontal_gradient:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        color1:
+            type: str
+            default: #000000
+        color2:
+            type: str
+            default: #FFFFFF
+        relative: common_relative
+    draw_vertical_gradient:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        color1:
+            type: str
+            default: #000000
+        color2:
+            type: str
+            default: #FFFFFF
+        relative: common_relative
+    draw_ellipse:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        filled:
+            type: from_list
+            default: filled
+            accepted_list: [filled, outline]
+        relative: common_relative
+    draw_gradient_ellipse:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        color1:
+            type: str
+            default: #000000
+        color2:
+            type: str
+            default: #FFFFFF
+        relative: common_relative
+    draw_line:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        relative: common_relative
+    draw_arrow:
+        apply_to: common_apply_to
+        x1: common_position
+        y1: common_position
+        x2: common_position
+        y2: common_position
+        tip_size:
+            type: int
+            default: 12
+        relative: common_relative
+    set_draw_color:
+        color:
+            type: str
+            default: #000000
+    set_draw_font:
+        font:
+            type: str
+            default: ''
+        alignment:
+            type: from_list
+            default: left
+            accepted_list: [left, center, right]
+    set_fullscreen:
+        screen_size:
+            type: from_list
+            default: toggle
+            accepted_list: [toggle, windowed, fullscreen]
+    take_snapshot:
+        filename:
+            type: str
+            default: 'snapshot.png'
+    create_effect:
+        apply_to: common_apply_to
+        effect_type:
+            type: from_list
+            default: explosion
+            accepted_list:
+                - explosion
+                - ring
+                - ellipse
+                - firework
+                - smoke
+                - smoke_up
+                - star
+                - spark
+                - flare
+                - cloud
+                - rain
+                - snow
+        position.x: common_position
+        position.y: common_position
+        size:
+            type: from_list
+            default: medium
+            accepted_list: [small, medium, large]
+        color:
+            type: str
+            default: #000000
+        positioning:
+            type: from_list
+            default: foreground
+            accepted_list: [foreground, background]
+        relative: common_relative
+"""
+
     def __init__(self, action_name, settings_dict=None, **kwargs):
         """
         Initialize a DrawAction instance.
@@ -1642,9 +1809,10 @@ class DrawAction(Action):
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("DrawAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name, "",
+        Action.__init__(self, action_name,
+                        self.DRAW_ACTION_DATA_YAML,
                         settings, **kwargs)
-
+        self.action_data['draw_self'] = {}
 
 # make it possible to request an action from any action type
 Action.register_new_action_type(MotionAction)

@@ -332,7 +332,10 @@ class ObjectType(logging_object.LoggingObject):
         self.solid = self.DEFAULT_SOLID
         self.depth = self.DEFAULT_DEPTH
         self.group = pygame.sprite.LayeredDirty()
-        self.event_action_sequences = {}
+        # default draw action sequence draws the object's sprite
+        self.event_action_sequences = { "draw": action_sequence.ActionSequence() }
+        self.event_action_sequences["draw"].append_action(action.DrawAction("draw_self"))
+        self.game_engine.event_engine.register_event_handler("draw", self.draw)
         self._id = 0
         self.instance_delete_list = []
         self.handler_table = {
@@ -344,7 +347,7 @@ class ObjectType(logging_object.LoggingObject):
             re.compile("^outside_room$"):       self.handle_instance_event,
             re.compile("^intersect_boundary$"): self.handle_instance_event,
             re.compile("^create$"):             self.handle_create_event,
-            re.compile("^destroy$"):             self.handle_destroy_event,
+            re.compile("^destroy$"):            self.handle_destroy_event,
         }
         if kwargs:
             for kw in kwargs:
@@ -522,16 +525,16 @@ class ObjectType(logging_object.LoggingObject):
             self.group.remove(self.instance_delete_list)
             self.instance_delete_list = []
 
-    def draw(self, surface):
+    def draw(self, event):
         """
-        Call to draw all instances. The sprite group handles this for us.
-
-        :param surface: The surface the object instances will be drawn upon
-        :type surface: :py:class:`pygame.Surface`
+        Respond to draw events.
         """
-        self.debug("draw(surface={}):".format(surface))
+        self.debug("draw():")
         if (len(self.group) > 0) and self.visible:
-            self.group.draw(surface)
+            for action in self.event_action_sequences["draw"].get_next_action():
+                if action.name == "draw_self":
+                    # The normal, default action: each object instance draws its sprite
+                    self.group.draw(self.game_engine.draw_surface)
 
     def create_rectangle_mask(self, orig_rect):
         """
