@@ -1615,7 +1615,7 @@ class DrawAction(Action):
 
     DRAW_ACTION_DATA_YAML = """
 actions:
-    draw_sprte_at_location:
+    draw_sprite_at_location:
         apply_to: common_apply_to
         sprite:
             type: str
