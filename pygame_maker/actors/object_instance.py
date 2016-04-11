@@ -290,7 +290,7 @@ class ObjectInstance(logging_object.LoggingObject,
         if settings is not None:
             attr_values.update(settings)
         attr_values.update(kwargs)
-        if kwargs or (len(settings) > 0):
+        if len(attr_values) > 0:
             self._apply_kwargs(attr_values)
         # print("Initial symbols:")
         # self.symbols.dumpVars()

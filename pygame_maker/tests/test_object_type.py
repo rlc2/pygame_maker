@@ -9,6 +9,20 @@ import os
 from pygame_maker.events import event_engine
 from pygame_maker.logic import language_engine
 
+otlogger = logging.getLogger("CollideableObjectType")
+othandler = logging.StreamHandler()
+otformatter = logging.Formatter("%(levelname)s: %(message)s")
+othandler.setFormatter(otformatter)
+otlogger.addHandler(othandler)
+otlogger.setLevel(logging.DEBUG)
+
+gelogger = logging.getLogger("GameEngine")
+gehandler = logging.StreamHandler()
+geformatter = logging.Formatter("%(levelname)s: %(message)s")
+gehandler.setFormatter(geformatter)
+gelogger.addHandler(gehandler)
+gelogger.setLevel(logging.DEBUG)
+
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 
 class GameEngine(logging_object.LoggingObject):
@@ -222,7 +236,7 @@ class TestGameManager(object):
         self.game_engine.resources['sounds']['snd_explosion'] = sound.Sound("snd_explosion", sound_file="unittest_files/explosion.wav")
         with open(OBJ_TEST_FILE, "r") as yaml_f:
             self.game_engine.resources['objects']['obj_test'] = ObjectType.load_from_yaml(yaml_f, self.game_engine)[0]
-        self.game_engine.resources['objects']['obj_solid'] = ObjectType("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
+        self.game_engine.resources['objects']['obj_solid'] = CollideableObjectType("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
         # this doubles as a solid object and as the manager object
         self.game_engine.resources['objects']['obj_solid'].create_instance(self.screen,
             position=(308,228))

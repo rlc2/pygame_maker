@@ -13,6 +13,7 @@ import re
 import yaml
 import logging
 from pygame_maker.support import logging_object
+import simple_object_instance
 import object_instance
 import object_sprite
 from pygame_maker.events import event
@@ -182,23 +183,15 @@ def dot_product(v1, v2):
 
 class ObjectType(logging_object.LoggingObject):
     """
-    PyGameMaker objects have:
+    All PyGameMaker objects:
 
-    * sprite reference
-    * depth (determines which objects draw on top of other objects) (numeric)
-    * parent (another object)
-    * collision mask (uses sprite reference, can be a different sprite)
-    * visible flag (whether the object will be drawn)
-    * persistent flag (unknown purpose, not implemented)
-    * solid flag (for solid stationary objects, e.g. platform)
-    * physics flag
-    * events
+    * respond to events
 
       * ex: create. normal step. draw.
       * events can be modified, edited (appears to just add a run code
         action), or deleted.
 
-    * actions
+    * implement actions
 
       * things that happen in response to events
       * change direction.  jump to a location.  run code.  affect score/lives.
@@ -211,14 +204,6 @@ class ObjectType(logging_object.LoggingObject):
     instances of a particular kind of object.
     """
     DEFAULT_OBJECT_PREFIX = "obj_"
-    #: Default object visibility
-    DEFAULT_VISIBLE = True
-    #: Default for 'solid' flag
-    DEFAULT_SOLID = False
-    #: Default depth
-    DEFAULT_DEPTH = 0
-    #: By default, a new ObjectType doesn't refer to a sprite yet
-    DEFAULT_SPRITE_RESOURCE = None
     EVENT_NAME_OBJECT_HASH = {
         "outside_room": event.OtherEvent,
         "intersect_boundary": event.OtherEvent,
@@ -226,31 +211,97 @@ class ObjectType(logging_object.LoggingObject):
         "image_loaded": event.OtherEvent,
         "destroy": event.ObjectStateEvent,
         "collision": event.CollisionEvent,
+        "draw": event.DrawEvent,
     }
     GLOBAL_MOUSE_RE = re.compile("global")
 
-    @staticmethod
-    def load_from_yaml(yaml_stream, game_engine):
+    object_type_registry = []
+
+    @classmethod
+    def register_object_type(cls, object_type):
         """
-        Create an object type from a YAML-formatted file.
+        Register object type subclasses, so load_from_yaml() can recognize the
+        object types named in YAML files and create them.
+
+        :param object_type: The new ObjectType subclass
+        :type object_type: ObjectType
+        """
+        cls.object_type_registry.append(object_type)
+
+    @classmethod
+    def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
+        """
+        Create a kwargs dict from the YAML parameters describing an object
+        type.
+
+        Every ObjectType knows how to interpret event action sequences.
+
+        :param obj_yaml: The yaml.load() generated object
+        :return: A dict mapping known parameters to the values defined in the
+            YAML object
+        :rtype: dict
+        """
+        kwargs = {"event_action_sequences": {}}
+        if "events" in obj_yaml.keys():
+            # print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
+            for ev_seq in obj_yaml["events"]:
+                game_engine.debug("{}: create event sequence from '{}'".format(obj_name,
+                                                                               obj_yaml['events'][ev_seq]))
+                kwargs["event_action_sequences"][ev_seq] = \
+                    action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
+                game_engine.debug("Loaded sequence {}:".format(ev_seq))
+                if game_engine.logger.level <= logging.DEBUG:
+                    kwargs["event_action_sequences"][ev_seq].pretty_print()
+        return kwargs
+
+    @classmethod
+    def load_from_yaml_obj(cls, yaml_obj, game_engine):
+        """
+        Create an object type from an object returned by yaml.load().
+
+        :param yaml_stream: A file or stream containing the YAML string data
+        :type yaml_stream: file-like
+        :param game_engine: A reference to the main game engine
+        :type game_engine: GameEngine
+        :return: A new ObjectType with YAML-defined properties
+        :type: :py:class:`ObjectType`
+        """
+        new_object_list = []
+        for top_level in yaml_obj:
+            # hash of 1 key, the object name
+            obj_name = top_level.keys()[0]
+            # 'events' key contains event -> action sequence mappings
+            obj_yaml = top_level[obj_name]
+            kwargs = cls.gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
+            print("Creating new obj '{}' of type {}".format(obj_name, cls.__name__))
+            new_cls = cls(obj_name, game_engine, **kwargs)
+            new_object_list.append(new_cls)
+        return new_object_list
+
+    @classmethod
+    def load_from_yaml(cls, yaml_stream, game_engine):
+        """
+        Create an object type list from a YAML-formatted file.
         Expected format::
 
-            - obj_name1:
-                visible: True | False
-                solid: True | False
-                depth: <int>
-                sprite: <sprite resource name>
-                events:
-                  <event1_name>:
-                    <yaml representation for event action sequence>
-                  ...
-                  <eventN_name>:
-                    <yaml representation for event action sequence>
-            - obj_name2:
+            obj_type1:
+              - obj_name1:
+                  events:
+                    <event1_name>:
+                      <yaml representation for event action sequence>
+                    ...
+                    <eventN_name>:
+                      <yaml representation for event action sequence>
+              - obj_name2:
+                ...
+              ...
+            obj_type2:
             ...
 
         For a description of the action sequence YAML format, see
         :py:meth:`~pygame_maker.actions.action_sequence.ActionSequence.load_sequence_from_yaml_obj`
+
+        Each obj_typeN must match a registered object type's name.
 
         :param yaml_stream: A file or stream containing the YAML string data
         :type yaml_stream: file-like
@@ -261,39 +312,14 @@ class ObjectType(logging_object.LoggingObject):
         """
         new_object_list = []
         yaml_repr = yaml.load(yaml_stream)
-        if yaml_repr:
-            for top_level in yaml_repr:
-                kwargs = {
-                    "visible": ObjectType.DEFAULT_VISIBLE,
-                    "solid": ObjectType.DEFAULT_SOLID,
-                    "depth": ObjectType.DEFAULT_DEPTH,
-                    "sprite": ObjectType.DEFAULT_SPRITE_RESOURCE,
-                    "event_action_sequences": {}
-                }
-                # hash of 1 key, the object name
-                obj_name = top_level.keys()[0]
-                # 'events' key contains event -> action sequence mappings
-                obj_yaml = top_level[obj_name]
-                if "visible" in obj_yaml.keys():
-                    kwargs["visible"] = (obj_yaml["visible"] == True)
-                if "solid" in obj_yaml.keys():
-                    kwargs["solid"] = (obj_yaml["solid"] == True)
-                if "depth" in obj_yaml.keys():
-                    kwargs["depth"] = int(obj_yaml["depth"])
-                if "sprite" in obj_yaml.keys():
-                    kwargs["sprite"] = str(obj_yaml["sprite"])
-                if "events" in obj_yaml.keys():
-                    # print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
-                    for ev_seq in obj_yaml["events"]:
-                        game_engine.debug("{}: create event sequence from '{}'".format(obj_name,
-                                                                                       obj_yaml['events'][ev_seq]))
-                        kwargs["event_action_sequences"][ev_seq] = \
-                            action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
-                        game_engine.debug("Loaded sequence {}:".format(ev_seq))
-                        if game_engine.logger.level <= logging.DEBUG:
-                            kwargs["event_action_sequences"][ev_seq].pretty_print()
-                new_object_list.append(ObjectType(obj_name, game_engine,
-                                                  **kwargs))
+        if yaml_repr is not None:
+            for obj_type_name in yaml_repr.keys():
+                for reg_obj_type in cls.object_type_registry:
+                    print("Compare {} with {}".format(obj_type_name, reg_obj_type.__name__))
+                    if obj_type_name == reg_obj_type.__name__:
+                        new_object_list += reg_obj_type.load_from_yaml_obj(
+                            yaml_repr[obj_type_name], game_engine)
+                        break
         return new_object_list
 
     def __init__(self, object_name, game_engine, **kwargs):
@@ -317,26 +343,16 @@ class ObjectType(logging_object.LoggingObject):
             * sprite (str): Name of a sprite resource used as the image [None]
         """
         super(ObjectType, self).__init__(type(self).__name__)
-        self.debug("New object {}, with args {}".format(object_name, kwargs))
+        self.debug("New object type {} named '{}', with args {}".format(
+            type(self).__name__, object_name, kwargs))
         if object_name:
             self.name = object_name
         else:
             self.name = self.DEFAULT_OBJECT_PREFIX
         self.game_engine = game_engine
-        self.sprite_resource = self.DEFAULT_SPRITE_RESOURCE
-        self.image = None
-        self.bounding_box_rect = None
-        self.mask = None
-        self.radius = None
-        self._visible = self.DEFAULT_VISIBLE
-        self.solid = self.DEFAULT_SOLID
-        self.depth = self.DEFAULT_DEPTH
-        self.group = pygame.sprite.LayeredDirty()
-        # default draw action sequence draws the object's sprite
-        self.event_action_sequences = { "draw": action_sequence.ActionSequence() }
-        self.event_action_sequences["draw"].append_action(action.DrawAction("draw_self"))
-        self.game_engine.event_engine.register_event_handler("draw", self.draw)
         self._id = 0
+        self.instance_list = []
+        self.group = []  # No collision detection supported
         self.instance_delete_list = []
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
@@ -348,56 +364,16 @@ class ObjectType(logging_object.LoggingObject):
             re.compile("^intersect_boundary$"): self.handle_instance_event,
             re.compile("^create$"):             self.handle_create_event,
             re.compile("^destroy$"):            self.handle_destroy_event,
+            re.compile("^draw$"):               self.draw,
         }
-        if kwargs:
-            for kw in kwargs:
-                if kw == "visible":
-                    self.visible = kwargs["visible"]
-                if kw == "solid":
-                    self.solid = (kwargs["solid"] == True)
-                if kw == "depth":
-                    self.depth = int(kwargs["depth"])
-                if (kw == "sprite") and kwargs[kw]:
-                    if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
-                        assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
-                        if not isinstance(assigned_sprite, object_sprite.ObjectSprite):
-                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]),
-                                                      self.error))
-                        self.sprite_resource = assigned_sprite
-                if (kw == "event_action_sequences") and kwargs[kw]:
-                    ev_dict = kwargs[kw]
-                    for ev_name in ev_dict:
-                        if not isinstance(ev_dict[ev_name], action_sequence.ActionSequence):
-                            raise(ObjectTypeException("Event '{}' does not contain an ActionSequence", self.error))
-                        self[ev_name] = ev_dict[ev_name]
-
-        # print("Finished setup of {}".format(self.name))
-
-    @property
-    def visible(self):
-        """Flag whether the ObjectType is to be drawn"""
-        return self._visible
-
-    @visible.setter
-    def visible(self, is_visible):
-        vis = (is_visible is True)
-        if self._visible != vis:
-            self._visible = vis
-            for instance in self.group:
-                instance.visible = is_visible
-
-    def to_yaml(self):
-        """Return the YAML string representing this object type."""
-        yaml_str = "- {}:\n".format(self.name)
-        yaml_str += "    visible: {}\n".format(self.visible)
-        yaml_str += "    solid: {}\n".format(self.solid)
-        yaml_str += "    depth: {:d}\n".format(self.depth)
-        yaml_str += "    sprite: {}\n".format(self.sprite_resource.name)
-        yaml_str += "    events:\n"
-        for event_name in self.event_action_sequences:
-            yaml_str += "      {}:\n".format(event_name)
-            yaml_str += self.event_action_sequences[event_name].to_yaml(8)
-        return yaml_str
+        self.event_action_sequences = {}
+        if ((kwargs is not None) and ("event_action_sequences" in kwargs.keys()) and
+                kwargs["event_action_sequences"]):
+            ev_dict = kwargs["event_action_sequences"]
+            for ev_name in ev_dict:
+                if not isinstance(ev_dict[ev_name], action_sequence.ActionSequence):
+                    raise(ObjectTypeException("Event '{}' does not contain an ActionSequence", self.error))
+                self[ev_name] = ev_dict[ev_name]
 
     def add_instance_to_delete_list(self, instance):
         """
@@ -414,6 +390,17 @@ class ObjectType(logging_object.LoggingObject):
         # a simple list manages deletions
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
         self.instance_delete_list.append(instance)
+
+    def make_new_instance(self, screen, settings=None, **kwargs):
+        """
+        Generate a new instance of this object type in response to
+            :py:meth:`create_instance`
+        """
+        screen_dims = (screen.get_width(), screen.get_height())
+        new_instance = simple_object_instance.SimpleObjectInstance(self,
+            screen_dims, self._id, settings, **kwargs)
+        self.instance_list.append(new_instance)
+        return new_instance
 
     def create_instance(self, screen, settings=None, **kwargs):
         """
@@ -438,9 +425,7 @@ class ObjectType(logging_object.LoggingObject):
         # print("Create new instance of {}".format(self))
         # print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
         self.info("  Create instance of {} with args {}, {}".format(self.name, settings, kwargs))
-        screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = object_instance.ObjectInstance(self, screen_dims, self._id, settings, **kwargs)
-        self.group.add(new_instance)
+        new_instance = self.make_new_instance(screen, settings, **kwargs)
         self._id += 1
         # queue the creation event for the new instance
         self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create",
@@ -512,29 +497,395 @@ class ObjectType(logging_object.LoggingObject):
         return collision_types_queued
 
     def update(self):
-        """
-        Call to perform position updates for all instances.  After all
-        instances have updated, handle any queued deletions.
-        """
-        self.debug("update():")
-        if len(self.group) > 0:
-            self.group.update()
-        # after all instances update(), check the delete list to see which
-        #  ones should be removed and remove them
         if len(self.instance_delete_list) > 0:
-            self.group.remove(self.instance_delete_list)
+            self.instance_list.remove(self.instance_delete_list)
             self.instance_delete_list = []
 
     def draw(self, event):
+        pass
+
+    def get_applied_instance_list(self, action, event):
+        return []
+
+    def execute_action_sequence(self, event, targets=None):
         """
-        Respond to draw events.
+        Walk through an event action sequence when the event handler matches a
+        known event.
+
+        The sausage factory method.  There are many types of actions; the
+        object instance actions make the most sense to handle here, but the
+        game engine that inspired this one uses a model in which a hidden
+        manager object type triggers actions that affect other parts of the
+        game engine, so those actions need to be routed properly as well.
+
+        :param event: The event to be handled
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param targets: The event handler may pass in a list of target
+            instances for the action sequence to operate on
+        :type event: array-like | None
         """
-        self.debug("draw():")
-        if (len(self.group) > 0) and self.visible:
-            for action in self.event_action_sequences["draw"].get_next_action():
-                if action.name == "draw_self":
-                    # The normal, default action: each object instance draws its sprite
-                    self.group.draw(self.game_engine.draw_surface)
+        self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
+        if event.name in self.event_action_sequences:
+            self.info("  {}: Execute action sequence for event '{}'".format(self.name, event))
+            with logging_object.Indented(self):
+                self.info("  Event args: {}".format(event.event_params))
+                for action in self.event_action_sequences[event.name].get_next_action():
+                    self.info("  Execute action {}".format(action))
+                    # forward instance actions to instance(s)
+                    if (targets is not None) and len(targets) > 0:
+                        self.info("  Apply to target(s) {}".format(str(targets)))
+                        for target in targets:
+                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                                target.execute_action(action, event)
+                            else:
+                                self.game_engine.execute_action(action, event)
+                    elif "apply_to" in action.action_data:
+                        affected_instance_list = self.get_applied_instance_list(action, event)
+                        self.info("  Apply to: {}".format(action, affected_instance_list))
+                        for target in affected_instance_list:
+                            # print("applying to {}".format(target))
+                            target.execute_action(action, event)
+                    else:
+                        self.info("  call game engine execute_action for {}".format(action))
+                        self.game_engine.execute_action(action, event)
+
+    def handle_instance_event(self, event):
+        pass
+
+    def handle_mouse_event(self, event):
+        """
+        Execute the action sequence associated with the supplied mouse
+        event.
+
+        If mouse event's XY coordinate intersects one or more instances and the
+        exact mouse event is handled by this object (button #, press/release),
+        then handle the event.  mouse_global_* events are handled by instances
+        watching for them, regardless of the XY coordinate.
+
+        :param event: The mouse event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_mouse_event(event={}):".format(event))
+        ret = False
+        gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
+        if gl_minfo:
+            self.execute_action_sequence(event)
+            ret = True
+        return ret
+
+    def handle_keyboard_event(self, event):
+        """
+        Execute the action sequence associated with the supplied key event,
+        if the exact key event is handled by this object (which key,
+        press/release).
+
+        :param event: The keyboard event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_keyboard_event(event={}):".format(event))
+        matched_seq = None
+        for ev_seq in self.event_action_sequences.keys():
+            self.debug("  match key event {} vs {}".format(event.name, ev_seq))
+            if ev_seq.find(event.name) == 0:
+                # found this event in the list, find out if it's the right type
+                if (ev_seq == event.name) or ev_seq.endswith('_keydn'):
+                    if event.key_event_type == "down":
+                        matched_seq = event.name
+                        break
+                elif (ev_seq.endswith('_keyup') and 
+                        (event.key_event_type == "up")):
+                    matched_seq = event.name
+                    break
+        if matched_seq:
+            self.execute_action_sequence(event)
+
+    def handle_collision_event(self, event):
+        """
+        Execute the action sequence associated with a collision event.
+
+        The name of the object type collided with is part of the event's name,
+        which should have been added as a key in the event_action_sequences
+        attribute using the :py:meth:`__setitem__` interface.
+
+        :param event: The collision event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_collision_event(event={}):".format(event))
+        self.execute_action_sequence(event)
+
+    def handle_step_event(self, event):
+        """
+        Execute the action sequence associated with the supplied step event, if
+        the exact step event is handled by this object (begin, end, normal),
+        on every instance.
+
+        :param event: The step event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_step_event(event={}):".format(event))
+        self.execute_action_sequence(event, targets=[inst for inst in self.instance_list])
+
+    def handle_alarm_event(self, event):
+        """
+        Execute the action sequence associated with the alarm event, if the
+        exact alarm is handled by this object (one or more of alarms 0-11).
+
+        :param event: The alarm event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_alarm_event(event={}):".format(event))
+
+    def handle_create_event(self, event):
+        """
+        Execute the action sequence associated with the create event, passing
+        it on to the instance recorded in the event.
+
+        :param event: The object creation event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_create_event(event={}):".format(event))
+        self.execute_action_sequence(event)
+
+    def handle_destroy_event(self, event):
+        """
+        Execute the action sequence associated with the destroy event.
+
+        :param event: The destroy event
+        :type event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("handle_destroy_event(event={}):".format(event))
+        self.execute_action_sequence(event)
+
+    def _select_event_handler(self, event_name):
+        # Return an event type, given the name of the handled event.
+
+        # :param event_name: The name of the received event
+        # :type event_name: str
+        # :return: An event handler
+        # :rtype: callable
+        self.debug("_select_event_handler(event_name={}):".format(event_name))
+        hdlr = None
+        for ev_re in self.handler_table.keys():
+            minfo = ev_re.match(event_name)
+            if minfo:
+                hdlr = self.handler_table[ev_re]
+        return hdlr
+
+    def keys(self):
+        """
+        Return the event names handled by this object type, in a list.
+
+        :return: A list of event names handled by this object type
+        :rtype: list
+        """
+        self.debug("keys():")
+        return self.event_action_sequences.keys()
+
+    def __getitem__(self, itemname):
+        """
+        ObjectType instances support obj[event_name] to directly access the
+        action sequence for a particular event.
+
+        :param itemname: Name of an event
+        :type itemname: str
+        :return: An action sequence, or None
+        :rtype: None | :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
+        """
+        self.debug("__getitem__(itemname={}):".format(itemname))
+        if itemname in self.event_action_sequences:
+            return self.event_action_sequences[itemname]
+        else:
+            return None
+
+    def __setitem__(self, itemname, val):
+        """
+        ObjectType instances support obj[event_name] = sequence for
+        directly setting the action sequence for a particular event.
+
+        After adding the event action sequence, register the event handler
+        for the event.
+
+        :param itemname: Name of an event
+        :type itemname: str
+        :param val: New action sequence to apply to an event
+        :type val: :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
+        :raise: KeyError, if itemname is not a string
+        :raise: ValueError, if val is not an ActionSequence
+        """
+        self.debug("__setitem__(itemname={}, val={}):".format(itemname, val))
+        if not isinstance(itemname, str):
+            raise(KeyError("Event action sequence keys must be strings", self.error))
+        if not isinstance(val, action_sequence.ActionSequence):
+            raise(ValueError("Supplied event action sequence is not an ActionSequence instance",
+                             self.error))
+        self.event_action_sequences[itemname] = val
+        # register our handler for this event
+        new_handler = self._select_event_handler(itemname)
+        if new_handler:
+            self.info("{}: Register handler for event '{}'".format(self.name, itemname))
+            self.game_engine.event_engine.register_event_handler(itemname, new_handler)
+        else:
+            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".format(itemname),
+                                      self.error))
+
+    def __delitem__(self, itemname):
+        """
+        Remove the named event from the action sequence table.
+
+        :param itemname: The name of the event to stop handling
+        :type itemname: str
+        """
+        self.debug("__delitem__(itemname={}):".format(itemname))
+        if itemname in self.event_action_sequences:
+            # stop handling the given event name
+            old_handler = self._select_event_handler(itemname)
+            self.info("  {}: Unregister handler for event '{}'".format(self.name, itemname))
+            self.game_engine.event_engine.unregister_event_handler(itemname, old_handler)
+            # remove the event from the table
+            del(self.event_action_sequences[itemname])
+
+
+class ManagerObjectType(ObjectType):
+    pass
+
+
+class CollideableObjectType(ManagerObjectType):
+    """
+    Most in-game objects are of this type.  Collideable objects have:
+
+    * sprite reference
+    * depth (determines which objects draw on top of other objects) (numeric)
+    * parent (another object)
+    * collision mask (uses sprite reference, can be a different sprite)
+    * visible flag (whether the object will be drawn)
+    * persistent flag (unknown purpose, not implemented)
+    * solid flag (for solid stationary objects, e.g. platform)
+    * physics flag
+
+    Expected YAML format for CollideableObjectType::
+
+        - obj_name1:
+            visible: True | False
+            solid: True | False
+            depth: <int>
+            sprite: <sprite resource name>
+            events:
+              <event1_name>:
+                <yaml representation for event action sequence>
+              ...
+              <eventN_name>:
+                <yaml representation for event action sequence>
+        - obj_name2:
+        ...
+
+    For a description of the action sequence YAML format, see
+    :py:meth:`~pygame_maker.actions.action_sequence.ActionSequence.load_sequence_from_yaml_obj`
+    """
+    #: Default object visibility
+    DEFAULT_VISIBLE = True
+    #: Default for 'solid' flag
+    DEFAULT_SOLID = False
+    #: Default depth
+    DEFAULT_DEPTH = 0
+    #: By default, a new ObjectType doesn't refer to a sprite yet
+    DEFAULT_SPRITE_RESOURCE = None
+
+    @classmethod
+    def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
+        kwargs = super(CollideableObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
+        kwargs.update({
+            "visible": CollideableObjectType.DEFAULT_VISIBLE,
+            "solid": CollideableObjectType.DEFAULT_SOLID,
+            "depth": CollideableObjectType.DEFAULT_DEPTH,
+            "sprite": CollideableObjectType.DEFAULT_SPRITE_RESOURCE,
+        })
+        if "visible" in obj_yaml.keys():
+            kwargs["visible"] = (obj_yaml["visible"] == True)
+        if "solid" in obj_yaml.keys():
+            kwargs["solid"] = (obj_yaml["solid"] == True)
+        if "depth" in obj_yaml.keys():
+            kwargs["depth"] = int(obj_yaml["depth"])
+        if "sprite" in obj_yaml.keys():
+            kwargs["sprite"] = str(obj_yaml["sprite"])
+        return kwargs
+
+    def __init__(self, object_name, game_engine, **kwargs):
+
+        """
+        Create a new type of object.
+
+        :param object_name: Supply a name for the object type
+        :type object_name: str
+        :param game_engine: Supply the main game engine
+            containing an event engine, language engine, sprite resources,
+            sound resources, other object types, and handlers for certain game
+            actions
+        :type game_engine: GameEngine
+        :param kwargs: Supply alternatives for default object properties:
+
+            * visible (bool): Whether instances will be drawn [True]
+            * solid (bool): Whether instances block other object instances
+              (e.g. a platform) [False]
+            * depth (int): Which layer object instances will be placed into [0]
+            * sprite (str): Name of a sprite resource used as the image [None]
+        """
+        super(CollideableObjectType, self).__init__(object_name, game_engine, **kwargs)
+        self.sprite_resource = self.DEFAULT_SPRITE_RESOURCE
+        self.image = None
+        self.bounding_box_rect = None
+        self.mask = None
+        self.radius = None
+        self._visible = self.DEFAULT_VISIBLE
+        self.solid = self.DEFAULT_SOLID
+        self.depth = self.DEFAULT_DEPTH
+        self.group = pygame.sprite.LayeredDirty()
+        # default draw action sequence draws the object's sprite
+        self["draw"] = action_sequence.ActionSequence()
+        self["draw"].append_action(action.DrawAction("draw_self"))
+        self.game_engine.event_engine.register_event_handler("draw", self.draw)
+        if kwargs:
+            for kw in kwargs:
+                if kw == "visible":
+                    self.visible = kwargs["visible"]
+                if kw == "solid":
+                    self.solid = (kwargs["solid"] == True)
+                if kw == "depth":
+                    self.depth = int(kwargs["depth"])
+                if (kw == "sprite") and kwargs[kw]:
+                    if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
+                        assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
+                        if not isinstance(assigned_sprite, object_sprite.ObjectSprite):
+                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]),
+                                                      self.error))
+                        self.sprite_resource = assigned_sprite
+
+        # print("Finished setup of {}".format(self.name))
+
+    @property
+    def visible(self):
+        """Flag whether the ObjectType is to be drawn"""
+        return self._visible
+
+    @visible.setter
+    def visible(self, is_visible):
+        vis = (is_visible is True)
+        if self._visible != vis:
+            self._visible = vis
+            for instance in self.group:
+                instance.visible = is_visible
+
+    def to_yaml(self):
+        """Return the YAML string representing this object type."""
+        yaml_str = "- {}:\n".format(self.name)
+        yaml_str += "    visible: {}\n".format(self.visible)
+        yaml_str += "    solid: {}\n".format(self.solid)
+        yaml_str += "    depth: {:d}\n".format(self.depth)
+        yaml_str += "    sprite: {}\n".format(self.sprite_resource.name)
+        yaml_str += "    events:\n"
+        for event_name in self.event_action_sequences:
+            yaml_str += "      {}:\n".format(event_name)
+            yaml_str += self.event_action_sequences[event_name].to_yaml(8)
+        return yaml_str
 
     def create_rectangle_mask(self, orig_rect):
         """
@@ -696,6 +1047,38 @@ class ObjectType(logging_object.LoggingObject):
         else:
             return None
 
+    def update(self):
+        """
+        Call to perform position updates for all instances.  After all
+        instances have updated, handle any queued deletions.
+        """
+        self.debug("update():")
+        if len(self.group) > 0:
+            self.group.update()
+        # after all instances update(), check the delete list to see which
+        #  ones should be removed and remove them
+        if len(self.instance_delete_list) > 0:
+            self.group.remove(self.instance_delete_list)
+            self.instance_delete_list = []
+
+    def draw(self, event):
+        """
+        Respond to draw events.
+        """
+        self.debug("draw():")
+        if (len(self.group) > 0) and self.visible:
+            for action in self.event_action_sequences["draw"].get_next_action():
+                if action.name == "draw_self":
+                    # The normal, default action: each object instance draws its sprite
+                    self.group.draw(self.game_engine.draw_surface)
+
+    def make_new_instance(self, screen, settings=None, **kwargs):
+        screen_dims = (screen.get_width(), screen.get_height())
+        new_instance = object_instance.ObjectInstance(self, screen_dims,
+            self._id, settings, **kwargs)
+        self.group.add(new_instance)
+        return new_instance
+
     def get_applied_instance_list(self, action, event):
         """
         For actions with "apply_to" parameters, return a list of the
@@ -732,48 +1115,6 @@ class ObjectType(logging_object.LoggingObject):
                 apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
         return apply_to_instances
 
-    def execute_action_sequence(self, event, targets=None):
-        """
-        Walk through an event action sequence when the event handler matches a
-        known event.
-
-        The sausage factory method.  There are many types of actions; the
-        object instance actions make the most sense to handle here, but the
-        game engine that inspired this one uses a model in which a hidden
-        manager object type triggers actions that affect other parts of the
-        game engine, so those actions need to be routed properly as well.
-
-        :param event: The event to be handled
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        :param targets: The event handler may pass in a list of target
-            instances for the action sequence to operate on
-        :type event: array-like | None
-        """
-        self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
-        if event.name in self.event_action_sequences:
-            self.info("  {}: Execute action sequence for event '{}'".format(self.name, event))
-            with logging_object.Indented(self):
-                self.info("  Event args: {}".format(event.event_params))
-                for action in self.event_action_sequences[event.name].get_next_action():
-                    self.info("  Execute action {}".format(action))
-                    # forward instance actions to instance(s)
-                    if (targets is not None) and len(targets) > 0:
-                        self.info("  Apply to target(s) {}".format(str(targets)))
-                        for target in targets:
-                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
-                                target.execute_action(action, event)
-                            else:
-                                self.game_engine.execute_action(action, event)
-                    elif "apply_to" in action.action_data:
-                        affected_instance_list = self.get_applied_instance_list(action, event)
-                        self.info("  Apply to: {}".format(action, affected_instance_list))
-                        for target in affected_instance_list:
-                            # print("applying to {}".format(target))
-                            target.execute_action(action, event)
-                    else:
-                        self.info("  call game engine execute_action for {}".format(action))
-                        self.game_engine.execute_action(action, event)
-
     def handle_instance_event(self, event):
         """
         Execute action sequences generated by an instance.
@@ -790,66 +1131,10 @@ class ObjectType(logging_object.LoggingObject):
         self.execute_action_sequence(event)
 
     def handle_mouse_event(self, event):
-        """
-        Execute the action sequence associated with the supplied mouse
-        event.
-
-        If mouse event's XY coordinate intersects one or more instances and the
-        exact mouse event is handled by this object (button #, press/release),
-        then handle the event.  mouse_global_* events are handled by instances
-        watching for them, regardless of the XY coordinate.
-
-        :param event: The mouse event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_mouse_event(event={}):".format(event))
-        gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
-        if gl_minfo:
-            self.execute_action_sequence(event)
-        else:
+        if not super(CollideableObjectType, self).handle_mouse_event(event):
             clicked = self.group.get_sprites_at(event['position'])
             if len(clicked) > 0:
                 self.execute_action_sequence(event, clicked)
-
-    def handle_keyboard_event(self, event):
-        """
-        Execute the action sequence associated with the supplied key event,
-        if the exact key event is handled by this object (which key,
-        press/release).
-
-        :param event: The keyboard event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_keyboard_event(event={}):".format(event))
-        matched_seq = None
-        for ev_seq in self.event_action_sequences.keys():
-            self.debug("  match key event {} vs {}".format(event.name, ev_seq))
-            if ev_seq.find(event.name) == 0:
-                # found this event in the list, find out if it's the right type
-                if (ev_seq == event.name) or ev_seq.endswith('_keydn'):
-                    if event.key_event_type == "down":
-                        matched_seq = event.name
-                        break
-                elif (ev_seq.endswith('_keyup') and 
-                        (event.key_event_type == "up")):
-                    matched_seq = event.name
-                    break
-        if matched_seq:
-            self.execute_action_sequence(event)
-
-    def handle_collision_event(self, event):
-        """
-        Execute the action sequence associated with a collision event.
-
-        The name of the object type collided with is part of the event's name,
-        which should have been added as a key in the event_action_sequences
-        attribute using the :py:meth:`__setitem__` interface.
-
-        :param event: The collision event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_collision_event(event={}):".format(event))
-        self.execute_action_sequence(event)
 
     def handle_step_event(self, event):
         """
@@ -863,125 +1148,9 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("handle_step_event(event={}):".format(event))
         self.execute_action_sequence(event, targets=[inst for inst in self.group])
 
-    def handle_alarm_event(self, event):
-        """
-        Execute the action sequence associated with the alarm event, if the
-        exact alarm is handled by this object (one or more of alarms 0-11).
-
-        :param event: The alarm event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_alarm_event(event={}):".format(event))
-
-    def handle_create_event(self, event):
-        """
-        Execute the action sequence associated with the create event, passing
-        it on to the instance recorded in the event.
-
-        :param event: The object creation event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_create_event(event={}):".format(event))
-        self.execute_action_sequence(event)
-
-    def handle_destroy_event(self, event):
-        """
-        Execute the action sequence associated with the destroy event.
-
-        :param event: The destroy event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_destroy_event(event={}):".format(event))
-        self.execute_action_sequence(event)
-
-    def _select_event_handler(self, event_name):
-        # Return an event type, given the name of the handled event.
-
-        # :param event_name: The name of the received event
-        # :type event_name: str
-        # :return: An event handler
-        # :rtype: callable
-        self.debug("_select_event_handler(event_name={}):".format(event_name))
-        hdlr = None
-        for ev_re in self.handler_table.keys():
-            minfo = ev_re.match(event_name)
-            if minfo:
-                hdlr = self.handler_table[ev_re]
-        return hdlr
-
-    def keys(self):
-        """
-        Return the event names handled by this object type, in a list.
-
-        :return: A list of event names handled by this object type
-        :rtype: list
-        """
-        self.debug("keys():")
-        return self.event_action_sequences.keys()
-
-    def __getitem__(self, itemname):
-        """
-        ObjectType instances support obj[event_name] to directly access the
-        action sequence for a particular event.
-
-        :param itemname: Name of an event
-        :type itemname: str
-        :return: An action sequence, or None
-        :rtype: None | :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
-        """
-        self.debug("__getitem__(itemname={}):".format(itemname))
-        if itemname in self.event_action_sequences:
-            return self.event_action_sequences[itemname]
-        else:
-            return None
-
-    def __setitem__(self, itemname, val):
-        """
-        ObjectType instances support obj[event_name] = sequence for
-        directly setting the action sequence for a particular event.
-
-        After adding the event action sequence, register the event handler
-        for the event.
-
-        :param itemname: Name of an event
-        :type itemname: str
-        :param val: New action sequence to apply to an event
-        :type val: :py:class:`~pygame_maker.actions.action_sequence.ActionSequence`
-        :raise: KeyError, if itemname is not a string
-        :raise: ValueError, if val is not an ActionSequence
-        """
-        self.debug("__setitem__(itemname={}, val={}):".format(itemname, val))
-        if not isinstance(itemname, str):
-            raise(KeyError("Event action sequence keys must be strings", self.error))
-        if not isinstance(val, action_sequence.ActionSequence):
-            raise(ValueError("Supplied event action sequence is not an ActionSequence instance",
-                             self.error))
-        self.event_action_sequences[itemname] = val
-        # register our handler for this event
-        new_handler = self._select_event_handler(itemname)
-        if new_handler:
-            self.info("{}: Register handler for event '{}'".format(self.name, itemname))
-            self.game_engine.event_engine.register_event_handler(itemname, new_handler)
-        else:
-            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".format(itemname),
-                                      self.error))
-
-    def __delitem__(self, itemname):
-        """
-        Remove the named event from the action sequence table.
-
-        :param itemname: The name of the event to stop handling
-        :type itemname: str
-        """
-        self.debug("__delitem__(itemname={}):".format(itemname))
-        if itemname in self.event_action_sequences:
-            # stop handling the given event name
-            old_handler = self._select_event_handler(itemname)
-            self.info("  {}: Unregister handler for event '{}'".format(self.name, itemname))
-            self.game_engine.event_engine.unregister_event_handler(itemname, old_handler)
-            # remove the event from the table
-            del(self.event_action_sequences[itemname])
-
     def __repr__(self):
         rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name, self.sprite_resource)
         return rpr
+
+ObjectType.register_object_type(ManagerObjectType)
+ObjectType.register_object_type(CollideableObjectType)
