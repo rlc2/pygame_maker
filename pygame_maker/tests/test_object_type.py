@@ -14,14 +14,14 @@ othandler = logging.StreamHandler()
 otformatter = logging.Formatter("%(levelname)s: %(message)s")
 othandler.setFormatter(otformatter)
 otlogger.addHandler(othandler)
-otlogger.setLevel(logging.DEBUG)
+otlogger.setLevel(logging.INFO)
 
 gelogger = logging.getLogger("GameEngine")
 gehandler = logging.StreamHandler()
 geformatter = logging.Formatter("%(levelname)s: %(message)s")
 gehandler.setFormatter(geformatter)
 gelogger.addHandler(gehandler)
-gelogger.setLevel(logging.DEBUG)
+gelogger.setLevel(logging.INFO)
 
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 

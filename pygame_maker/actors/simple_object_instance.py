@@ -6,7 +6,7 @@
 
 # pygame maker simple object instances
 
-from object_instance import Coordinate
+from pygame_maker.support import coordinate
 from pygame_maker.support import logging_object
 from pygame_maker.logic.language_engine import SymbolTable
 
@@ -30,7 +30,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # Unique ID for this SimpleObjectInstance
         self.inst_id = id_
         self._symbols = {
-            "position": Coordinate(0, 0,
+            "position": coordinate.Coordinate(0, 0,
                                    self._update_position_x,
                                    self._update_position_y)
         }
