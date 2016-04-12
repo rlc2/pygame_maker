@@ -1,1 +1,1 @@
-__all__ = ["color", "logging_object"]
+__all__ = ["color", "coordinate", "logging_object"]
