@@ -16,6 +16,13 @@ othandler.setFormatter(otformatter)
 otlogger.addHandler(othandler)
 otlogger.setLevel(logging.INFO)
 
+oilogger = logging.getLogger("ObjectInstance")
+oihandler = logging.StreamHandler()
+oiformatter = logging.Formatter("%(levelname)s: %(message)s")
+oihandler.setFormatter(oiformatter)
+oilogger.addHandler(oihandler)
+oilogger.setLevel(logging.INFO)
+
 gelogger = logging.getLogger("GameEngine")
 gehandler = logging.StreamHandler()
 geformatter = logging.Formatter("%(levelname)s: %(message)s")

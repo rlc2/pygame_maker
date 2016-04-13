@@ -10,9 +10,7 @@ import pygame
 import math
 import random
 import numpy as np
-from pygame_maker.support import coordinate
-from pygame_maker.support import logging_object
-from pygame_maker.logic.language_engine import SymbolTable
+import simple_object_instance
 
 
 def get_vector_xy_from_speed_direction(speed, direction):
@@ -78,7 +76,7 @@ def direction_from_a_to_b(pointa, pointb):
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
 
 
-class ObjectInstance(logging_object.LoggingObject,
+class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                      pygame.sprite.DirtySprite):
     """
     Fits the purpose of pygame's Sprite class.
@@ -106,6 +104,15 @@ class ObjectInstance(logging_object.LoggingObject,
     As a subclass of LoggingObject, instances support debug(), info(),
     warning(), error(), and critical() methods.
     """
+    INSTANCE_SYMBOLS = {
+            "speed": 0.0,
+            "direction": 0.0,
+            "gravity": 0.0,
+            "gravity_direction": 0.0,
+            "friction": 0.0,
+            "hspeed": 0.0,
+            "vspeed": 0.0,
+    }
 
     def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
         """
@@ -140,80 +147,41 @@ class ObjectInstance(logging_object.LoggingObject,
               pixels/sec [0.0]
 
         """
-        # call the superclass __init__
-        logging_object.LoggingObject.__init__(self, type(self).__name__)
-        pygame.sprite.DirtySprite.__init__(self)
-        # Unique ID for this ObjectInstance
-        self.inst_id = id_
-        # Symbols tracked by all ObjectInstances
-        self._symbols = {
-            "speed": 0.0,
-            "direction": 0.0,
-            "gravity": 0.0,
-            "gravity_direction": 0.0,
-            "friction": 0.0,
-            "hspeed": 0.0,
-            "vspeed": 0.0,
-            "position": coordinate.Coordinate(0, 0,
-                                   self._update_position_x,
-                                   self._update_position_y)
-        }
-        #: Symbol table
-        self.symbols = SymbolTable()
-        for sym in self._symbols.keys():
-            self.symbols[sym] = self._symbols[sym]
         # Flag when methods shouldn't automatically update speed, direction
         self._delay_motion_updates = False
-        #: The ObjectType this ObjectInstance belongs to
-        self.kind = kind
-        #: Keep a handle to the game engine for handling certain actions
-        self.game_engine = kind.game_engine
-        #: Keep track of the screen boundaries for collision detection
-        self.screen_dims = list(screen_dims)
+        # call the superclasses' __init__
+        simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_, settings, **kwargs)
+        pygame.sprite.DirtySprite.__init__(self)
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
         self.dirty = 0
         self._visible = False
         self.visible = kind.visible
+        self.source_rect = pygame.Rect(0, 0, 0, 0)
         # copy this instance's image and Rect from the sprite resource
         #: Keep a reference to the ObjectSprite's image
         self.image = kind.get_image()
         if self.image:
-            self.rect = self.image.get_rect()
+            image_rect = self.image.get_rect()
+            self.rect.width = image_rect.width
+            self.rect.height = image_rect.height
             self.mask = self.kind.mask
             if self.kind.radius:
                 # disk collision type; get the predefined radius for collisions
                 self.radius = self.kind.radius
             self.source_rect = pygame.Rect(self.kind.bounding_box_rect)
-        else:
-            #: The Sprite's Rect
-            self.rect = pygame.Rect(0, 0, 0, 0)
-            #: The bounding box rect containing drawn pixels
-            self.source_rect = pygame.Rect(0, 0, 0, 0)
         self.blendmode = 0
         # use the instance type's 'depth' parameter as the layer for this
         #  instance
         self.layer = kind.depth
-        attr_values = {}
-        if settings is not None:
-            attr_values.update(settings)
-        attr_values.update(kwargs)
-        if len(attr_values) > 0:
-            self._apply_kwargs(attr_values)
-        # print("Initial symbols:")
-        # self.symbols.dumpVars()
 
         self.start_position = (self.position.x, self.position.y)
-        self.action_name_to_method_map = {
+        self.action_name_to_method_map.update({
             'set_velocity_compass': self.set_velocity_compass,
             'move_toward_point': self.move_toward_point,
             'set_horizontal_speed': self.set_horizontal_speed,
             'set_vertical_speed': self.set_vertical_speed,
-            'execute_code': self.execute_code,
-            'if_variable_value': self.if_variable_value,
-            'set_variable_value': self.set_variable_value,
-        }
-        self._code_block_id = 0
+        })
         # print("{}".format(self))
 
     @property
@@ -244,39 +212,6 @@ class ObjectInstance(logging_object.LoggingObject,
         self.symbols['hspeed'] = xadj
         self.symbols['vspeed'] = yadj
 
-    def _update_position_x(self):
-        # Automatically called when the X coordinate of the position changes
-        self.debug("_update_position_x():")
-        self._round_position_x_to_rect_x()
-        self.symbols['position.x'] = self.position.x
-
-    def _update_position_y(self):
-        # Automatically called when the Y coordinate of the position changes
-        self.debug("_update_position_y():")
-        self._round_position_y_to_rect_y()
-        self.symbols['position.y'] = self.position.y
-
-    def _round_position_x_to_rect_x(self):
-        # Called when the x coordinate of the position changes, to round
-        # the floating-point value to the nearest integer and place it
-        # in rect.x for the draw() method.
-        self.debug("_round_position_x_to_rect_x():")
-        self.rect.x = math.floor(self.position.x + 0.5)
-
-    def _round_position_y_to_rect_y(self):
-        # _round_position_y_to_rect_y():
-        #  Called when the y coordinate of the position changes, to round
-        #  the floating-point value to the nearest integer and place it
-        #  in rect.y for the draw() method.
-        self.debug("_round_position_y_to_rect_y():")
-        self.rect.y = math.floor(self.position.y + 0.5)
-
-    @property
-    def code_block_id(self):
-        # Return a unique code block id
-        self._code_block_id += 1
-        return self._code_block_id
-
     @property
     def direction(self):
         """Direction of motion in degrees, between 0.0 and 360.0"""
@@ -305,17 +240,6 @@ class ObjectInstance(logging_object.LoggingObject,
         self.symbols['speed'] = value
         if not self._delay_motion_updates:
             self._change_motion_x_y()
-
-    @property
-    def position(self):
-        """Position of this instance.  Set a new position using an x, y list"""
-        return self.symbols['position']
-
-    @position.setter
-    def position(self, value):
-        if len(value) >= 2:
-            self.position.x = value[0]
-            self.position.y = value[1]
 
     @property
     def friction(self):
@@ -391,50 +315,6 @@ class ObjectInstance(logging_object.LoggingObject,
         center_xy = (self.rect.x + self.rect.width / 2.0,
                      self.rect.y + self.rect.height / 2.0)
         return center_xy
-
-    def _apply_kwargs(self, kwargs):
-        # Apply the kwargs dict mappings to the instance's properties.
-
-        # Any keys that don't refer to built-in properties (speed, direction,
-        # etc) will instead be tracked in the local symbol table to support
-        # code execution actions.
-        # Parameters themselves can have attributes up to 1 level, to support
-        #     position.x and position.y
-
-        # :param kwargs: A dictionary containing the new attributes to be
-        #     applied
-        # :type kwargs: dict
-        self.debug("_apply_kwargs(kwargs={}):".format(str(kwargs)))
-        relative = False
-        if "relative" in kwargs.keys():
-            relative = kwargs["relative"]
-        for kwarg in kwargs.keys():
-            if kwarg == 'relative':
-                # 'relative' is not an attribute, it instead determines how the
-                #  other attributes are applied.
-                continue
-            # Attributes can themselves have attributes, but only 1 level deep
-            # is currently supported.  This facilitates setting the position.x
-            #  and position.y attributes.
-            attrs = kwarg.split('.')
-            if hasattr(self, attrs[0]):
-                new_val = kwargs[kwarg]
-                if len(attrs) == 1:
-                    old_val = getattr(self, kwarg)
-                    if relative:
-                        new_val += getattr(self, kwarg)
-                    if new_val != old_val:
-                        setattr(self, kwarg, new_val)
-                elif len(attrs) == 2:
-                    main_attr = getattr(self, attrs[0])
-                    old_val = getattr(main_attr, attrs[1])
-                    if relative:
-                        new_val += old_val
-                    if new_val != old_val:
-                        setattr(main_attr, attrs[1], new_val)
-            else:
-                # keep track of local symbols created by code blocks
-                self.symbols[kwarg] = kwargs[kwarg]
 
     def update(self):
         """
@@ -618,144 +498,6 @@ class ObjectInstance(logging_object.LoggingObject,
                 new_vspeed += self.vspeed
             self.vspeed = new_vspeed
 
-    def _symbol_change_callback(self, sym, new_value):
-        # Callback for the SymbolTable.
-
-        # Called whenever a symbol changes while running the language engine.
-
-        # :param sym: The symbol's name
-        # :type sym: str
-        # :param new_value: The symbol's new value
-        self.debug("_symbol_change_callback(sym={}, new_value={}):".format(sym,
-                                                                           new_value))
-        if sym == 'speed':
-            self.speed = new_value
-        elif sym == 'direction':
-            self.direction = new_value
-        elif sym == 'hspeed':
-            self.hspeed = new_value
-        elif sym == 'vspeed':
-            self.vspeed = new_value
-        elif sym == 'position.x':
-            self.position.x = new_value
-        elif sym == 'position.y':
-            self.position.y = new_value
-        elif sym == 'position':
-            self.position = new_value
-        elif sym == 'friction':
-            self.friction = new_value
-        elif sym == 'gravity_direction':
-            self.gravity_direction = new_value
-        elif sym == 'gravity':
-            self.gravity = new_value
-
-    def execute_code(self, action, keep_code_block=True):
-        """
-        Handle the execute_code action.
-
-        Puts local variables into the symbols attribute, which is a symbol
-        table. Applies any built-in local variable changes for the instance
-        (speed, direction, etc.).
-
-        :param action: The Action instance that triggered this method
-        :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param keep_code_block: Specify whether the code block will be re-used,
-            and so shouldn't be deleted after execution
-        :type keep_code_block: bool
-        """
-        self.debug("execute_code(action={}, keep_code_block={}):".format(action,
-                                                                         keep_code_block))
-        if len(action.action_data['code']) > 0:
-            instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
-            if 'language_engine_handle' not in action.runtime_data:
-                action['language_engine_handle'] = instance_handle_name
-                # print("action {} runtime: '{}'".format(action, action.runtime_data))
-                self.game_engine.language_engine.register_code_block(
-                    instance_handle_name, action.action_data['code']
-                )
-            local_symbols = SymbolTable(self.symbols, lambda s, v: self._symbol_change_callback(s, v))
-            self.debug("{} inst {} syms before code block: {}".format(self.kind.name,
-                                                                      self.inst_id,
-                                                                      local_symbols.vars))
-            self.game_engine.language_engine.execute_code_block(
-                action['language_engine_handle'], local_symbols
-            )
-            self.debug("  syms after code block: {}".format(local_symbols.vars))
-            if not keep_code_block:
-                # support one-shot actions
-                self.game_engine.language_engine.unregister_code_block(
-                    action['language_engine_handle']
-                )
-                del(action.runtime_data['language_engine_handle'])
-
-    def if_variable_value(self, action):
-        """
-        Handle the if_variable_value action.
-
-        Makes use of both the local symbol table in self.symbols, and the
-        global symbol table managed by the language engine.
-
-        :param action: The Action instance that triggered this method
-        :type action: :py:class:`~pygame_maker.actions.action.Action`
-        """
-        self.debug("if_variable_value(action={}):".format(action))
-        # look in symbol tables for the answer, local table first
-        var_val = self.symbols.DEFAULT_UNINITIALIZED_VALUE
-        test_result = False
-        if action['variable'] in self.symbols.keys():
-            var_val = self.symbols[action['variable']]
-        elif action['variable'] in self.game_engine.language_engine.global_symbol_table.keys():
-            var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
-        if action['test'] == "equals":
-            if var_val == action['value']:
-                test_result = True
-        if action['test'] == "not_equals":
-            if var_val == action['value']:
-                test_result = True
-        if action['test'] == "less_than_or_equals":
-            if var_val <= action['value']:
-                test_result = True
-        if action['test'] == "less_than":
-            if var_val < action['value']:
-                test_result = True
-        if action['test'] == "greater_than_or_equals":
-            if var_val >= action['value']:
-                test_result = True
-        if action['test'] == "greater_than":
-            if var_val > action['value']:
-                test_result = True
-        self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name,
-                                                            self.inst_id, action['variable'], action['test'],
-                                                            action['value'],
-                                                            test_result))
-        action.action_result = test_result
-
-    def set_variable_value(self, action):
-        """
-        Handle the set_variable_value action.
-
-        :param action: The Action instance that triggered this method
-        :type action: :py:class:`~pygame_maker.actions.action.Action`
-        """
-        self.debug("set_variable_value(action={}):".format(action))
-        if action['is_global']:
-            value_result = action.get_parameter_expression_result('value',
-                                                                  self.game_engine.language_engine.global_symbol_table,
-                                                                  self.game_engine.language_engine)
-            self.debug("  {} inst {}: set global var {} to {}".format(self.kind.name,
-                                                                      self.inst_id,
-                                                                      action['variable'],
-                                                                      value_result))
-            self.game_engine.language_engine.global_symbol_table[action['variable']] = value_result
-        else:
-            value_result = action.get_parameter_expression_result('value',
-                                                                  self.symbols, self.game_engine.language_engine)
-            self.debug("  {} inst {}: set local var '{}' to {}".format(self.kind.name,
-                                                                       self.inst_id,
-                                                                       action['variable'],
-                                                                       value_result))
-            self.symbols[action['variable']] = value_result
-
     def execute_action(self, action, event):
         """
         Perform an action in an action sequence, in response to an event.
@@ -770,55 +512,48 @@ class ObjectInstance(logging_object.LoggingObject,
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
-        self.debug("execute_action(action={}, event={}):".format(action, event))
-        action_params = {}
+        action_params, handled_action = simple_object_instance.SimpleObjectInstance.execute_action(self, action, event)
         # check for expressions that need to be executed
-        for param in action.action_data.keys():
-            if param == 'apply_to':
-                continue
-            action_params[param] = action.get_parameter_expression_result(
-                param, self.symbols, self.game_engine.language_engine)
-        if action.name in self.action_name_to_method_map.keys():
-            self.action_name_to_method_map[action.name](action)
-        elif action.name == "jump_to_start":
-            self.position = self.start_position
-        elif action.name == "reverse_horizontal_speed":
-            # old_dir = self.direction
-            self.direction = -self.direction
-            # self.debug("Reverse hdir {} to {}".format(old_dir, self.direction))
-        elif action.name == "reverse_vertical_speed":
-            # old_dir = self.direction
-            self.direction = 180.0 - self.direction
-            # self.debug("Reverse vdir {} to {}".format(old_dir, self.direction))
-        elif action.name == "destroy_object":
-            # Queue the destroy event for this instance and run it, then schedule
-            #  ourselves for removal from our parent object.
-            self.game_engine.event_engine.queue_event(
-                self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
-            )
-            self.game_engine.event_engine.transmit_event("destroy")
-            self.kind.add_instance_to_delete_list(self)
-        elif action.name == "bounce_off_collider":
-            # self.debug("bounce event: {}".format(event))
-            if ((action_params['precision'] == 'imprecise') or ('normal' not in
-                                                                event.event_params.keys())):
-                self.direction = 180.0 + self.direction
-            else:
-                norm = np.array(event['normal'])
-                # print("Check normal {}".format(norm))
-                if abs(norm[0]) == abs(norm[1]):
+        if not handled_action:
+            if action.name == "jump_to_start":
+                self.position = self.start_position
+            elif action.name == "reverse_horizontal_speed":
+                # old_dir = self.direction
+                self.direction = -self.direction
+                # self.debug("Reverse hdir {} to {}".format(old_dir, self.direction))
+            elif action.name == "reverse_vertical_speed":
+                # old_dir = self.direction
+                self.direction = 180.0 - self.direction
+                # self.debug("Reverse vdir {} to {}".format(old_dir, self.direction))
+            elif action.name == "destroy_object":
+                # Queue the destroy event for this instance and run it, then schedule
+                #  ourselves for removal from our parent object.
+                self.game_engine.event_engine.queue_event(
+                    self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
+                )
+                self.game_engine.event_engine.transmit_event("destroy")
+                self.kind.add_instance_to_delete_list(self)
+            elif action.name == "bounce_off_collider":
+                # self.debug("bounce event: {}".format(event))
+                if ((action_params['precision'] == 'imprecise') or ('normal' not in
+                                                                    event.event_params.keys())):
                     self.direction = 180.0 + self.direction
-                elif abs(norm[0]) > abs(norm[1]):
-                    # X component is greater; reverse X
-                    self.direction = -self.direction
                 else:
-                    # Y component is greater; reverse Y
-                    self.direction = 180.0 - self.direction
-        else:
-            self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name,
-                                                                              self.inst_id,
-                                                                              action.name))
-            self._apply_kwargs(action_params)
+                    norm = np.array(event['normal'])
+                    # print("Check normal {}".format(norm))
+                    if abs(norm[0]) == abs(norm[1]):
+                        self.direction = 180.0 + self.direction
+                    elif abs(norm[0]) > abs(norm[1]):
+                        # X component is greater; reverse X
+                        self.direction = -self.direction
+                    else:
+                        # Y component is greater; reverse Y
+                        self.direction = 180.0 - self.direction
+            else:
+                self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name,
+                                                                                  self.inst_id,
+                                                                                  action.name))
+        self._apply_kwargs(action_params)
 
     def __repr__(self):
         return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
