@@ -24,10 +24,34 @@ class SimpleObjectInstance(logging_object.LoggingObject):
     INSTANCE_SYMBOLS = {}
 
     def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
+        """
+        Initialize a SimpleObjectInstance.
+
+        :param kind: The object type of this new instance
+        :type kind: :py:class:`~pygame_maker.actors.object_type.ObjectType`
+        :param screen_dims: Width, height of the surface this instance will be
+            drawn to.  Allows boundary collisions to be detected.
+        :type screen_dims: [int, int]
+        :param id\_: A unique integer ID for this instance
+        :type id\_: int
+        :param settings: Used along with kwargs for settings attributes
+            (allows attributes to be set that have a '.' character, which
+            cannot be set in kwargs).  Known attributes are the same as for
+            kwargs.
+        :type settings: None or dict
+        :param kwargs:
+            Supply alternatives to instance attributes
+
+            * position (list of float or pygame.Rect): Upper left XY coordinate.
+              If not integers, each will be rounded to the next highest
+              integer [(0,0)]
+
+        """
         # call base class init
         super(SimpleObjectInstance, self).__init__(type(self).__name__)
+        #: Name the instance based on the ObjectType's name and the ID
         self.name = "{}{}".format(kind.name, id_)
-        #: The ObjectType this ObjectInstance belongs to
+        #: The ObjectType this SimpleObjectInstance belongs to
         self.kind = kind
         #: Keep a handle to the game engine for handling certain actions
         self.game_engine = kind.game_engine

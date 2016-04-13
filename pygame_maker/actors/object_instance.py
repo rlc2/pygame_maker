@@ -92,17 +92,32 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
     * gravity direction
     * friction
 
-    An instance does:
+    An instance can:
 
+    * update its position each frame
+    * apply friction and gravity accelerations each frame
     * respond to events
-    * produce collision events
+    * produce collision events (boundaries and other instances)
+    * produce outside_room events
     * draw itself
 
-    As a :py:class:`pygame.sprite.DirtySprite` subclass, instances support
-    dirty, blendmode, source_rect, visible, and layer attributes.
+    As a :py:class:`~pygame.sprite.DirtySprite` subclass, instances support
+    ``dirty``, ``blendmode``, ``source_rect``, ``visible``, and ``layer``
+    attributes.
 
-    As a subclass of LoggingObject, instances support debug(), info(),
-    warning(), error(), and critical() methods.
+    As a
+    :py:class:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance`
+    subclass, instances automatically know how to:
+    execute action sequences; handle execute_code, if_variable and set_variable
+    actions; respond to symbol changes that occur inside code blocks; keep
+    track of position; and apply kwargs to the symbol table.
+    In addition, SimpleObjectInstance adds the ``name``, ``inst_id``, ``kind``,
+    ``game_engine``, ``screen_dims``, ``symbols``, and ``rect`` attributes.
+
+    As a subclass of
+    :py:class:`~pygame_maker.support.logging_object.LoggingObject`, instances
+    support ``debug()``, ``info()``, ``warning()``, ``error()``, and
+    ``critical()`` methods.
     """
     INSTANCE_SYMBOLS = {
             "speed": 0.0,
@@ -140,11 +155,11 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
               moves in each update [0.0]
             * direction (float): 0-359 degrees for direction of motion [0.0]
             * gravity (float): Strength of gravity toward gravity_direction in
-              pixels/sec^2 [0.0]
+              pixels/frame^2 [0.0]
             * gravity_direction (float): 0-359 degrees for direction of gravity
               vector [0.0]
             * friction (float): Strength of friction vs direction of motion in
-              pixels/sec [0.0]
+              pixels/frame [0.0]
 
         """
         # Flag when methods shouldn't automatically update speed, direction

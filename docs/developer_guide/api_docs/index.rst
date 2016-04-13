@@ -11,6 +11,7 @@ Contents:
    pygame_maker_actionsequence
    pygame_maker_objectsprite
    pygame_maker_objecttype
+   pygame_maker_simpleobjectinstance
    pygame_maker_objectinstance
    pygame_maker_event
    pygame_maker_eventengine
@@ -21,5 +22,6 @@ Contents:
    pygame_maker_room
    pygame_maker_sound
    pygame_maker_color
+   pygame_maker_coordinate
    pygame_maker_loggingobject
 
