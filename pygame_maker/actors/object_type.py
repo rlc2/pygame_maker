@@ -352,7 +352,7 @@ class ObjectType(logging_object.LoggingObject):
         self.game_engine = game_engine
         self._id = 0
         self.instance_list = []
-        self.group = []  # No collision detection supported
+        self.group = []  # Collideable object go here; left empty in base class
         self.instance_delete_list = []
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
@@ -447,8 +447,7 @@ class ObjectType(logging_object.LoggingObject):
 
     def collision_check(self, other_obj_types):
         """
-        Check for collisions between this and other object types' instances,
-        and queue collision events when detected.
+        Override this method in subclasses that implement collision detection.
 
         :param other_obj_types: A list of other ObjectTypes to test
             for collisions with this one
@@ -456,56 +455,7 @@ class ObjectType(logging_object.LoggingObject):
         :return: A list of collision event names that were queued, or an
             empty list if none
         """
-        self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
-        collision_types_queued = []
-        for other_obj in other_obj_types:
-            other_obj.group = other_obj.group
-            if len(other_obj.group) == 0:
-                continue
-            if (len(self.group) == 1) and self.name == other_obj.name:
-                # skip self collision detection if there's only one sprite
-                continue
-            collision_map = pygame.sprite.groupcollide(self.group,
-                                                       other_obj.group, 0, 0,
-                                                       collided=sprite_collision_test)
-            for collider in collision_map.keys():
-                collision_normal = None
-                for other_inst in collision_map[collider]:
-                    overlap = get_mask_overlap(collider, other_inst)
-                    # print("Solid collision overlap: {}".format(overlap))
-                    collision_normal = get_collision_normal(collider, other_inst)
-                    # print("Collision normal: {}".format(collision_normal))
-                    # in the event of a collision with a solid object (i.e.
-                    #  stationary), kick the sprite outside of the other
-                    #  object's collision mask
-                    if other_inst.kind.solid and collision_normal:
-                        divisor = float(dot_product(collision_normal, collision_normal))
-                        distance = 0
-                        if divisor != 0:
-                            distance = (float(overlap) / divisor + 0.5)
-                        # print("Distance: {}, divisor {}".format(distance, divisor))
-                        adj_x = math.floor(distance * collision_normal[0] + 0.5)
-                        adj_y = math.floor(distance * collision_normal[1] + 0.5)
-                        # print("Moving obj {}, {}".format(adj_x, adj_y))
-                        collider.position.x += adj_x
-                        collider.position.y += adj_y
-                collision_name = "collision_{}".format(other_obj.name)
-                if collision_name not in collision_types_queued:
-                    collision_types_queued.append(collision_name)
-                self.info("{} inst {}: Queue collision {}".format(self.name,
-                                                                  collider.inst_id,
-                                                                  collision_name))
-                collision_event_info = {
-                    "type": self, "instance": collider,
-                    "others": collision_map[collider]
-                }
-                if collision_normal:
-                    collision_event_info['normal'] = collision_normal
-                self.game_engine.event_engine.queue_event(
-                    self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
-                                                             collision_event_info)
-                )
-        return collision_types_queued
+        return []
 
     def update(self):
         """
@@ -1086,6 +1036,68 @@ class CollideableObjectType(ManagerObjectType):
             return self.image
         else:
             return None
+
+    def collision_check(self, other_obj_types):
+        """
+        Check for collisions between this and other object types' instances,
+        and queue collision events when detected.
+
+        :param other_obj_types: A list of other ObjectTypes to test
+            for collisions with this one
+        :type other_obj_types: array-like
+        :return: A list of collision event names that were queued, or an
+            empty list if none
+        """
+        self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
+        collision_types_queued = []
+        for other_obj in other_obj_types:
+            other_obj.group = other_obj.group
+            if len(other_obj.group) == 0:
+                continue
+            if (len(self.group) == 1) and self.name == other_obj.name:
+                # skip self collision detection if there's only one sprite
+                continue
+            collision_map = pygame.sprite.groupcollide(self.group,
+                                                       other_obj.group, 0, 0,
+                                                       collided=sprite_collision_test)
+            for collider in collision_map.keys():
+                collision_normal = None
+                for other_inst in collision_map[collider]:
+                    overlap = get_mask_overlap(collider, other_inst)
+                    # print("Solid collision overlap: {}".format(overlap))
+                    collision_normal = get_collision_normal(collider, other_inst)
+                    # print("Collision normal: {}".format(collision_normal))
+                    # in the event of a collision with a solid object (i.e.
+                    #  stationary), kick the sprite outside of the other
+                    #  object's collision mask
+                    if other_inst.kind.solid and collision_normal:
+                        divisor = float(dot_product(collision_normal, collision_normal))
+                        distance = 0
+                        if divisor != 0:
+                            distance = (float(overlap) / divisor + 0.5)
+                        # print("Distance: {}, divisor {}".format(distance, divisor))
+                        adj_x = math.floor(distance * collision_normal[0] + 0.5)
+                        adj_y = math.floor(distance * collision_normal[1] + 0.5)
+                        # print("Moving obj {}, {}".format(adj_x, adj_y))
+                        collider.position.x += adj_x
+                        collider.position.y += adj_y
+                collision_name = "collision_{}".format(other_obj.name)
+                if collision_name not in collision_types_queued:
+                    collision_types_queued.append(collision_name)
+                self.info("{} inst {}: Queue collision {}".format(self.name,
+                                                                  collider.inst_id,
+                                                                  collision_name))
+                collision_event_info = {
+                    "type": self, "instance": collider,
+                    "others": collision_map[collider]
+                }
+                if collision_normal:
+                    collision_event_info['normal'] = collision_normal
+                self.game_engine.event_engine.queue_event(
+                    self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
+                                                             collision_event_info)
+                )
+        return collision_types_queued
 
     def update(self):
         """
