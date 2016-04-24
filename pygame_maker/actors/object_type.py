@@ -315,7 +315,7 @@ class ObjectType(logging_object.LoggingObject):
         if yaml_repr is not None:
             for obj_type_name in yaml_repr.keys():
                 for reg_obj_type in cls.object_type_registry:
-                    print("Compare {} with {}".format(obj_type_name, reg_obj_type.__name__))
+                    # print("Compare {} with {}".format(obj_type_name, reg_obj_type.__name__))
                     if obj_type_name == reg_obj_type.__name__:
                         new_object_list += reg_obj_type.load_from_yaml_obj(
                             yaml_repr[obj_type_name], game_engine)
