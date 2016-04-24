@@ -208,7 +208,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         Handle the execute_code action.
 
         Puts local variables into the symbols attribute, which is a symbol
-        table. Applies any built-in local variable changes for the instance.
+        table.  Applies any built-in local variable changes for the instance.
 
         :param action: The Action instance that triggered this method
         :type action: :py:class:`~pygame_maker.actions.action.Action`
@@ -281,6 +281,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                                                             self.inst_id, action['variable'], action['test'],
                                                             action['value'],
                                                             test_result))
+        # update the action's action_result attribute, so that the
+        # action sequence can choose the right conditional path
         action.action_result = test_result
 
     def set_variable_value(self, action):
@@ -317,6 +319,10 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         :type action: :py:class:`~pygame_maker.actions.action.Action`
         :param event: The Event instance that triggered this method
         :type event: :py:class:`~pygame_maker.events.event.Event`
+        :return: A tuple containing the action parameters (``apply_to`` will
+            be filtered out), and True/False based on whether the action was
+            handled here in the base class or not.
+        :rtype: (dict, bool)
         """
         # Apply any setting names that match property names found in the
         #  action_data.  For some actions, this is enough.
