@@ -7,6 +7,17 @@
 # pygame maker color
 
 import re
+import math
+import pygame
+
+
+def normalize_alpha_byte_value(alpha):
+    """Normalize 0-255 alpha byte value to a float between 0.0 and 1.0."""
+    return (alpha * (1.0 / 255.0))
+
+def byte_value_from_normalized_alpha(normalized_alpha):
+    """Convert normalized alpha value to byte value."""
+    return int(math.floor(normalized_alpha * 255.0 + 0.5))
 
 
 class ColorException(Exception):
@@ -15,51 +26,118 @@ class ColorException(Exception):
 
 class Color(object):
     """
-    Wrap a color value.
+    Initialize a color value.
 
-    Colors can be accessed either as a 3-tuple containing R, G, B values, or by
-    the red, green, or blue values directly.
+    Colors can be specified in the following ways:
+
+    * A known color name, e.g. "red"
+    * '#' followed by a 6-digit hex color value, e.g. "#00FF00" (add 2 digits
+      to specify alpha)
+    * a 3-tuple containing R, G, B values
+    * a 4-tuple containing R, G, B, A values
+
+    Colors can be accessed in the following ways:
+    
+    * as a 3-tuple containing R, G, B values
+    * a 4-tuple containing R, G, B, A values
+    * the red, green, blue, or alpha values individually
+
     """
-    COLOR_STRING_RE = re.compile("#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
+    # support color names not listed in pygame.colordict
+    ADDITIONAL_COLORS = {
+        "aqua": "#00ffff",
+        "crimson": "#dc143c",
+        "fuchsia": "#ff00ff",
+        "indigo": "#4b0082",
+        "lime": "#00ff00",
+        "olive": "#808000",
+        "rebeccapurple": "#663399",
+        "silver": "#c0c0c0",
+        "teal": "#008080",
+    }
+    all_known_colors = []
 
-    def __init__(self, color):
+    @classmethod
+    def is_known_color(cls, color_name):
+        if len(all_known_colors) == 0:
+            cls.all_known_colors = pygame.colordict.THECOLORS.keys() + cls.ADDITIONAL_COLORS.keys()
+        return color_name.lower() in cls.all_known_colors
+
+    def __init__(self, *params):
         """
         Initialize a new Color.
 
-        The color can be specified either as a 3-tuple of R, G, and B values,
-        or by a string #RRGGBB, as in HTML.
+        The color can be specified as:
+        * a color name
+        * a 3-tuple of R, G, and B values
+        * a 4-tuple of R, G, B, and A values
+        * by a string #RRGGBB, as in HTML (2 additional alpha digits can be
+          appended)
 
-        :param color: A string or 3-element list specifying red, green, and
-            blue values
-        :type color: str | 3-element array-like
+        This class wraps pygame.Color, until such time as it is possible to
+        subclass pygame.Color without crashing the script with an uncatchable
+        ValueError when unknown color names are specified.
+
+        :param params: Contains one of the following:
+            * A string containing a color name
+            * A string containing #RRGGBB (optionally with alpha digits)
+            * A 3-element list specifying red, green, and blue values
+            * A 4-element list specifying red, green, blue and alpha values
+            * Individual color component values as arguments instead of in
+              a list
         """
-        #: The red component
-        self.red = 0
-        #: The green component
-        self.green = 0
-        #: The blue component
-        self.blue = 0
-        if isinstance(color, str):
-            # accept background colors in #RRGGBB format
-            minfo = self.COLOR_STRING_RE.match(color)
-            if minfo:
-                self.red = int(minfo.group(1), base=16)
-                self.green = int(minfo.group(2), base=16)
-                self.blue = int(minfo.group(3), base=16)
-            else:
-                raise(ColorException("{}: Supplied color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(
-                    type(self).__name__, color)))
-        else:
-            clist = list(color)
+        color_str = params[0]
+        self.color = None
+        if params[0] in self.ADDITIONAL_COLORS.keys():
+            color_str = self.ADDITIONAL_COLORS[params[0]]
+            # print("Passing named color {} as {} to pygame.Color".format(params[0], color_str))
+            self.color = pygame.Color(color_str)
+        elif not isinstance(params[0], str):
+            # accept a single list as the first parameter
+            clist = list(params[0])
             if len(clist) >= 3:
-                self.red = clist[0]
-                self.green = clist[1]
-                self.blue = clist[2]
-            else:
-                raise(ColorException("{}: Supplied color '{}' not recognized (supply a 3-item list or #RRGGBB string)".format(
-                    type(self).__name__, color)))
+                self.color = pygame.Color(*clist)
+        else:
+            self.color = pygame.Color(*params)
 
     @property
-    def color(self):
+    def red(self):
+        return self.color.r
+
+    @red.setter
+    def red(self, red):
+        self.color.r = red
+
+    @property
+    def green(self):
+        return self.color.g
+
+    @green.setter
+    def green(self, green):
+        self.color.g = green
+
+    @property
+    def blue(self):
+        return self.color.b
+
+    @blue.setter
+    def blue(self, blue):
+        self.color.b = blue
+
+    @property
+    def alpha(self):
+        return self.color.a
+
+    @alpha.setter
+    def alpha(self, alpha):
+        self.color.a = alpha
+
+    @property
+    def rgb(self):
         """The color as a 3-tuple of R, G, B values"""
-        return self.red, self.green, self.blue
+        return self.color.r, self.color.g, self.color.b
+
+    @property
+    def rgba(self):
+        """The color as a 3-tuple of R, G, B values"""
+        return self.color.r, self.color.g, self.color.b, self.color.a

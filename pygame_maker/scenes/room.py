@@ -377,7 +377,7 @@ class Room(logging_object.LoggingObject):
         """
         self.debug("draw_room_background({}):".format(surface))
         if self.draw_background_color:
-            surface.fill(self.background_color.color)
+            surface.fill(self.background_color.rgb)
         # draw the background
         if self.background:
             # draw background image, if any
