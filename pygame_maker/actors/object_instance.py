@@ -120,6 +120,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
     ``critical()`` methods.
     """
     INSTANCE_SYMBOLS = {
+            "visible": 0,
             "speed": 0.0,
             "direction": 0.0,
             "gravity": 0.0,
@@ -201,16 +202,20 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def visible(self):
-        return self._visible
+        vis = self.symbols["visible"]
+        # self.warn("{}{} visible is {}".format(self.kind.name, self.inst_id, vis))
+        return vis
 
     @visible.setter
     def visible(self, is_visible):
         vis = (is_visible is True)
+        # self.warn("{}{} visible is now {}".format(self.kind.name, self.inst_id, vis))
         if vis:
             self.dirty = 2
         else:
             self.dirty = 0
         self._visible = vis
+        self.symbols["visible"] = vis
 
     def _change_motion_x_y(self):
         # Keep track of horizontal and vertical components of velocity.
