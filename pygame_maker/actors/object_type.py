@@ -352,7 +352,8 @@ class ObjectType(logging_object.LoggingObject):
         self.game_engine = game_engine
         self._id = 0
         self.instance_list = []
-        self.group = []  # Collideable object go here; left empty in base class
+        # For collideable object instances; left empty in base class
+        self.group = []
         self.instance_delete_list = []
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,

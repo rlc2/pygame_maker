@@ -74,7 +74,6 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         for sym in self._symbols.keys():
             self.symbols[sym] = self._symbols[sym]
 
-
         attr_values = {}
         if settings is not None:
             attr_values.update(settings)
