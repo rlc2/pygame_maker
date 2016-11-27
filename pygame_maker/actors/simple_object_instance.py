@@ -253,32 +253,33 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         self.debug("if_variable_value(action={}):".format(action))
         # look in symbol tables for the answer, local table first
         var_val = self.symbols.DEFAULT_UNINITIALIZED_VALUE
+        test_val = action['value']
         test_result = False
         if action['variable'] in self.symbols.keys():
             var_val = self.symbols[action['variable']]
         elif action['variable'] in self.game_engine.language_engine.global_symbol_table.keys():
             var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
+        if isinstance(action['value'], str):
+            # replace a string with a symbol value, if the string is in a symbol table
+            if action['value'] in self.symbols.keys():
+                test_val = self.symbols[action['value']]
+            elif action['value'] in self.game_engine.language_engine.global_symbol_table.keys():
+                test_val = self.game_engine.language_engine.global_symbol_table[action['value']]
         if action['test'] == "equals":
-            if var_val == action['value']:
-                test_result = True
+            test_result = (var_val == test_val)
         if action['test'] == "not_equals":
-            if var_val == action['value']:
-                test_result = True
+            test_result = (var_val != test_val)
         if action['test'] == "less_than_or_equals":
-            if var_val <= action['value']:
-                test_result = True
+            test_result = (var_val <= test_val)
         if action['test'] == "less_than":
-            if var_val < action['value']:
-                test_result = True
+            test_result = (var_val < test_val)
         if action['test'] == "greater_than_or_equals":
-            if var_val >= action['value']:
-                test_result = True
+            test_result = (var_val >= test_val)
         if action['test'] == "greater_than":
-            if var_val > action['value']:
-                test_result = True
+            test_result = (var_val > test_val)
         self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name,
                                                             self.inst_id, action['variable'], action['test'],
-                                                            action['value'],
+                                                            test_val,
                                                             test_result))
         # update the action's action_result attribute, so that the
         # action sequence can choose the right conditional path
