@@ -465,7 +465,8 @@ class ObjectType(logging_object.LoggingObject):
         a subclass's update() method after updating its instances.
         """
         if len(self.instance_delete_list) > 0:
-            self.instance_list.remove(self.instance_delete_list)
+            for doomed_instance in self.instance_delete_list:
+                self.instance_list.remove(doomed_instance)
             self.instance_delete_list = []
 
     def draw(self, event):
