@@ -418,9 +418,8 @@ class ObjectType(logging_object.LoggingObject):
         """
         Create a new instance of this object type.
 
-        Every instance is assigned a unique ID, and placed inside a sprite
-        group that handles drawing and positional updates for all contained
-        instances.
+        Every instance is assigned a unique ID, and a create event is queued
+        to be passed on to the new instance.
 
         :param screen: The surface the instance will be drawn upon.  The
             instance can use this surface's width and height parameters to
