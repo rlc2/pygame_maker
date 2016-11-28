@@ -87,6 +87,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             'execute_code': self.execute_code,
             'if_variable_value': self.if_variable_value,
             'set_variable_value': self.set_variable_value,
+            'destroy_object': self.destroy_object,
         }
         self._code_block_id = 0
 
@@ -310,6 +311,15 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                                                                        action['variable'],
                                                                        value_result))
             self.symbols[action['variable']] = value_result
+
+    def destroy_object(self, action):
+        # Queue the destroy event for this instance and run it, then schedule
+        #  ourselves for removal from our parent object.
+        self.game_engine.event_engine.queue_event(
+            self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
+        )
+        self.game_engine.event_engine.transmit_event("destroy")
+        self.kind.add_instance_to_delete_list(self)
 
     def execute_action(self, action, event):
         """

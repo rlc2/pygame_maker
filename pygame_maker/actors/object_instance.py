@@ -545,14 +545,6 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                 # old_dir = self.direction
                 self.direction = 180.0 - self.direction
                 # self.debug("Reverse vdir {} to {}".format(old_dir, self.direction))
-            elif action.name == "destroy_object":
-                # Queue the destroy event for this instance and run it, then schedule
-                #  ourselves for removal from our parent object.
-                self.game_engine.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
-                )
-                self.game_engine.event_engine.transmit_event("destroy")
-                self.kind.add_instance_to_delete_list(self)
             elif action.name == "bounce_off_collider":
                 # self.debug("bounce event: {}".format(event))
                 if ((action_params['precision'] == 'imprecise') or ('normal' not in
