@@ -19,7 +19,13 @@ class EventEngine(logging_object.LoggingObject):
     """
     def __init__(self):
         super(EventEngine, self).__init__(type(self).__name__)
+        #: A dict with event names as keys; each key contains a list of all
+        #: handlers registered for that event
         self.event_handlers = {}
+        #: A dict with event names as keys; each key contains a list of
+        #: `pygame_maker.events.event.Event` instances of that named type that
+        #: have been queued, and that will be transmitted by transmit_event()
+        #: when that event name is supplied as a parameter
         self.event_queues = {}
 
     def register_event_handler(self, event_name, event_handler):

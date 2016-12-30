@@ -87,15 +87,24 @@ class Sound(object):
 
         :return:
         """
+        #: Set the name this sound resource will be known by
+        self.name = None
         if sound_name:
             self.name = sound_name
         else:
             self.name = self.DEFAULT_SOUND_PREFIX
+        #: The file name containing the audio data
         self.sound_file = None
+        #: A string selecting the kind of sound file this is (effect or music)
         self.sound_type = "effect"
+        #: Flag whether to pre-load the audio data in setup() or wait until
+        #: used
         self.preload = True
+        #: Flag set when the audio data has been read from the file
         self.loaded = False
+        #: The `pygame.mixer.Sound` object created when the file is loaded
         self.audio = None
+        #: The `pygame.mixer.Channel` returned when the audio is played
         self.channel = None
         if "sound_file" in kwargs:
             self.sound_file = kwargs["sound_file"]

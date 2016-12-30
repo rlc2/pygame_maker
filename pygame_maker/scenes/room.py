@@ -164,9 +164,8 @@ class Room(logging_object.LoggingObject):
         #: Record the room's state when leaving, and restore it when the room
         #: is loaded again later
         self.persistent = False
+        # Code string that will be executed when the room is loaded
         self._init_code = ""
-        #: The registered code block that runs when the room loads
-        self.init_code_block = None
         #: The list of object instances to create when the room loads
         self.init_object_instances = []
         #: The list of object instances inside the room
@@ -183,7 +182,9 @@ class Room(logging_object.LoggingObject):
         self.stretch = False
         #: The background color to paint, if draw_background_color is True
         self.background_color = self.DEFAULT_BACKGROUND_COLOR
+        # Shadow the 0th element of the background_offsets array (property)
         self._background_horizontal_offset = 0
+        # Shadow the 1st element of the background_offsets array (property)
         self._background_vertical_offset = 0
         #: The upper left pixel coordinate to draw the background at
         self.background_offsets = [0, 0]
@@ -192,7 +193,10 @@ class Room(logging_object.LoggingObject):
         #: A pygame Rect representing the snap grid width, height, and upper
         #:  left coordinate
         self.grid = pygame.Rect(0, 0, 16, 16)
+        # A pygame.Surface to draw the background on once, and reuse afterwards
         self._cached_background = None
+        # A pygame.Rect containing the width, height, and upper left coordinate
+        # of the cached background
         self._cached_rect = pygame.Rect(0, 0, 0, 0)
         #: The width of the background, determined after its image is loaded
         self.bkg_width = 0
@@ -333,7 +337,7 @@ class Room(logging_object.LoggingObject):
         :type code_block_string: str
         """
         self.debug("set_init_code_block({}):".format(code_block_string))
-        self.init_code_block = self.game_engine.language_engine.register_code_block(
+        self.game_engine.language_engine.register_code_block(
             "{}_init".format(self.name), code_block_string)
 
     def set_background(self, background):
@@ -349,7 +353,7 @@ class Room(logging_object.LoggingObject):
     def load_room(self, surface):
         """
         Load the background, if any.  Create the room's objects.  Run the
-        init_code_block.
+        initialization code.
 
         :param surface: Usually the game screen
         :type surface: :py:class:`pygame.Surface`
@@ -359,7 +363,7 @@ class Room(logging_object.LoggingObject):
         if (self.background and (self.background in
                                  self.game_engine.resources['backgrounds'].keys())):
             self.game_engine.resources['backgrounds'][self.background].load_graphic()
-        if self.init_code_block:
+        if len(self._init_code) > 0:
             self.game_engine.language_engine.execute_code_block(
                 "{}_init".format(self.name))
         # instantiate objects in the init_object_instances list

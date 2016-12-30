@@ -153,9 +153,8 @@ class ObjectSprite(object):
         self.transparency_pixel = False
         #: Apply this coordinate offset when drawing the image
         self.origin = (0, 0)
-        self._collision_type = "rectangle"
         #: Mask type for collision detection, see :py:attr:`COLLISION_TYPES`
-        self.collision_mask = None
+        self._collision_type = "rectangle"
         #: How to produce the rect containing drawable pixels, see
         #: :py:attr:`BOUNDING_BOX_TYPES`
         self.bounding_box_type = "automatic"
@@ -209,8 +208,12 @@ class ObjectSprite(object):
             self.manual_bounding_box_rect.width = width
             self.manual_bounding_box_rect.height = height
 
+        #: The pygame.Surface returned when loading the image from the file
         self.image = None
+        #: The dimensions of the image, determined after loading it
         self.image_size = (0, 0)
+        #: The bounding rect, containing all pixels to be drawn to a surface
+        #: from the image (depends on bounding_box_type)
         self.bounding_box_rect = None
 
     @property

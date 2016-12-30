@@ -345,16 +345,21 @@ class ObjectType(logging_object.LoggingObject):
         super(ObjectType, self).__init__(type(self).__name__)
         self.debug("New object type {} named '{}', with args {}".format(
             type(self).__name__, object_name, kwargs))
+        #: The name other resources will refer to this one by
+        self.name = self.DEFAULT_OBJECT_PREFIX
         if object_name:
             self.name = object_name
-        else:
-            self.name = self.DEFAULT_OBJECT_PREFIX
+        #: A reference to the game engine, for executing game engine actions
         self.game_engine = game_engine
+        # A unique instance ID
         self._id = 0
+        #: A list of instances of this object type
         self.instance_list = []
-        # For collideable object instances; left empty in base class
+        #: For collideable object instances; left empty in base class
         self.group = []
+        #: A list of instances to delete following update()
         self.instance_delete_list = []
+        #: A mapping of event regexs to handler methods
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
             re.compile("^kb_(.*)$"):            self.handle_keyboard_event,
@@ -367,6 +372,7 @@ class ObjectType(logging_object.LoggingObject):
             re.compile("^destroy$"):            self.handle_destroy_event,
             re.compile("^draw$"):               self.draw,
         }
+        #: A dict mapping event names to action sequences
         self.event_action_sequences = {}
         if ((kwargs is not None) and ("event_action_sequences" in kwargs.keys()) and
                 kwargs["event_action_sequences"]):

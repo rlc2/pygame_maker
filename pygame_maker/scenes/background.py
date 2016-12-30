@@ -153,19 +153,43 @@ class Background(object):
             wrapped in a :py:class:`TileProperties` instance.
         :return:
         """
+        #: The name other resources access this one by
         self.name = name
+        #: The file name of the image data for this background
         self.filename = ""
+        #: Tiling properties that may apply to this background
         self.tile_properties = TileProperties(**kwargs)
+        #: Flag whether the image edges should be smoothed
         self.smooth_edges = False
+        #: Flag whether the image data should be pre-loaded during setup()
         self.preload_texture = False
+        #: Flag whether this background has transparent pixels
         self.transparent = False
+        #: Flag whether this background is a tile set
         self.tileset = False
+        #: The image data contained in a `pygame.Surface` after the file is
+        #: loaded
         self.image = None
+        #: The size of the image, calculated when the file is loaded
         self.image_size = (0, 0)
+        #: A rect containing the width and height of individual tiles, filled
+        #: in the first time the background is drawn
         self.tile_rect = None
+        #: The distance between tiles in a row, calculated the first time the
+        #: background is drawn
         self.tile_row_spacing = -1
+        #: The maximum number of tiles that can fit in a single row, based on
+        #: the draw offset, the tileset's horizontal offset, the tile width,
+        #: the row spacing, and the screen width, calculated the first time the
+        #: background is drawn
         self.max_tile_rows = -1
+        #: The distance between tiles in a column, calculated the first time the
+        #: background is drawn
         self.tile_col_spacing = -1
+        #: The maximum number of tiles that can fit in a single column, based
+        #: on the draw offset, the tileset's vertical offset, the tile height,
+        #: the column spacing, and the screen height, calculated the first time
+        #: the background is drawn
         self.max_tile_cols = -1
         if kwargs:
             if 'filename' in kwargs:
