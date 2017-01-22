@@ -218,6 +218,8 @@ class ObjectType(logging_object.LoggingObject):
         "destroy_child": event.ObjectStateEvent,
         "destroy_parent": event.ObjectStateEvent,
         "collision": event.CollisionEvent,
+        "child_collision": event.CollisionEvent,
+        "parent_collision": event.CollisionEvent,
         "draw": event.DrawEvent,
     }
     GLOBAL_MOUSE_RE = re.compile("global")
@@ -371,7 +373,7 @@ class ObjectType(logging_object.LoggingObject):
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
             re.compile("^kb_(.*)$"):            self.handle_keyboard_event,
             re.compile("^mouse_(.*)$"):         self.handle_mouse_event,
-            re.compile("^collision_(.*)$"):     self.handle_collision_event,
+            re.compile("^(parent_|child_)?collision_(.*)$"):     self.handle_collision_event,
             re.compile("^([^_]+)_step$"):       self.handle_step_event,
             re.compile("^outside_room$"):       self.handle_instance_event,
             re.compile("^intersect_boundary$"): self.handle_instance_event,
@@ -487,7 +489,7 @@ class ObjectType(logging_object.LoggingObject):
         :return: A list of collision event names that were queued, or an
             empty list if none
         """
-        return []
+        return set()
 
     def update(self):
         """
@@ -1087,7 +1089,7 @@ class CollideableObjectType(ManagerObjectType):
             empty list if none
         """
         self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
-        collision_types_queued = []
+        collision_types_queued = set()
         for other_obj in other_obj_types:
             other_obj.group = other_obj.group
             if len(other_obj.group) == 0:
@@ -1121,7 +1123,7 @@ class CollideableObjectType(ManagerObjectType):
                         collider.position.y += adj_y
                 collision_name = "collision_{}".format(other_obj.name)
                 if collision_name not in collision_types_queued:
-                    collision_types_queued.append(collision_name)
+                    collision_types_queued.add(collision_name)
                 self.info("{} inst {}: Queue collision {}".format(self.name,
                                                                   collider.inst_id,
                                                                   collision_name))
@@ -1135,13 +1137,32 @@ class CollideableObjectType(ManagerObjectType):
                     self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
                                                              collision_event_info)
                 )
-                # @@@@ queue a child collision event if this instance has a parent
+                # queue a child collision event if this instance has a parent
                 if collider.symbols["parent"] is not None:
-                    pass
-                # @@@@ queue parent collision events if this instance has children
+                    parent = collider.symbols["parent"]
+                    child_collision_name = "child_{}".format(collision_name)
+                    collision_types_queued.add(child_collision_name)
+                    child_collision_info = dict(collision_event_info)
+                    child_collision_info["type"] = parent.kind
+                    child_collision_info["instance"] = parent
+                    child_collision_info["child_type"] = self.kind
+                    self.game_engine.event_engine.queue_event(
+                        self.EVENT_NAME_OBJECT_HASH["child_collision"](child_collision_name,
+                                                                       child_collision_info)
+                    )
+                # queue parent collision events if this instance has children
                 if len(collider.symbols["children"]) > 0:
                     for a_child in collider.symbols["children"]:
-                        pass
+                        parent_collision_name = "parent_{}".format(collision_name)
+                        collision_types_queued.add(parent_collision_name)
+                        parent_collision_info = dict(collision_event_info)
+                        parent_collision_info["type"] = a_child.kind
+                        parent_collision_info["instance"] = a_child
+                        parent_collision_info["parent_type"] = self.kind
+                        self.game_engine.event_engine.queue_event(
+                            self.EVENT_NAME_OBJECT_HASH["parent_collision"](parent_collision_name,
+                                                                            parent_collision_info)
+                        )
         return collision_types_queued
 
     def update(self):
@@ -1243,10 +1264,10 @@ class CollideableObjectType(ManagerObjectType):
         exact mouse event is handled by this object (button #, press/release),
         then handle the event.
         """
-        if not super(CollideableObjectType, self).handle_mouse_event(event):
-            clicked = self.group.get_sprites_at(event['position'])
-            if len(clicked) > 0:
-                self.execute_action_sequence(event, clicked)
+        super(CollideableObjectType, self).handle_mouse_event(event)
+        clicked = self.group.get_sprites_at(event['position'])
+        if len(clicked) > 0:
+            self.execute_action_sequence(event, clicked)
 
     def handle_step_event(self, event):
         """

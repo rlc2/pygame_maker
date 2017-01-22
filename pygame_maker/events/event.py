@@ -586,9 +586,9 @@ class KeyEvent(Event):
 class CollisionEvent(Event):
     """Wrap collision events."""
     #: All collision events start with this prefix
-    HANDLED_EVENTS = ["collision"]
+    HANDLED_EVENTS = ["collision", "parent_collision", "child_collision"]
 
-    COLLISION_RE = re.compile("collision_(.+)")
+    COLLISION_RE = re.compile("(parent_|child_)?collision_(.+)")
 
     @classmethod
     def find_collision_event(cls, event_name):
@@ -596,7 +596,7 @@ class CollisionEvent(Event):
         obj_name = ""
         minfo = cls.COLLISION_RE.search(event_name)
         if minfo:
-            obj_name = minfo.group(1)
+            obj_name = minfo.group(2)
         else:
             raise UnknownEventError("CollisionEvent: Invalid event '{}'".format(event_name))
         ev_info = (ev_name, obj_name)

@@ -653,9 +653,9 @@ class GameEngine(logging_object.LoggingObject):
             self.resources['objects'][obj_name].update()
         # check for object instance collisions
         obj_types = self.resources['objects'].values()
-        collision_types = []
+        collision_types = set()
         for obj_name in self.resources['objects'].keys():
-            collision_types += self.resources['objects'][obj_name].collision_check(obj_types)
+            collision_types |= self.resources['objects'][obj_name].collision_check(obj_types)
         if len(collision_types) > 0:
             for coll_type in collision_types:
                 self.event_engine.transmit_event(coll_type)

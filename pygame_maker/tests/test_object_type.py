@@ -30,6 +30,13 @@ gehandler.setFormatter(geformatter)
 gelogger.addHandler(gehandler)
 gelogger.setLevel(logging.INFO)
 
+# eelogger = logging.getLogger("EventEngine")
+# eehandler = logging.StreamHandler()
+# eeformatter = logging.Formatter("%(levelname)s: %(message)s")
+# eehandler.setFormatter(eeformatter)
+# eelogger.addHandler(eehandler)
+# eelogger.setLevel(logging.DEBUG)
+
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 
 class GameEngine(logging_object.LoggingObject):
@@ -98,10 +105,16 @@ class GameEngine(logging_object.LoggingObject):
         if self.mask_surface:
             surf.blit(self.mask_surface, (5,5))
 
-    def execute_action(self, action, event):
+    def execute_action(self, action, event, instance=None):
         action_params = {}
         for param in action.action_data.keys():
             if param == 'apply_to':
+                continue
+            if param == 'child_instance':
+                if action.action_data['child_instance'] and instance is not None:
+                    # create_object: connect the child instance to its parent that
+                    #   forwarded this action
+                    action_params['parent'] = instance
                 continue
             action_params[param] = action.get_parameter_expression_result(
                 param, self.symbols, self.language_engine)
@@ -296,9 +309,9 @@ class TestGameManager(object):
             self.game_engine.resources['objects'][obj_name].update()
         # check for object instance collisions
         obj_types = self.game_engine.resources['objects'].values()
-        collision_types = []
+        collision_types = set()
         for obj_name in self.game_engine.resources['objects'].keys():
-            collision_types += self.game_engine.resources['objects'][obj_name].collision_check(obj_types)
+            collision_types |= self.game_engine.resources['objects'][obj_name].collision_check(obj_types)
         if len(collision_types) > 0:
             for coll_type in collision_types:
                 self.game_engine.event_engine.transmit_event(coll_type)
