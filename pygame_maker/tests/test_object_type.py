@@ -33,6 +33,7 @@ gelogger.setLevel(logging.INFO)
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
 
 class GameEngine(logging_object.LoggingObject):
+    GAME_ENGINE_ACTIONS = ["play_sound", "create_object"]
     MOUSE_EVENT_TABLE=[
         {"instance_event_name": "mouse_nobutton",
          "global_event_name": "mouse_global_nobutton"},

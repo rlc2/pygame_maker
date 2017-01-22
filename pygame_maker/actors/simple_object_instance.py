@@ -63,6 +63,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         self.rect = pygame.Rect(0, 0, 0, 0)
         # Symbols tracked by ObjectInstances
         self._symbols = {
+            "parent": None,
+            "children": [],
             "position": coordinate.Coordinate(0, 0,
                                    self._update_position_x,
                                    self._update_position_y)
@@ -227,6 +229,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                     instance_handle_name, action.action_data['code']
                 )
             local_symbols = SymbolTable(self.symbols, lambda s, v: self._symbol_change_callback(s, v))
+            # future: allow references to this instance in user code (E.G. set as parent, add as child instance)
+            local_symbols.set_constant("self", self)
             self.debug("{} inst {} syms before code block: {}".format(self.kind.name,
                                                                       self.inst_id,
                                                                       local_symbols.vars))
@@ -312,12 +316,87 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                                                                        value_result))
             self.symbols[action['variable']] = value_result
 
+    def set_parent_instance(self, parent):
+        """
+            Set or replace this instance's parent, for forwarding 'child'
+            events
+        """
+        if not isinstance(parent, "SimpleObjectInstance"):
+            self.warn("set_parent_instance() passed non-instance '{}'".format(parent))
+            return
+        # if this instance already has a parent, remove it from the parent's child instances
+        if self.symbols["parent"] is not None:
+            self.symbols["parent"].remove_child_instance(self)
+        # add this instance as a child of the new parent
+        parent.add_child_instance(self)
+        self.symbols["parent"] = parent
+
+    def remove_parent_instance(self):
+        """Remove the parent instance, for example when it is destroyed"""
+        self.debug("remove_parent_instance():")
+        self.symbols["parent"] = None
+
+    def add_child_instance(self, child):
+        """Add a child instance to this one, for forwarding 'parent' events"""
+        if not isinstance(child, "SimpleObjectInstance"):
+            self.warn("add_child_instance() passed non-instance '{}'".format(child))
+            return
+        self.debug("add_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
+        if child not in self.symbols["children"]:
+            self.symbols["children"].append(child)
+        else:
+            self.info("add_child_instance() called with already existing child instance")
+
+    def remove_child_instance(self, child):
+        """
+            Remove a child instance from this one, to disconnect it from
+            'parent' events
+        """
+        if not isinstance(child, "SimpleObjectInstance"):
+            self.warn("add_child_instance() passed non-instance '{}'".format(child))
+            return
+        self.debug("remove_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
+        if child in self.symbols["children"]:
+            self.symbols["children"].remove(child)
+        else:
+            self.info("remove_child_instance() called with non-existent child instance")
+
     def destroy_object(self, action):
-        # Queue the destroy event for this instance and run it, then schedule
-        #  ourselves for removal from our parent object.
+        """
+            Queue and transmit the destroy event for this instance, then
+            schedule it for removal from its object type.
+
+            Also handles parent and child connections, sending "destroy_parent"
+            events to child instances, and removing any remaining references to
+            the instance so it can be GC'd.
+        """
+        self.debug("destroy_object(action={}):".format(action))
         self.game_engine.event_engine.queue_event(
             self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
         )
+        # break child connections
+        if len(self.symbols["children"]) > 0:
+            for child_instance in self.symbols["children"]:
+                # queue destroy_parent event to all child instances
+                self.game_engine.event_engine.queue_event(
+                    self.kind.EVENT_NAME_OBJECT_HASH["destroy_parent"](
+                        "destroy_parent", {"type": child_instance.kind, "instance": child_instance,
+                                           "parent_type": self.kind}
+                    )
+                )
+                child_instance.remove_parent_instance()
+            self.game_engine.transmit_event("destroy_parent")
+        # break connection with parent (if any)
+        if self.symbols["parent"] is not None:
+            parent = self.symbols["parent"]
+            # queue destroy_child event to parent instance
+            self.game_engine.event_engine.queue_event(
+                self.kind.EVENT_NAME_OBJECT_HASH["destroy_child"](
+                    "destroy_child", {"type": parent.kind, "instance": parent, "child_type": self.kind}
+                )
+            )
+            parent.remove_child_instance(self)
+            self.game_engine.event_engine.transmit_event("destroy_child")
         self.game_engine.event_engine.transmit_event("destroy")
         self.kind.add_instance_to_delete_list(self)
 

@@ -207,9 +207,16 @@ class ObjectType(logging_object.LoggingObject):
     EVENT_NAME_OBJECT_HASH = {
         "outside_room": event.OtherEvent,
         "intersect_boundary": event.OtherEvent,
+        "child_outside_room": event.OtherEvent,
+        "child_intersect_boundary": event.OtherEvent,
+        "parent_outside_room": event.OtherEvent,
+        "parent_intersect_boundary": event.OtherEvent,
         "create": event.ObjectStateEvent,
+        "create_child": event.ObjectStateEvent,
         "image_loaded": event.OtherEvent,
         "destroy": event.ObjectStateEvent,
+        "destroy_child": event.ObjectStateEvent,
+        "destroy_parent": event.ObjectStateEvent,
         "collision": event.CollisionEvent,
         "draw": event.DrawEvent,
     }
@@ -398,7 +405,7 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
         self.instance_delete_list.append(instance)
 
-    def make_new_instance(self, screen, settings=None, **kwargs):
+    def make_new_instance(self, screen, instance_properties=None):
         """
         Generate a new instance of this object type in response to
             :py:meth:`create_instance`
@@ -408,15 +415,14 @@ class ObjectType(logging_object.LoggingObject):
             detect boundary collision events, which are queued in the event
             engine
         :type screen: :py:class:`pygame.Surface`
-        :param settings: A hash of settings to be applied.  See kwargs entry
-            in :py:meth:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance.__init__`
-        :type settings: dict
-        :param kwargs: Keyword arguments, in addition to or as an alternative
-            to the settings dict
+        :param instance_properties: A hash of settings to be applied.  See
+            kwargs entry in
+            :py:meth:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance.__init__`
+        :type instance_properties: dict
         """
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = simple_object_instance.SimpleObjectInstance(self,
-            screen_dims, self._id, settings, **kwargs)
+            screen_dims, self._id, instance_properties)
         self.instance_list.append(new_instance)
         return new_instance
 
@@ -435,20 +441,40 @@ class ObjectType(logging_object.LoggingObject):
         :param settings: A hash of settings to be applied.  See kwargs entry
             in :py:meth:`~pygame_maker.actors.object_instance.ObjectInstance.__init__`
         :type settings: dict
-        :param kwargs: Keyword arguments, in addition to or as an alternative
-            to the settings dict
+        :param kwargs: Named settings can be passed in, in addition to
+            the settings hash
         """
         self.debug("create_instance(screen={}, settings={}, kwargs={}):".format(screen, settings, kwargs))
         # print("Create new instance of {}".format(self))
-        # print("Create obj with args: '{}' and '{}'".format(settings,kwargs))
+        # print("Create obj with args: '{}'".format(settings))
         self.info("  Create instance of {} with args {}, {}".format(self.name, settings, kwargs))
-        new_instance = self.make_new_instance(screen, settings, **kwargs)
+        instance_properties = {}
+        if settings is not None:
+            instance_properties.update(settings)
+        instance_properties.update(kwargs)
+        parent_inst = None
+        if 'parent' in instance_properties:
+            # don't initialize the new instance with the 'parent' property,
+            # just record the parent and connect the two instances once the
+            # child instance has been created
+            parent_inst = instance_properties["parent"]
+            del(instance_properties["parent"])
+        new_instance = self.make_new_instance(screen, instance_properties)
+        if parent_inst is not None:
+            # connect parent and child instances
+            parent_inst.add_child_instance(new_instance)
+            new_instance.set_parent_instance(parent_inst)
         self._id += 1
-        # queue the creation event for the new instance
+        # queue and transmit the creation event for the new instance
         self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create",
                                                                                         {"type": self,
                                                                                          "instance": new_instance}))
         self.game_engine.event_engine.transmit_event('create')
+        if parent_inst is not None:
+            # queue and transmit the create_child instance for the instance's parent
+            self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create_child"](
+                "create_child", {"type": parent_inst.kind, "instance": parent_inst, "child_type": self}))
+            self.game_engine.event_engine.transmit_event('create_child')
         return new_instance
 
     def collision_check(self, other_obj_types):
@@ -528,13 +554,18 @@ class ObjectType(logging_object.LoggingObject):
                             if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
                                 target.execute_action(action, event)
                             else:
-                                self.game_engine.execute_action(action, event)
+                                # the game engine additionally receives the target instance as a parameter
+                                self.game_engine.execute_action(action, event, target)
                     elif "apply_to" in action.action_data:
                         affected_instance_list = self.get_applied_instance_list(action, event)
                         self.info("  Apply to: {}".format(action, affected_instance_list))
                         for target in affected_instance_list:
                             # print("applying to {}".format(target))
-                            target.execute_action(action, event)
+                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                                target.execute_action(action, event)
+                            else:
+                                # the game engine additionally receives the target instance as a parameter
+                                self.game_engine.execute_action(action, event, target)
                     else:
                         self.info("  call game engine execute_action for {}".format(action))
                         self.game_engine.execute_action(action, event)
@@ -1104,6 +1135,13 @@ class CollideableObjectType(ManagerObjectType):
                     self.EVENT_NAME_OBJECT_HASH["collision"](collision_name,
                                                              collision_event_info)
                 )
+                # @@@@ queue a child collision event if this instance has a parent
+                if collider.symbols["parent"] is not None:
+                    pass
+                # @@@@ queue parent collision events if this instance has children
+                if len(collider.symbols["children"]) > 0:
+                    for a_child in collider.symbols["children"]:
+                        pass
         return collision_types_queued
 
     def update(self):

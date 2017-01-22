@@ -161,6 +161,9 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
               vector [0.0]
             * friction (float): Strength of friction vs direction of motion in
               pixels/frame [0.0]
+            * parent (ObjectInstance): An object instance that "owns" this one.
+              Makes this object instance's coordinates relative to its parent.
+              Connects the two instances, so events can be communicated.
 
         """
         # Flag when methods shouldn't automatically update speed, direction
@@ -346,60 +349,121 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         update().
         """
         self.debug("update():")
+        inst_moved = False
         event_queued = None
-        if self.speed > 0.0:
+        # child instances do not use any of the 'speed' parameters, since 
+        # they are placed relative to their parent instance
+        if self.symbols["parent"] is None and self.speed > 0.0:
             self.position[0] += self.symbols['hspeed']
             self.position[1] += self.symbols['vspeed']
             self.rect.x = int(math.floor(self.position[0] + 0.5))
             self.rect.y = int(math.floor(self.position[1] + 0.5))
-            # check for boundary collisions
-            # allow boundary collisions for objects completely outside
-            #  the other dimension's boundaries to be ignored; this
-            #  makes intersect_boundary and outside_room mutually exclusive
-            in_x_bounds = (((self.rect.x + self.rect.width) >= 0) and
-                           (self.rect.x <= self.screen_dims[0]))
-            in_y_bounds = (((self.rect.y + self.rect.height) >= 0) and
-                           (self.rect.y <= self.screen_dims[1]))
-            if ((self.rect.x <= 0 <= (self.rect.x + self.rect.width)) or
-                (self.rect.x <= self.screen_dims[0] <=
-                 (self.rect.x + self.rect.width)) and in_y_bounds):
-                # queue and handle boundary collision event (async)
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
-                                                                                      {"type": self.kind,
-                                                                                       "instance": self})
-                # print("inst {} hit x bound".format(self.inst_id))
-            if ((self.rect.y <= 0 <= (self.rect.y + self.rect.height)) or
-                (self.rect.y <= self.screen_dims[1] <=
-                 (self.rect.y + self.rect.width)) and in_x_bounds):
-                # queue and handle boundary collision event (async)
-                if not event_queued:
-                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
-                                                                                          {"type": self.kind,
-                                                                                           "instance": self})
-                    # print("inst {} hit y bound".format(self.inst_id))
-            # check for outside room
-            if ((self.rect.x > self.screen_dims[0]) or
-                    ((self.rect.x + self.rect.width) < 0)):
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
-                                                                                {"type": self.kind,
-                                                                                 "instance": self})
-            if ((self.rect.y > self.screen_dims[1]) or
-                    ((self.rect.y + self.rect.height) < 0)):
-                if not event_queued:
-                    event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
-                                                                                    {"type": self.kind,
-                                                                                     "instance": self})
+            event_queued = self._detect_boundary_events()
             self.debug("  {} inst {} new position: {} ({})".format(self.kind.name,
                                                                    self.inst_id, self.position, self.rect))
+        self._update_child_instances(event_queued)
         # apply forces for next update
         self._apply_gravity()
         self._apply_friction()
         # transmit outside_room or intersect_boundary event last
-        if event_queued:
+        if event_queued is not None:
             self.game_engine.event_engine.queue_event(event_queued)
             self.debug("  {} inst {} transmitting {} event".format(self.kind.name,
                                                                    self.inst_id, event_queued))
             self.game_engine.event_engine.transmit_event(event_queued.name)
+
+    def _detect_boundary_events(self):
+        # check for boundary collisions
+        # allow boundary collisions for objects completely outside
+        #  the other dimension's boundaries to be ignored; this
+        #  makes intersect_boundary and outside_room mutually exclusive
+        event_queued = None
+        in_x_bounds = (((self.rect.x + self.rect.width) >= 0) and
+                       (self.rect.x <= self.screen_dims[0]))
+        in_y_bounds = (((self.rect.y + self.rect.height) >= 0) and
+                       (self.rect.y <= self.screen_dims[1]))
+        if ((self.rect.x <= 0 <= (self.rect.x + self.rect.width)) or
+            (self.rect.x <= self.screen_dims[0] <=
+             (self.rect.x + self.rect.width)) and in_y_bounds):
+            # queue and handle boundary collision event
+            event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
+                                                                                  {"type": self.kind,
+                                                                                   "instance": self})
+            # print("inst {} hit x bound".format(self.inst_id))
+        if ((self.rect.y <= 0 <= (self.rect.y + self.rect.height)) or
+            (self.rect.y <= self.screen_dims[1] <=
+             (self.rect.y + self.rect.width)) and in_x_bounds):
+            # queue and handle boundary collision event
+            if not event_queued:
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
+                                                                                      {"type": self.kind,
+                                                                                       "instance": self})
+                # print("inst {} hit y bound".format(self.inst_id))
+        # check for outside room
+        if ((self.rect.x > self.screen_dims[0]) or
+                ((self.rect.x + self.rect.width) < 0)):
+            event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
+                                                                            {"type": self.kind,
+                                                                             "instance": self})
+        if ((self.rect.y > self.screen_dims[1]) or
+                ((self.rect.y + self.rect.height) < 0)):
+            if not event_queued:
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
+                                                                                {"type": self.kind,
+                                                                                 "instance": self})
+        return event_queued
+
+    def _update_child_instances(self, parent_event_queued):
+        # update any child instances' positions based on this one's position
+        event_names_queued = set()
+        new_event = None
+        for child_inst in self.symbols["children"]:
+            # pass on parent events (if any)
+            if parent_event_queued is not None:
+                new_event = None
+                if parent_event_queued.name == "outside_room":
+                    ev_name = "parent_outside_room"
+                    event_names_queued.add(ev_name)
+                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
+                                                                          {"type": child_inst.kind,
+                                                                          "instance": child_inst,
+                                                                          "parent_type": self.kind})
+                elif parent_event_queued.name == "intersect_boundary":
+                    ev_name = "parent_intersect_boundary"
+                    event_names_queued.add(ev_name)
+                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
+                                                                          {"type": child_inst.kind,
+                                                                          "instance": child_inst,
+                                                                          "parent_type": self.kind})
+                self.game_engine.event_engine.queue_event(new_event)
+            # set child x and y relative to parent x and y
+            child_inst.rect.x = self.rect.x + child_inst.position[0]
+            child_inst.rect.y = self.rect.y + child_inst.position[1]
+            # perform boundary checks on child instance
+            child_event_queued = child_inst._detect_boundary_events()
+            if child_event_queued is not None:
+                if child_event_queued.name == "outside_room":
+                    ev_name = "child_outside_room"
+                    event_names_queued.add(ev_name)
+                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
+                                                                          {"type": self.kind,
+                                                                          "instance": self,
+                                                                          "child_type": child_inst.kind})
+                elif child_event_queued.name == "intersect_boundary":
+                    ev_name = "child_intersect_boundary"
+                    event_names_queued.add(ev_name)
+                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
+                                                                          {"type": self.kind,
+                                                                          "instance": self,
+                                                                          "child_type": child_inst.kind})
+                self.game_engine.event_engine.queue_event(new_event)
+        # transmit all events last
+        sorted_event_name_list = list(event_names_queued)
+        sorted_event_name_list.sort()
+        for event_name in sorted_event_name_list:
+            self.debug("  {} inst {} transmitting {} events".format(self.kind.name,
+                                                                   self.inst_id, event_name))
+            self.game_engine.event_engine.transmit_event(event_name)
 
     def _apply_gravity(self):
         # Adjust speed and direction using value and direction of gravity.
@@ -455,7 +519,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                 # if stop was selected, set speed to zero
                 new_params['speed'] = 0
         del(new_params["compass_directions"])
-        _apply_kwargs(new_params)
+        self._apply_kwargs(new_params)
 
     def move_toward_point(self, action):
         """

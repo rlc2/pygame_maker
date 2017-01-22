@@ -678,6 +678,9 @@ actions:
         object: common_object
         position.x: common_position
         position.y: common_position
+        child_instance:
+            type: bool
+            default: False
         relative: common_relative
     create_object_with_velocity:
         object: common_object
@@ -687,6 +690,9 @@ actions:
         direction:
             type: float
             default: 0.0
+        child_instance:
+            type: bool
+            default: False
         relative: common_relative
     create_random_object:
         position.x: common_position

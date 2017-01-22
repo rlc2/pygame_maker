@@ -12,6 +12,7 @@ import pygame
 import logging
 import logging.config
 from pygame_maker.support import logging_object
+from pygame_maker.support import css_to_style
 from pygame_maker.actors import object_sprite
 from pygame_maker.sounds import sound
 from pygame_maker.actors import object_type
@@ -78,6 +79,7 @@ class GameEngine(logging_object.LoggingObject):
         "game_name": "PyGameMaker Game",
         "screen_dimensions": (640,480),
         "frames_per_second": 60,
+        "stylesheet": "",
         "logging_config": {
           "version": 1,
           "formatters": {
@@ -132,6 +134,10 @@ class GameEngine(logging_object.LoggingObject):
               "level": "INFO",
               "handlers": ["console", "file"]
             },
+            "CSSStyleParser": {
+              "level": "INFO",
+              "handlers": ["console", "file"]
+            },
           },
         },
     }
@@ -146,9 +152,10 @@ class GameEngine(logging_object.LoggingObject):
         """
         Initialize the game engine instance.
         """
-        #: The game's event engine
+        #: The game's event engine for queuing, transmitting and receiving
+        #: events
         self.event_engine = event_engine.EventEngine()
-        #: The game's language engine
+        #: The game's language engine for executing code blocks
         self.language_engine = language_engine.LanguageEngine()
         #: The game's symbol table for keeping constants, such as mouse.x,
         #: mouse.y, and others the game resources may need
@@ -162,7 +169,7 @@ class GameEngine(logging_object.LoggingObject):
             'objects': {},
             'rooms': []
         }
-        #: The dict containing the game settings
+        #: The dict containing the global game settings
         self.game_settings = dict(self.DEFAULT_GAME_SETTINGS)
         #: The main game screen created by :py:func:`pygame.display.set_mode`
         self.screen = None
@@ -200,6 +207,11 @@ class GameEngine(logging_object.LoggingObject):
         super(GameEngine, self).__init__(type(self).__name__)
 
         self.info("Loading game resources..")
+        self.global_style_settings = None
+        if "stylesheet" in self.game_settings and len(self.game_settings["stylesheet"]) > 0:
+            with open(self.game_settings["stylesheet"], "r") as style_f:
+                self.global_style_settings = css_to_style.CSSStyleGenerator.get_css_style(style_f.read())
+
         with logging_object.Indented(self):
             self.load_game_resources()
 
@@ -215,6 +227,8 @@ class GameEngine(logging_object.LoggingObject):
 
             game_name: <name>
             screen_dimensions: [<width>, <height>]
+            frames_per_second: <positive integer>
+            stylesheet: <name of CSS-formatted file>
             logging_config:
               version: 1
               formatters:
@@ -257,6 +271,9 @@ class GameEngine(logging_object.LoggingObject):
                   level: INFO
                   handlers: [console]
                 Room:
+                  level: INFO
+                  handlers: [console]
+                CSSStyleParser:
                   level: INFO
                   handlers: [console]
         """
@@ -309,7 +326,7 @@ class GameEngine(logging_object.LoggingObject):
                         self.resources[res_path] = new_resources
             os.chdir(topdir)
 
-    def execute_action(self, action, event):
+    def execute_action(self, action, event, instance=None):
         """
         Perform an action that is not specific to existing objects.
 
@@ -320,11 +337,20 @@ class GameEngine(logging_object.LoggingObject):
         :type action: :py:class:`~pygame_maker.actions.action.Action`
         :param event: The event that triggered the action
         :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param instance: If supplied, the object instance that initiated the
+            action
+        :type instance: :py:class:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance`
         """
         # filter the action parameters
         action_params = {}
         for param in action.action_data.keys():
             if param == 'apply_to':
+                continue
+            if param == 'child_instance':
+                if action.action_data['child_instance'] and instance is not None:
+                    # create_object: connect the child instance to its parent that
+                    #   forwarded this action
+                    action_params['parent'] = instance
                 continue
             action_params[param] = action.get_parameter_expression_result(
                 param, self.symbols, self.language_engine)
@@ -344,8 +370,7 @@ class GameEngine(logging_object.LoggingObject):
                 (action_params['object'] in self.resources['objects'].keys())):
                 self.info("Creating object '{}'".format(action_params['object']))
                 self.new_object_queue.append(
-                    (self.resources['objects'][action_params['object']],
-                        action_params)
+                    (self.resources['objects'][action_params['object']], action_params)
                 )
             else:
                 self.debug("Object '{}' not created".format(action_params['object']))
@@ -586,10 +611,12 @@ class GameEngine(logging_object.LoggingObject):
         mouse_button = False
         # create any new objects that were queued by create_object* events
         for new_obj, params in self.new_object_queue:
+            # This will transmit a 'create' event that will be received by the new instance
+            # I.E. all 'create' events happen here
             new_obj.create_instance(self.draw_surface, params)
         # clear the queue for next frame
         self.new_object_queue = []
-        # begin_step happens before other events
+        # begin_step happens before other events, but after create (new instances receive all events)
         ev = event.StepEvent('begin_step')
         self.event_engine.queue_event(ev)
         self.event_engine.transmit_event(ev.name)

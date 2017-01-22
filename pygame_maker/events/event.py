@@ -136,7 +136,10 @@ class ObjectStateEvent(Event):
     """Wrap object state events."""
     OBJECT_STATE_EVENTS = [
         "create",
-        "destroy"
+        "create_child",
+        "destroy",
+        "destroy_child",
+        "destroy_parent"
     ]
     #: Complete list of object state event names
     HANDLED_EVENTS = OBJECT_STATE_EVENTS
@@ -257,7 +260,11 @@ class OtherEvent(Event):
     """Wrap miscellaneous events."""
     OTHER_EVENTS = [
         "outside_room",
+        "parent_outside_room",
+        "child_outside_room",
         "intersect_boundary",
+        "parent_intersect_boundary",
+        "child_intersect_boundary",
         "game_start",
         "game_end",
         "room_start",
