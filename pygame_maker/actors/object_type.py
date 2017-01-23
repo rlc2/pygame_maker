@@ -1145,7 +1145,7 @@ class CollideableObjectType(ManagerObjectType):
                     child_collision_info = dict(collision_event_info)
                     child_collision_info["type"] = parent.kind
                     child_collision_info["instance"] = parent
-                    child_collision_info["child_type"] = self.kind
+                    child_collision_info["child_type"] = self
                     self.game_engine.event_engine.queue_event(
                         self.EVENT_NAME_OBJECT_HASH["child_collision"](child_collision_name,
                                                                        child_collision_info)
@@ -1158,7 +1158,7 @@ class CollideableObjectType(ManagerObjectType):
                         parent_collision_info = dict(collision_event_info)
                         parent_collision_info["type"] = a_child.kind
                         parent_collision_info["instance"] = a_child
-                        parent_collision_info["parent_type"] = self.kind
+                        parent_collision_info["parent_type"] = self
                         self.game_engine.event_engine.queue_event(
                             self.EVENT_NAME_OBJECT_HASH["parent_collision"](parent_collision_name,
                                                                             parent_collision_info)

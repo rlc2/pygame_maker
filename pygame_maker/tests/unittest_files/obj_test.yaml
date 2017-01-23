@@ -22,6 +22,12 @@ CollideableObjectType:
         outside_room:
           - destroy_object:
               apply_to: self
+        mouse_right_pressed:
+          - create_object:
+              object: obj_test
+              position.x: -20
+              position.y: -20
+              child_instance: True
         collision_obj_test:
           - play_sound:
               sound: snd_explosion

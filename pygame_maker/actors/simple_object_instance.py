@@ -321,7 +321,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             Set or replace this instance's parent, for forwarding 'child'
             events
         """
-        if not isinstance(parent, "SimpleObjectInstance"):
+        if not isinstance(parent, SimpleObjectInstance):
             self.warn("set_parent_instance() passed non-instance '{}'".format(parent))
             return
         # if this instance already has a parent, remove it from the parent's child instances
@@ -338,7 +338,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
 
     def add_child_instance(self, child):
         """Add a child instance to this one, for forwarding 'parent' events"""
-        if not isinstance(child, "SimpleObjectInstance"):
+        if not isinstance(child, SimpleObjectInstance):
             self.warn("add_child_instance() passed non-instance '{}'".format(child))
             return
         self.debug("add_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
@@ -352,7 +352,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             Remove a child instance from this one, to disconnect it from
             'parent' events
         """
-        if not isinstance(child, "SimpleObjectInstance"):
+        if not isinstance(child, SimpleObjectInstance):
             self.warn("add_child_instance() passed non-instance '{}'".format(child))
             return
         self.debug("remove_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
@@ -385,7 +385,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                     )
                 )
                 child_instance.remove_parent_instance()
-            self.game_engine.transmit_event("destroy_parent")
+            self.game_engine.event_engine.transmit_event("destroy_parent")
         # break connection with parent (if any)
         if self.symbols["parent"] is not None:
             parent = self.symbols["parent"]
