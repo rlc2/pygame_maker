@@ -361,31 +361,25 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         else:
             self.info("remove_child_instance() called with non-existent child instance")
 
-    def destroy_object(self, action):
+    def destroy_object(self, action, no_destroy_event=False):
         """
             Queue and transmit the destroy event for this instance, then
             schedule it for removal from its object type.
 
-            Also handles parent and child connections, sending "destroy_parent"
-            events to child instances, and removing any remaining references to
-            the instance so it can be GC'd.
+            Also handles parent and child connections, sending "destroy_child"
+            events to parent instances, and destroy any child instances.
+            Remove any remaining references to the instance so it can be GC'd.
         """
         self.debug("destroy_object(action={}):".format(action))
         self.game_engine.event_engine.queue_event(
             self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
         )
-        # break child connections
         if len(self.symbols["children"]) > 0:
+            # destroy all child instances
             for child_instance in self.symbols["children"]:
-                # queue destroy_parent event to all child instances
-                self.game_engine.event_engine.queue_event(
-                    self.kind.EVENT_NAME_OBJECT_HASH["destroy_parent"](
-                        "destroy_parent", {"type": child_instance.kind, "instance": child_instance,
-                                           "parent_type": self.kind}
-                    )
-                )
+                # no need to queue destroy_child events for ourself..
                 child_instance.remove_parent_instance()
-            self.game_engine.event_engine.transmit_event("destroy_parent")
+                child_instance.destroy_object(action, True)
         # break connection with parent (if any)
         if self.symbols["parent"] is not None:
             parent = self.symbols["parent"]
@@ -397,7 +391,9 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             )
             parent.remove_child_instance(self)
             self.game_engine.event_engine.transmit_event("destroy_child")
-        self.game_engine.event_engine.transmit_event("destroy")
+        if not no_destroy_event:
+            # only transmit the event once; child instances can skip this
+            self.game_engine.event_engine.transmit_event("destroy")
         self.kind.add_instance_to_delete_list(self)
 
     def execute_action(self, action, event):
