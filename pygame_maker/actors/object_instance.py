@@ -361,7 +361,16 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             event_queued = self._detect_boundary_events()
             self.debug("  {} inst {} new position: {} ({})".format(self.kind.name,
                                                                    self.inst_id, self.position, self.rect))
-        self._update_child_instances(event_queued)
+        # ultimate parent will update all descendants
+        if self.symbols["parent"] is None:
+            event_names_queued = self._update_child_instances(event_queued)
+            # transmit all events at the end
+            sorted_event_name_list = list(event_names_queued)
+            sorted_event_name_list.sort()
+            for event_name in sorted_event_name_list:
+                self.debug("  {} inst {} transmitting {} event".format(self.kind.name,
+                                                                       self.inst_id, event_name))
+                self.game_engine.event_engine.transmit_event(event_name)
         # apply forces for next update
         self._apply_gravity()
         self._apply_friction()
@@ -394,23 +403,25 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             (self.rect.y <= self.screen_dims[1] <=
              (self.rect.y + self.rect.width)) and in_x_bounds):
             # queue and handle boundary collision event
-            if not event_queued:
+            if event_queued is None:
                 event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
                                                                                       {"type": self.kind,
                                                                                        "instance": self})
-                # print("inst {} hit y bound".format(self.inst_id))
         # check for outside room
         if ((self.rect.x > self.screen_dims[0]) or
                 ((self.rect.x + self.rect.width) < 0)):
-            event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
-                                                                            {"type": self.kind,
-                                                                             "instance": self})
+            if event_queued is None:
+                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
+                                                                                {"type": self.kind,
+                                                                                "instance": self})
         if ((self.rect.y > self.screen_dims[1]) or
                 ((self.rect.y + self.rect.height) < 0)):
-            if not event_queued:
+            if event_queued is None:
                 event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
                                                                                 {"type": self.kind,
                                                                                  "instance": self})
+        if event_queued is not None:
+            self.game_engine.event_engine.queue_event(event_queued)
         return event_queued
 
     def _update_child_instances(self, parent_event_queued):
@@ -442,6 +453,8 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             # perform boundary checks on child instance
             child_event_queued = child_inst._detect_boundary_events()
             if child_event_queued is not None:
+                event_names_queued.add(child_event_queued.name)
+                self.debug("bounds {} event in child {}".format(child_event_queued.name, child_inst))
                 if child_event_queued.name == "outside_room":
                     ev_name = "child_outside_room"
                     event_names_queued.add(ev_name)
@@ -457,13 +470,8 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                                                                           "instance": self,
                                                                           "child_type": child_inst.kind})
                 self.game_engine.event_engine.queue_event(new_event)
-        # transmit all events last
-        sorted_event_name_list = list(event_names_queued)
-        sorted_event_name_list.sort()
-        for event_name in sorted_event_name_list:
-            self.debug("  {} inst {} transmitting {} events".format(self.kind.name,
-                                                                   self.inst_id, event_name))
-            self.game_engine.event_engine.transmit_event(event_name)
+            event_names_queued |= child_inst._update_child_instances(child_event_queued)
+        return event_names_queued
 
     def _apply_gravity(self):
         # Adjust speed and direction using value and direction of gravity.
