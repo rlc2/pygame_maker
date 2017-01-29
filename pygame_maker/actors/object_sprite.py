@@ -7,6 +7,7 @@
 # implement pygame_maker sprite resource (not the same as a pygame Sprite;
 #  this is closer to a pygame.image)
 
+import re
 import pygame
 import os.path
 import yaml
@@ -33,10 +34,11 @@ class ObjectSprite(object):
         "manual"
     ]
 
+    IMAGE_STRIP_FILE_RE = re.compile(".*_strip(\d+)\.\w+")
     DEFAULT_SPRITE_PREFIX = "spr_"
 
     @staticmethod
-    def load_from_yaml(sprite_yaml_stream, unused=None):
+    def load_from_yaml(sprite_yaml_stream, game_engine):
         """
         Create a new sprite from a YAML-formatted file.  Checks each key
         against known ObjectSprite parameters, and uses only those
@@ -88,9 +90,20 @@ class ObjectSprite(object):
                     sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
                 if 'manual_bounding_box_rect' in yaml_info_hash:
                     sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
-                new_sprite_list.append(ObjectSprite(sprite_name,
-                                                    **sprite_args))
-                new_sprite_list[-1].check()
+                if 'custom_subimage_columns' in yaml_info_hash:
+                    sprite_args['custom_subimage_columns'] = yaml_info_hash['custom_subimage_columns']
+                new_sprite = None
+                try:
+                    new_sprite = ObjectSprite(sprite_name, **sprite_args)
+                except (ValueError, ObjectSpriteException) as exc:
+                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".format(sprite_name, exc))
+                    continue
+                try:
+                    new_sprite.check()
+                except ObjectSpriteException as exc:
+                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".format(sprite_name, exc))
+                    continue
+                new_sprite_list.append(new_sprite)
         return new_sprite_list
 
     def __init__(self, name=None, **kwargs):
@@ -153,6 +166,18 @@ class ObjectSprite(object):
         self.transparency_pixel = False
         #: Apply this coordinate offset when drawing the image
         self.origin = (0, 0)
+        #: Which subimage number to use from an image strip
+        self.subimage_number = 0
+        #: How many subimages this sprite contains, derived from the file name
+        self.subimage_count = 1
+        #: Starting pixel columns for each subimage
+        self.subimage_columns = [0]
+        #: The individual bounding rects for each subimage
+        self.subimage_bounding_box_rects = []
+        #: The sizes of each subsurface
+        self.subimage_sizes = []
+        #: The subsurfaces for each image in an image strip
+        self.subimages = []
         #: Mask type for collision detection, see :py:attr:`COLLISION_TYPES`
         self._collision_type = "rectangle"
         #: How to produce the rect containing drawable pixels, see
@@ -163,17 +188,47 @@ class ObjectSprite(object):
         if "filename" in kwargs:
             self.filename = kwargs["filename"]
         if "smooth_edges" in kwargs:
-            self.smooth_edges = kwargs["smooth_edges"]
+            self.smooth_edges = (kwargs["smooth_edges"] == True)
         if "preload_texture" in kwargs:
-            self.preload_texture = kwargs["preload_texture"]
+            self.preload_texture = (kwargs["preload_texture"] == True)
         if "transparency_pixel" in kwargs:
-            self.transparency_pixel = kwargs["transparency_pixel"]
+            self.transparency_pixel = (kwargs["transparency_pixel"] == True)
         if "origin" in kwargs:
-            self.origin = kwargs["origin"]
+            if isinstance(kwargs["origin"], dict):
+                raise(ValueError, "ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"]))
+            orig_item = kwargs["origin"]
+            orig_x = 0
+            orig_y = 0
+            if not isinstance(orig_item, str) and hasattr(orig_item, '__iter__'):
+                # try to grab up to 2 values from a list
+                try:
+                    orig_x = int(orig_item[0])
+                except IndexError:
+                    pass
+                except ValueError:
+                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+                try:
+                    orig_y = int(orig_item[1])
+                except IndexError:
+                    pass
+                except ValueError:
+                    raise(ValueError, "ObjectSprite(): Invalid Y origin '{}'".format(orig_item[1]))
+            else:
+                try:
+                    orig_x = int(orig_item)
+                except ValueError:
+                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+            self.origin = (orig_x, orig_y)
         if "collision_type" in kwargs:
-            self.collision_type = kwargs["collision_type"]
+            if kwargs["collision_type"] in self.COLLISION_TYPES:
+                self.collision_type = kwargs["collision_type"]
+            else:
+                raise(ValueError, "ObjectSprite(): Invalid collision_type '{}'".format(kwargs["collision_type"]))
         if "bounding_box_type" in kwargs:
-            self.bounding_box_type = kwargs["bounding_box_type"]
+            if kwargs["bounding_box_type"] in self.BOUNDING_BOX_TYPES:
+                self.bounding_box_type = kwargs["bounding_box_type"]
+            else:
+                raise(ValueError, "ObjectSprite(): Invalid bounding_box_type '{}'".format(kwargs["bounding_box_type"]))
         if ("manual_bounding_box_rect" in kwargs and
                 isinstance(kwargs["manual_bounding_box_rect"], dict)):
             dim = kwargs["manual_bounding_box_rect"]
@@ -207,6 +262,12 @@ class ObjectSprite(object):
             self.manual_bounding_box_rect.top = topp
             self.manual_bounding_box_rect.width = width
             self.manual_bounding_box_rect.height = height
+        if 'custom_subimage_columns' in kwargs:
+            im_cols = kwargs["custom_subimage_columns"]
+            if isinstance(im_cols, dict) or not hasattr(im_cols, '__iter__'):
+                raise(ValueError, "ObjectSprite: Invalid 'custom_subimage_columns' value '{}'".format(im_cols))
+            else:
+                self.subimage_columns = list(im_cols)
 
         #: The pygame.Surface returned when loading the image from the file
         self.image = None
@@ -235,17 +296,70 @@ class ObjectSprite(object):
         if self.preload_texture:
             self.load_graphic()
 
+    def _collect_subimage_data(self):
+        if len(self.subimage_columns) == 1:
+            # subimage columns weren't passed in, so calculate them
+            max_si_width = self.image_size[0] / self.subimage_count
+            for idx in range(1, self.subimage_count):
+                self.subimage_columns.append(max_si_width * idx)
+        elif len(self.subimage_columns) > self.subimage_count:
+            # too many custom subimage columns; trim off the excess
+            self.subimage_columns = self.subimage_columns[0:self.subimage_count]
+        elif len(self.subimage_columns) < self.subimage_count:
+            # too few custom subimage columns; split remaining image columns
+            # (if any) between the missing X values
+            missing_count = self.subimage_count - len(self.subimage_columns)
+            last_custom_column = self.subimage_columns[-1]
+            if (last_custom_column + missing_count + 1) < self.image_size[0]:
+                # remember to leave room between the last custom column
+                # and the first missing X value
+                split_col_width = (self.image_size[0] - last_custom_column) / (missing_count + 1)
+                for ccol in range(missing_count):
+                    self.subimage_columns.append(last_custom_column + (ccol + 1) * split_col_width)
+            else:
+                # overlap the extra columns if there's no room
+                for ccol in range(missing_count):
+                    self.subimage_columns.append(last_custom_column)
+        # now that the subimage columns are known, create subsurfaces for each
+        # of them
+        for subim_idx, subim_col in enumerate(self.subimage_columns):
+            subim_rect = pygame.Rect(0, 0, 0, 0)
+            subim_rect.left = subim_col
+            subim_rect.height = self.image_size[1]
+            if subim_idx < (self.subimage_count - 1):
+                # this subimage's width is the next subimage's left column
+                # minus this subimage's left column
+                subim_rect.width = self.subimage_columns[subim_idx+1] - subim_col
+            else:
+                # the last subimage's width is the image width minus this
+                # subimage's left column
+                subim_rect.width = self.image_size[0] - subim_col
+            new_subimage = self.image.subsurface(subim_rect)
+            self.subimages.append(new_subimage)
+            bound_rect = None
+            if self.bounding_box_type == "automatic":
+                bound_rect = new_subimage.get_bounding_rect()
+            elif self.bounding_box_type == "full_image":
+                bound_rect = new_subimage.get_rect()
+            else:
+                bound_rect = self.manual_bounding_box_rect
+            self.subimage_sizes.append(new_subimage.get_size())
+            self.subimage_bounding_box_rects.append(bound_rect)
+
     def load_graphic(self):
         """
-        Retrieve image data from the file named in the filename
-        attribute.  Collect information about the graphic in the
-        image_size, bounding_box_type, and bounding_box_rect
-        attributes.
+        Retrieve image data from the file named in the filename attribute.
+        Split subimages from image strips, for appropriately-named files.
+        Collect information about the graphic in the image_size,
+        bounding_box_type, and bounding_box_rect attributes.
         """
         if len(self.filename) <= 0:
             raise ObjectSpriteException(
                 "ObjectSprite error ({}): Attempt to load image from empty filename".format(str(self)))
         if self.check_filename():
+            name_minfo = self.IMAGE_STRIP_FILE_RE.search(self.filename)
+            if name_minfo:
+                self.subimage_count = int(name_minfo.group(1))
             self.image = pygame.image.load(self.filename).convert_alpha()
             self.image_size = self.image.get_size()
             if self.bounding_box_type == "automatic":
@@ -254,24 +368,13 @@ class ObjectSprite(object):
                 self.bounding_box_rect = self.image.get_rect()
             else:
                 self.bounding_box_rect = self.manual_bounding_box_rect
-
-    def set_defaults(self):
-        """
-        Reset the sprite's parameters to defaults.
-
-        This allows a GUI sprite-creation utility to support a "reset"
-        operation.
-        """
-        self.filename = ""
-        self.smooth_edges = False
-        self.preload_texture = True
-        self.transparency_pixel = False
-        self.origin = (0, 0)
-        self.collision_type = "rectangle"
-        self.image = None
-        self.image_size = (0, 0)
-        self.bounding_box_type = "automatic"
-        self.manual_bounding_box_rect = pygame.Rect(0, 0, 0, 0)
+            if self.subimage_count > 1:
+                self._collect_subimage_data()
+            else:
+                # subimages[0] is the original image, if not an image strip
+                self.subimages.append(self.image)
+                self.subimage_bounding_box_rects.append(self.bounding_box_rect)
+                self.subimage_sizes.append(self.image_size)
 
     def check_filename(self):
         """
