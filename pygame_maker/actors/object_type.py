@@ -63,40 +63,6 @@ def sprite_collision_test(sprite_a, sprite_b):
         return pygame.sprite.collide_mask(sprite_a, sprite_b)
 
 
-def mask_from_surface(surface, threshold=127):
-    """
-    Create a precise mask of an ObjectSprite's pixels.
-
-    Set a mask pixel if the corresponding surface's pixel has an alpha value
-    greater than threshold (for a surface with an alpha channel), or if the
-    pixel doesn't match the surface's color key.  Borrowed from pygame's
-    mask.py demo code. For some reason, this works and
-    :py:func:`pygame.mask.from_surface` doesn't for the sample image used in
-    the unit test for object_type.
-
-    :param surface: The drawing surface to create a mask from
-    :type surface: :py:class:`pygame.Surface`
-    :param threshold: The minimum alpha value for a pixel on the Surface to
-        appear in the mask (ignored if the surface has a color key)
-    :type threshold: int
-    :return: The mask created from the surface
-    :rtype: :py:class:`pygame.mask.Mask`
-    """
-    mask = pygame.mask.Mask(surface.get_size())
-    key = surface.get_colorkey()
-    if key:
-        for y in range(surface.get_height()):
-            for x in range(surface.get_width()):
-                if surface.get_at((x, y)) != key:
-                    mask.set_at((x, y), 1)
-    else:
-        for y in range(surface.get_height()):
-            for x in range(surface.get_width()):
-                if surface.get_at((x, y))[3] > threshold:
-                    mask.set_at((x, y), 1)
-    return mask
-
-
 def get_collision_normal(instance_a, instance_b):
     """
     Get an approximate collision normal between overlapping instances,
@@ -117,14 +83,14 @@ def get_collision_normal(instance_a, instance_b):
     if overlap == 0:
         # no collision here..
         return None
-    nx = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-                                            (offset[0]+1, offset[1])) -
-          instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-                                            (offset[0]-1, offset[1])))
-    ny = (instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-                                            (offset[0], offset[1] + 1)) -
-          instance_a.kind.mask.overlap_area(instance_b.kind.mask,
-                                            (offset[0], offset[1] - 1)))
+    nx = (instance_a.mask.overlap_area(instance_b.mask,
+                                       (offset[0]+1, offset[1])) -
+          instance_a.mask.overlap_area(instance_b.mask,
+                                       (offset[0]-1, offset[1])))
+    ny = (instance_a.mask.overlap_area(instance_b.mask,
+                                       (offset[0], offset[1] + 1)) -
+          instance_a.mask.overlap_area(instance_b.mask,
+                                       (offset[0], offset[1] - 1)))
     if (nx == 0) and (ny == 0):
         # can't get a normal when one object is inside another..
         return None
@@ -163,7 +129,7 @@ def get_mask_overlap(instance_a, instance_b):
     :rtype: int
     """
     offset = get_offset_between_instances(instance_a, instance_b)
-    overlap = instance_a.kind.mask.overlap_area(instance_b.kind.mask, offset)
+    overlap = instance_a.mask.overlap_area(instance_b.mask, offset)
     return overlap
 
 
@@ -615,21 +581,7 @@ class ObjectType(logging_object.LoggingObject):
         :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_keyboard_event(event={}):".format(event))
-        matched_seq = None
-        for ev_seq in self.event_action_sequences.keys():
-            self.debug("  match key event {} vs {}".format(event.name, ev_seq))
-            if ev_seq.find(event.name) == 0:
-                # found this event in the list, find out if it's the right type
-                if (ev_seq == event.name) or ev_seq.endswith('_keydn'):
-                    if event.key_event_type == "down":
-                        matched_seq = event.name
-                        break
-                elif (ev_seq.endswith('_keyup') and 
-                        (event.key_event_type == "up")):
-                    matched_seq = event.name
-                    break
-        if matched_seq:
-            self.execute_action_sequence(event)
+        self.execute_action_sequence(event)
 
     def handle_collision_event(self, event):
         """
@@ -643,7 +595,8 @@ class ObjectType(logging_object.LoggingObject):
         :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_collision_event(event={}):".format(event))
-        self.execute_action_sequence(event)
+        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
+            self.execute_action_sequence(event)
 
     def handle_step_event(self, event):
         """
@@ -676,7 +629,8 @@ class ObjectType(logging_object.LoggingObject):
         :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_create_event(event={}):".format(event))
-        self.execute_action_sequence(event)
+        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
+            self.execute_action_sequence(event)
 
     def handle_destroy_event(self, event):
         """
@@ -686,7 +640,8 @@ class ObjectType(logging_object.LoggingObject):
         :type event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_destroy_event(event={}):".format(event))
-        self.execute_action_sequence(event)
+        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
+            self.execute_action_sequence(event)
 
     def _select_event_handler(self, event_name):
         # Return an event type, given the name of the handled event.
@@ -866,7 +821,6 @@ class CollideableObjectType(ManagerObjectType):
         self.image = None
         self.bounding_box_rect = None
         self.mask = None
-        self.radius = None
         self._visible = self.DEFAULT_VISIBLE
         self.solid = self.DEFAULT_SOLID
         self.depth = self.DEFAULT_DEPTH
@@ -874,7 +828,6 @@ class CollideableObjectType(ManagerObjectType):
         # default draw action sequence draws the object's sprite
         self["draw"] = action_sequence.ActionSequence()
         self["draw"].append_action(action.DrawAction("draw_self"))
-        self.game_engine.event_engine.register_event_handler("draw", self.draw)
         if kwargs:
             for kw in kwargs:
                 if kw == "visible":
@@ -919,105 +872,7 @@ class CollideableObjectType(ManagerObjectType):
             yaml_str += self.event_action_sequences[event_name].to_yaml(8)
         return yaml_str
 
-    def create_rectangle_mask(self, orig_rect):
-        """
-        Create a rectangular mask that covers the opaque pixels of an object.
-
-        Normally, collisions between objects with collision_type "rectangle"
-        will use the rectangle collision test, which only needs the rect
-        attribute.  The mask is created in the event this object collides with
-        an object that has a different collision_type, in which case the
-        objects fall back to using a mask collision test.  The assumption is
-        that the user wants a simple collision model, so the mask is made from
-        the rect attribute, instead of creating an exact mask from the opaque
-        pixels in the image.
-
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        :return: A new mask
-        :rtype: :py:class:`pygame.mask.Mask`
-        """
-        self.debug("create_rectangle_mask(orig_rect={}):".format(orig_rect))
-        self.mask = pygame.mask.Mask((orig_rect.width, orig_rect.height))
-        self.mask.fill()
-
-    def get_disk_radius(self, precise_mask, orig_rect):
-        """
-        Calculate the radius of a circle that covers the opaque pixels in
-        precise_mask.
-
-        :param precise_mask: The precise mask for every opaque pixel in the
-            image.  If the original image was circular, this can aid in
-            creating in a more accurate circular mask
-        :type precise_mask: :py:class:`pygame.mask.Mask`
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        """
-        self.debug("get_disk_radius(precise_mask={}, orig_rect={}):".format(precise_mask, orig_rect))
-        # find the radius of a circle that contains bound_rect for the worst
-        #  case
-        disk_mask_center = (orig_rect.width/2, orig_rect.height/2)
-        bound_rect = self.bounding_box_rect
-        bound_right = bound_rect.x + bound_rect.width
-        bound_bottom = bound_rect.y + bound_rect.height
-        left_center_distance = abs(disk_mask_center[0]-bound_rect.x)
-        right_center_distance = abs(disk_mask_center[0]-bound_right)
-        top_center_distance = abs(disk_mask_center[1]-bound_rect.y)
-        bottom_center_distance = abs(disk_mask_center[1]-bound_bottom)
-        largest_x_distance = max(left_center_distance, right_center_distance)
-        largest_y_distance = max(top_center_distance, bottom_center_distance)
-        max_bound_radius = math.sqrt(largest_x_distance * largest_x_distance +
-                                     largest_y_distance * largest_y_distance)
-        # determine whether a smaller radius could be used (i.e.
-        #  no corner pixels within the bounding rect are set)
-        max_r = 0
-        for y in range(bound_rect.y, bound_rect.height):
-            for x in range(bound_rect.x, bound_rect.width):
-                circ_x = disk_mask_center[0]-x
-                circ_y = disk_mask_center[1]-y
-                if precise_mask.get_at((x, y)) > 0:
-                    r = math.sqrt(circ_x * circ_x + circ_y * circ_y)
-                    if r > max_r:
-                        max_r = r
-        bound_radius = max_bound_radius
-        if (max_r > 0) and (max_r < max_bound_radius):
-            bound_radius = max_r
-        radius = int(math.ceil(bound_radius))
-        self.radius = radius
-        return radius
-
-    def create_disk_mask(self, orig_rect):
-        """
-        Create a circular mask that covers the opaque pixels of an object.
-
-        Normally, collisions between objects with collision_type "disk" will
-        use the circle collision test, which only needs the radius attribute.
-        The mask is created in the event this object collides with an object
-        that has a different collision_type, in which case the objects fall
-        back to using a mask collision test.  The assumption is that the user
-        wants a simple collision model, so the mask is made from a circle of
-        the right radius, instead of creating an exact mask from the opaque
-        pixels in the image.
-
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        """
-        # create a disk mask with a radius sufficient to cover the
-        #  opaque pixels
-        # NOTE: collisions with objects that have a different collision type
-        #  will use this mask; the mask generated here won't fill the sprite's
-        #  radius, but will be a circle with the correct radius that is clipped
-        #  at the sprite's rect dimensions
-        self.debug("create_disk_mask(orig_rect={}):".format(orig_rect))
-        disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
-        disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height),
-                                           depth=8)
-        disk_mask_surface.set_colorkey(pygame.Color("#000000"))
-        disk_mask_surface.fill(pygame.Color("#000000"))
-        pygame.draw.circle(disk_mask_surface, pygame.Color("#ffffff"), disk_mask_center, self.radius)
-        self.mask = mask_from_surface(disk_mask_surface)
-
-    def get_image(self):
+    def get_image(self, subimage_number=0):
         """
         Called by instances of this ObjectType, to get a new copy of
         the sprite resource's image.
@@ -1025,57 +880,41 @@ class CollideableObjectType(ManagerObjectType):
         Load the image when the first instance using this image is created.
         Also, handle the collision type and create a collision mask.
 
-        :return: A new pygame image, copied from the ObjectSprite resource
-        :rtype: :py:class:`pygame.Surface`
+        :param subimage_number: Which subimage to copy
+        :type subimage_number: int
+        :return: A tuple containing a new pygame image (copied from the
+            ObjectSprite resource), a collision mask, a bounding box, and
+            possibly an image radius (for disk collision masks)
+        :rtype: tuple(:py:class:`pygame.Surface`, :py:class:`pygame.Mask`,
+            :py:class:`pygame.Rect`, None|int)
         """
         self.debug("get_image():")
         if self.sprite_resource:
-            if not self.sprite_resource.image:
+            if self.sprite_resource.image is None:
                 self.sprite_resource.load_graphic()
-            if not self.mask:
-                self.info("  {}: create collision mask".format(self.name))
-                with logging_object.Indented(self):
-                    original_image = self.sprite_resource.image
-                    precise_mask = mask_from_surface(original_image)
-                    bound_rect = self.sprite_resource.bounding_box_rect
-                    self.image = original_image.copy()
-                    orig_rect = original_image.get_rect()
-                    if (orig_rect.width == 0) or (orig_rect.height == 0):
-                        raise(ObjectTypeException("Found broken sprite resource when creating instance", self.error))
-                    if (bound_rect.width == 0) or (bound_rect.height == 0):
-                        # use the dimensions of the loaded graphic for the bounding
-                        #  rect in case there's a problem with the sprite resources'
-                        #  bounding rect
-                        bound_rect = orig_rect
-                    self.bounding_box_rect = bound_rect
-                    self.info("  bounded dimensions: {}".format(bound_rect))
-                    # create a mask based on the collision type
-                    self.info("  Sprite collision type: {}".format(self.sprite_resource.collision_type))
-                    self.info("  Sprite dimensions: {}".format(orig_rect))
-                    # set a mask regardless of the collision type, to enable
-                    #  collision checks between objects that have different
-                    #  types
-                    if self.sprite_resource.collision_type == "precise":
-                        self.mask = precise_mask
-                    elif self.sprite_resource.collision_type == "rectangle":
-                        self.create_rectangle_mask(orig_rect)
-                    elif self.sprite_resource.collision_type == "disk":
-                        self.get_disk_radius(precise_mask, orig_rect)
-                        self.create_disk_mask(orig_rect)
-                    else:
-                        # other collision types are not supported, fall back to
-                        #  rectangle
-                        self.create_rectangle_mask(orig_rect)
-                    # queue the image_loaded event
-                    self.game_engine.event_engine.queue_event(
-                        self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
-                                                                    {"type": self,
-                                                                     "sprite": self.sprite_resource})
-                    )
-                    self.info("  Queued 'image_loaded' event")
-            return self.image
+                self.image = self.sprite_resource.image
+                # queue the image_loaded event
+                self.game_engine.event_engine.queue_event(
+                    self.EVENT_NAME_OBJECT_HASH["image_loaded"]("image_loaded",
+                                                                {"type": self,
+                                                                 "sprite": self.sprite_resource})
+                )
+                self.info("  Queued 'image_loaded' event")
+            # return an image (a copy of the subimage), a mask and possibly
+            # radius from the sprite resource
+            sn = subimage_number
+            if subimage_number > self.sprite_resource.subimage_count:
+                self.warn("{}: An instance requested a subimage number ({}) out of range (max {})".format(
+                          self.name, subimage_number, self.sprite_resource.subimage_count))
+                # select the last subimage (counting from 0)
+                sn = self.sprite_resource.subimage_count - 1
+            image = self.sprite_resource.subimages[sn].copy()
+            mask = self.sprite_resource.subimage_masks[sn]
+            bounding_box = self.sprite_resource.subimage_bounding_box_rects[sn]
+            radius = self.sprite_resource.subimage_radii[sn]
+            return image, mask, bounding_box, radius
         else:
-            return None
+            return None, None, None, None
 
     def collision_check(self, other_obj_types):
         """
@@ -1091,14 +930,14 @@ class CollideableObjectType(ManagerObjectType):
         self.debug("collision_check(other_obj_types={}):".format(other_obj_types))
         collision_types_queued = set()
         for other_obj in other_obj_types:
-            other_obj.group = other_obj.group
+            # other_obj.group = other_obj.group
             if len(other_obj.group) == 0:
                 continue
             if (len(self.group) == 1) and self.name == other_obj.name:
                 # skip self collision detection if there's only one sprite
                 continue
             collision_map = pygame.sprite.groupcollide(self.group,
-                                                       other_obj.group, 0, 0,
+                                                       other_obj.group, False, False,
                                                        collided=sprite_collision_test)
             for collider in collision_map.keys():
                 collision_normal = None

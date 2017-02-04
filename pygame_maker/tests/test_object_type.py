@@ -38,6 +38,7 @@ eelogger.addHandler(eehandler)
 eelogger.setLevel(logging.INFO)
 
 OBJ_TEST_FILE="unittest_files/obj_test.yaml"
+OBJ_TEST_FILE2="unittest_files/obj_spaceship.yaml"
 
 class GameEngine(logging_object.LoggingObject):
     GAME_ENGINE_ACTIONS = ["play_sound", "create_object"]
@@ -84,10 +85,8 @@ class GameEngine(logging_object.LoggingObject):
             'objects': {}
         }
         self.mask_surface = None
-        self.last_key_down = None
         self.screen = None
         self.mouse_pos = [0,0]
-        self.action_blocks = {}
 
     def draw_mask(self, surf, objtype):
         if not self.mask_surface and objtype.mask:
@@ -132,18 +131,23 @@ class GameEngine(logging_object.LoggingObject):
 
     def send_key_event(self, key_event):
         pk_map = event.KeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
-        key_event_init_name = None
         key_event_name = None
-        if not key_event:
-            key_event_init_name = "kb_no_key"
-            key_event_name = key_event_init_name
+        base_event_name = None
+        if key_event is None:
+            key_event_name = "kb_no_key"
         elif key_event.key in pk_map:
-            key_event_name = str(pk_map[key_event.key])
+            base_event_name = pk_map[key_event.key]
             if key_event.type == pygame.KEYDOWN:
-                key_event_init_name = "{}_keydn".format(pk_map[key_event.key])
+                key_event_name = "{}_keydn".format(pk_map[key_event.key])
             elif key_event.type == pygame.KEYUP:
-                key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
-        ev = event.KeyEvent(key_event_init_name)
+                key_event_name = "{}_keyup".format(pk_map[key_event.key])
+        if key_event is not None:
+            # transmit the key name for event handlers that want to handle
+            # both events in the same handler (no suffix)
+            base_ev = event.KeyEvent(base_event_name)
+            self.event_engine.queue_event(base_ev)
+            self.event_engine.transmit_event(base_event_name)
+        ev = event.KeyEvent(key_event_name)
         #print("queue event: {}".format(ev))
         self.event_engine.queue_event(ev)
         #print("xmit event: {}".format(key_event_name))
@@ -253,6 +257,7 @@ class TestGameManager(object):
         self.game_engine.draw_surface = screen
         self.game_engine.resources['sprites']['spr_test'] = object_sprite.ObjectSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
         self.game_engine.resources['sprites']['spr_solid'] = object_sprite.ObjectSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
+        self.game_engine.resources['sprites']['spr_spaceship'] = object_sprite.ObjectSprite("spr_spaceship", filename="unittest_files/spaceship_strip07.png", collision_type="precise")
         self.game_engine.resources['sounds']['snd_test'] = sound.Sound("snd_test", sound_file="unittest_files/Pop.wav")
         self.game_engine.resources['sounds']['snd_explosion'] = sound.Sound("snd_explosion", sound_file="unittest_files/explosion.wav")
         with open(OBJ_TEST_FILE, "r") as yaml_f:
@@ -261,8 +266,12 @@ class TestGameManager(object):
         # this doubles as a solid object and as the manager object
         self.game_engine.resources['objects']['obj_solid'].create_instance(self.screen,
             position=(308,228))
-        self.game_engine.resources['objects']['obj_solid']['kb_enter'] = action_sequence.ActionSequence()
-        self.game_engine.resources['objects']['obj_solid']['kb_enter'].append_action(
+        with open(OBJ_TEST_FILE2, "r") as yaml_f:
+            self.game_engine.resources['objects']['obj_spaceship'] = ObjectType.load_from_yaml(yaml_f, self.game_engine)[0]
+        self.game_engine.resources['objects']['obj_spaceship'].create_instance(self.screen,
+            position=(308,450))
+        self.game_engine.resources['objects']['obj_solid']['kb_enter_keydn'] = action_sequence.ActionSequence()
+        self.game_engine.resources['objects']['obj_solid']['kb_enter_keydn'].append_action(
             action.ObjectAction("create_object",
                 {
                     'object': 'obj_test',

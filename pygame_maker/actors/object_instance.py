@@ -128,6 +128,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             "friction": 0.0,
             "hspeed": 0.0,
             "vspeed": 0.0,
+            "subimage_number": 0,
     }
 
     def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
@@ -177,18 +178,9 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         self._visible = False
         self.visible = kind.visible
         self.source_rect = pygame.Rect(0, 0, 0, 0)
-        # copy this instance's image and Rect from the sprite resource
-        #: Keep a reference to the ObjectSprite's image
-        self.image = kind.get_image()
-        if self.image:
-            image_rect = self.image.get_rect()
-            self.rect.width = image_rect.width
-            self.rect.height = image_rect.height
-            self.mask = self.kind.mask
-            if self.kind.radius:
-                # disk collision type; get the predefined radius for collisions
-                self.radius = self.kind.radius
-            self.source_rect = pygame.Rect(self.kind.bounding_box_rect)
+        # Get a copy of the selected subimage and its collision mask (and a
+        # radius, if the disk collision mask was selected)
+        self.set_subimage()
         self.blendmode = 0
         # use the instance type's 'depth' parameter as the layer for this
         #  instance
@@ -325,6 +317,16 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                                                                  value)
         self._delay_motion_updates = False
         self.symbols['vspeed'] = value
+
+    @property
+    def subimage_number(self):
+        """Current subimage number"""
+        return self.symbols['subimage_number']
+
+    @subimage_number.setter
+    def subimage_number(self, value):
+        self.symbols['subimage_number'] = int(value)
+        self.set_subimage()
 
     def get_center_point(self):
         """
@@ -485,6 +487,20 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             if new_speed < 0.0:
                 new_speed = 0.0
             self.speed = new_speed
+
+    def set_subimage(self):
+        """
+        Set the current subimage, source_rect, and collision mask (and possibly
+        a radius)
+        """
+        self.image, self.mask, self.source_rect, radius = self.kind.get_image(self.symbols["subimage_number"])
+        if self.image is not None:
+            image_rect = self.image.get_rect()
+            self.rect.width = image_rect.width
+            self.rect.height = image_rect.height
+            if radius is not None:
+                # disk collision type; get the predefined radius for collisions
+                self.radius = radius
 
     def aim_toward_point(self, pointxy):
         """

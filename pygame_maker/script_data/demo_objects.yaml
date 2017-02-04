@@ -22,7 +22,7 @@ CollideableObjectType:
               apply_to: self
   - obj_poker:
       visible: True
-      solid: True
+      solid: False
       depth: 0
       sprite: spr_poker
       events:

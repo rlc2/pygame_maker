@@ -25,12 +25,8 @@ class TestEvent(unittest.TestCase):
     def test_010valid_key_events(self):
         good_event2 = KeyEvent("kb_F1_keyup")
         print(good_event2)
-        self.assertEqual(good_event2.name, "kb_F1")
-        self.assertEqual(good_event2.key_event_type, "up")
         good_event3 = KeyEvent("kb_npenter_keydn")
         print(good_event3)
-        self.assertEqual(good_event3.name, "kb_npenter")
-        self.assertEqual(good_event3.key_event_type, "down")
         good_event4 = Event.get_event_instance_by_event_name("kb_/_keydn")
         print(good_event4)
         self.assertIs(good_event4.__class__, KeyEvent)

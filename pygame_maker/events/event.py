@@ -522,27 +522,18 @@ class KeyEvent(Event):
     @classmethod
     def find_key_event(cls, event_name):
         # check for a suffix
-        key_event_type = None
-        base_event_name = ""
+        base_event_name = str(event_name)
         up_minfo = cls.KEYBOARD_UP_SUFFIX_RE.search(event_name)
         dn_minfo = cls.KEYBOARD_DOWN_SUFFIX_RE.search(event_name)
         if up_minfo:
             base_event_name = up_minfo.group(1)
-            key_event_type = "up"
         elif dn_minfo:
             base_event_name = dn_minfo.group(1)
-            key_event_type = "down"
-        else:
-            # default to key down
-            base_event_name = str(event_name)
-            key_event_type = "down"
         if base_event_name not in cls.HANDLED_EVENTS:
             raise (UnknownEventError("KeyEvent: key named '{}' unknown".format(base_event_name)))
         if len(base_event_name) == 0:
             raise UnknownEventError("KeyEvent: '{}' is invalid".format(event_name))
-        else:
-            event_info = (base_event_name, key_event_type)
-        return event_info
+        return event_name
 
     @classmethod
     def find_event_by_name(cls, event_name):
@@ -557,7 +548,7 @@ class KeyEvent(Event):
         :rtype: bool
         """
         try:
-            ev_info = cls.find_key_event(event_name)
+            ev_name = cls.find_key_event(event_name)
         except UnknownEventError:
             return False
         return True
@@ -571,16 +562,11 @@ class KeyEvent(Event):
         :param event_params: A dict containing the event's parameters, or None
         :type event_params: dict|None
         """
-        self.key_event_type = "up"
         Event.__init__(self, event_name, event_params)
-        ev_info = self.find_key_event(event_name)
-        self.name = ev_info[0]
-        self.key_event_type = ev_info[1]
+        found_name = self.find_key_event(event_name)
 
     def __repr__(self):
-        return("<{} '{}' when {}{}>".format(self.__class__.__name__,
-                                            self.name, self.key_event_type,
-                                            self.repr_event_strings()))
+        return("<{} '{}' {}>".format(self.__class__.__name__, self.name, self.repr_event_strings()))
 
 
 class CollisionEvent(Event):

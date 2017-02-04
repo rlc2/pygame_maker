@@ -1,0 +1,27 @@
+CollideableObjectType:
+    - obj_spaceship:
+        visible: True
+        solid: False
+        sprite: spr_spaceship
+        events:
+          create:
+            - execute_code:
+                apply_to: self
+                code: |
+                  subimage_number = 3
+          kb_left_keydn:
+            - execute_code:
+                apply_to: self
+                code: |
+                  # rotate left
+                  if (subimage_number > 0) {
+                    subimage_number = subimage_number - 1
+                  }
+          kb_right_keydn:
+            - execute_code:
+                apply_to: self
+                code: |
+                  # rotate left
+                  if (subimage_number < 6) {
+                    subimage_number = subimage_number + 1
+                  }
