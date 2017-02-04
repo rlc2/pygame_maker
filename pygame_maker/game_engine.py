@@ -12,7 +12,6 @@ import pygame
 import logging
 import logging.config
 from pygame_maker.support import logging_object
-from pygame_maker.support import css_to_style
 from pygame_maker.actors import object_sprite
 from pygame_maker.sounds import sound
 from pygame_maker.actors import object_type
@@ -134,10 +133,6 @@ class GameEngine(logging_object.LoggingObject):
               "level": "INFO",
               "handlers": ["console", "file"]
             },
-            "CSSStyleParser": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
           },
         },
     }
@@ -208,9 +203,6 @@ class GameEngine(logging_object.LoggingObject):
 
         self.info("Loading game resources..")
         self.global_style_settings = None
-        if "stylesheet" in self.game_settings and len(self.game_settings["stylesheet"]) > 0:
-            with open(self.game_settings["stylesheet"], "r") as style_f:
-                self.global_style_settings = css_to_style.CSSStyleGenerator.get_css_style(style_f.read())
 
         with logging_object.Indented(self):
             self.load_game_resources()
