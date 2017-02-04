@@ -68,6 +68,26 @@ class TestSprite(unittest.TestCase):
             self.assertEqual(sprite_strip.subimages[idx].get_offset(), (expected_width_offset, 0))
             expected_width_offset += expected_strip_width
 
+    def test_011custom_subimage_columns(self):
+        sprite_strip = ObjectSprite("spr_strip1", filename="unittest_files/sinistar_ship_strip07.png")
+        sprite_strip.load_graphic()
+        # empty custom columns should work the same as unspecified
+        sprite_strip_w_columns1 = ObjectSprite("spr_strip2", filename="unittest_files/sinistar_ship_strip07.png",
+            custom_subimage_columns=[])
+        sprite_strip_w_columns1.load_graphic()
+        self.assertEqual(sprite_strip_w_columns1.subimage_count, sprite_strip.subimage_count)
+        for idx in range(sprite_strip_w_columns1.subimage_count):
+            self.assertEqual(sprite_strip_w_columns1.subimage_sizes[idx], sprite_strip.subimage_sizes[idx])
+        # if too many columns are specified, the first extra specifies the
+        # right edge of the last subimage; any additional should be removed
+        custom_cols = (0,1,2,3,4,5,6,7,8)
+        sprite_strip_w_columns2 = ObjectSprite("spr_strip2", filename="unittest_files/sinistar_ship_strip07.png",
+            custom_subimage_columns=custom_cols)
+        sprite_strip_w_columns2.load_graphic()
+        self.assertEqual(sprite_strip_w_columns2.subimage_columns, list(custom_cols[0:8]))
+        for idx in range(sprite_strip_w_columns2.subimage_count):
+            self.assertEqual(sprite_strip_w_columns2.subimage_sizes[idx][0], 1)
+
     def test_015bad_filename(self):
         bad_filename_hash = dict(self.base_good_sprite_info)
         bad_filename_hash["filename"] = "bad_filename"
@@ -93,7 +113,7 @@ class TestSprite(unittest.TestCase):
         bad_bbdim5 = ObjectSprite("spr_bad9", manual_bounding_box_rect = {"left":5})
         self.assertRaises(ObjectSpriteException, bad_bbdim5.check_manual_bounding_box_rect)
 
-    def test_025load_sprite(self):
+    def test_025load_sprite_from_yaml(self):
         tmpf_info = tempfile.mkstemp(dir="/tmp")
         tmp_file = os.fdopen(tmpf_info[0], "w")
         tmp_file.write(self.sprite_yaml)
