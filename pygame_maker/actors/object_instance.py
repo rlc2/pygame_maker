@@ -353,6 +353,10 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         self.debug("update():")
         inst_moved = False
         event_queued = None
+        if self in self.kind.instance_delete_list:
+            # save time detecting events for instances that have already been
+            # destroyed this frame
+            return
         # child instances do not use any of the 'speed' parameters, since 
         # they are placed relative to their parent instance
         if self.symbols["parent"] is None and self.speed > 0.0:
@@ -495,6 +499,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         """
         self.image, self.mask, self.source_rect, radius = self.kind.get_image(self.symbols["subimage_number"])
         if self.image is not None:
+            self.debug("Setting subimage {}".format(self.symbols["subimage_number"]))
             image_rect = self.image.get_rect()
             self.rect.width = image_rect.width
             self.rect.height = image_rect.height

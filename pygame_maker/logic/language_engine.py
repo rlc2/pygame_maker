@@ -1265,7 +1265,7 @@ class LanguageEngine(logging_object.LoggingObject):
         :type local_symbol_table: :py:class:`SymbolTable`
         :raise: UnknownCodeBlockError if the block name is not found
         """
-        self.info("Execute code with handle '{}'".format(block_name))
+        self.debug("Execute code with handle '{}'".format(block_name))
         if block_name not in self.code_blocks:
             raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".format(block_name),
                                         self.error)

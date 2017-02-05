@@ -333,7 +333,7 @@ class ObjectType(logging_object.LoggingObject):
         #: For collideable object instances; left empty in base class
         self.group = []
         #: A list of instances to delete following update()
-        self.instance_delete_list = []
+        self.instance_delete_list = set()
         #: A mapping of event regexs to handler methods
         self.handler_table = {
             re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
@@ -371,7 +371,7 @@ class ObjectType(logging_object.LoggingObject):
         """
         # a simple list manages deletions
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
-        self.instance_delete_list.append(instance)
+        self.instance_delete_list.add(instance)
 
     def make_new_instance(self, screen, instance_properties=None):
         """
@@ -430,7 +430,6 @@ class ObjectType(logging_object.LoggingObject):
         new_instance = self.make_new_instance(screen, instance_properties)
         if parent_inst is not None:
             # connect parent and child instances
-            parent_inst.add_child_instance(new_instance)
             new_instance.set_parent_instance(parent_inst)
         self._id += 1
         # queue and transmit the creation event for the new instance
@@ -466,19 +465,19 @@ class ObjectType(logging_object.LoggingObject):
         if len(self.instance_delete_list) > 0:
             for doomed_instance in self.instance_delete_list:
                 self.instance_list.remove(doomed_instance)
-            self.instance_delete_list = []
+            self.instance_delete_list = set()
 
-    def draw(self, event):
+    def draw(self, in_event):
         """
         Draw all instances in response to a ``draw_self`` event.  Meant to be
         overridden if needed by a subclass.
 
-        :param event: The ``draw_self`` event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The ``draw_self`` event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         pass
 
-    def get_applied_instance_list(self, action, event):
+    def get_applied_instance_list(self, action, in_event):
         """
         Return a list of the instances affected by the combination of an event
         and an action triggered by the event.  Meant to be overridden if needed
@@ -486,12 +485,12 @@ class ObjectType(logging_object.LoggingObject):
 
         :param action: The action with an "apply_to" field
         :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param event: The event to be handled
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The event to be handled
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         return []
 
-    def execute_action_sequence(self, event, targets=None):
+    def execute_action_sequence(self, in_event, targets=None):
         """
         Walk through an event action sequence when the event handler matches a
         known event.
@@ -502,53 +501,57 @@ class ObjectType(logging_object.LoggingObject):
         manager object type triggers actions that affect other parts of the
         game engine, so those actions need to be routed properly as well.
 
-        :param event: The event to be handled
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The event to be handled
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         :param targets: The event handler may pass in a list of target
             instances for the action sequence to operate on
-        :type event: array-like | None
+        :type targets: array-like | None
         """
-        self.debug("execute_action_sequence(event={}, targets={}):".format(event, targets))
-        if event.name in self.event_action_sequences:
-            self.info("  {}: Execute action sequence for event '{}'".format(self.name, event))
+        self.debug("execute_action_sequence(in_event={}, targets={}):".format(in_event, targets))
+        if in_event.name in self.event_action_sequences:
+            self.info("  Execute action sequence for event '{}'".format(in_event))
             with logging_object.Indented(self):
-                self.info("  Event args: {}".format(event.event_params))
-                for action in self.event_action_sequences[event.name].get_next_action():
-                    self.info("  Execute action {}".format(action))
+                self.debug("  Event args: {}".format(in_event.event_params))
+                affected_instances = None
+                if (targets is not None) and len(targets) > 0:
+                    self.debug("  Apply to target(s) {}".format(str(targets)))
+                    affected_instances = targets
+                elif isinstance(in_event, event.KeyEvent):
+                    # key events will be sent to all instances
+                    affected_instances = self.group.sprites()
+                for action in self.event_action_sequences[in_event.name].get_next_action():
+                    self.debug("  Execute action {}".format(action))
                     # forward instance actions to instance(s)
-                    if (targets is not None) and len(targets) > 0:
-                        self.info("  Apply to target(s) {}".format(str(targets)))
-                        for target in targets:
-                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
-                                target.execute_action(action, event)
-                            else:
-                                # the game engine additionally receives the target instance as a parameter
-                                self.game_engine.execute_action(action, event, target)
-                    elif "apply_to" in action.action_data:
-                        affected_instance_list = self.get_applied_instance_list(action, event)
-                        self.info("  Apply to: {}".format(action, affected_instance_list))
-                        for target in affected_instance_list:
-                            # print("applying to {}".format(target))
-                            if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
-                                target.execute_action(action, event)
-                            else:
-                                # the game engine additionally receives the target instance as a parameter
-                                self.game_engine.execute_action(action, event, target)
-                    else:
-                        self.info("  call game engine execute_action for {}".format(action))
-                        self.game_engine.execute_action(action, event)
+                    action_targets = affected_instances
+                    if "apply_to" in action.action_data:
+                        # follow any special apply_to rules in the action
+                        action_targets = self.get_applied_instance_list(action, in_event)
+                    elif affected_instances is None:
+                        self.debug("  call game engine execute_action for {}".format(action))
+                        self.game_engine.execute_action(action, in_event)
+                        continue
+                    self.debug("apply {} to targets {}".format(action.name, action_targets))
+                    for target in action_targets:
+                        if target in self.instance_delete_list:
+                            self.info("Skipping about-to-be-destroyed instance {}".format(target.inst_id))
+                            continue
+                        if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                            target.execute_action(action, in_event)
+                        else:
+                            # the game engine additionally receives the target instance as a parameter
+                            self.game_engine.execute_action(action, in_event, target)
 
-    def handle_instance_event(self, event):
+    def handle_instance_event(self, in_event):
         """
         Handle an event generated by an instance of this type.  Meant to be
         overridden if needed by a subclass.
 
-        :param event: The instance event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The instance event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         pass
 
-    def handle_mouse_event(self, event):
+    def handle_mouse_event(self, in_event):
         """
         Execute the action sequence associated with the supplied mouse
         event.
@@ -558,32 +561,32 @@ class ObjectType(logging_object.LoggingObject):
         and use its return value to determine whether the mouse event was a
         global event (and already handled here).
 
-        :param event: The mouse event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The mouse event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         :return: True if the received mouse event was global and already
             handled in this base class method, False otherwise
         """
-        self.debug("handle_mouse_event(event={}):".format(event))
+        self.debug("handle_mouse_event(in_event={}):".format(in_event))
         ret = False
-        gl_minfo = self.GLOBAL_MOUSE_RE.search(event.name)
+        gl_minfo = self.GLOBAL_MOUSE_RE.search(in_event.name)
         if gl_minfo:
-            self.execute_action_sequence(event)
+            self.execute_action_sequence(in_event)
             ret = True
         return ret
 
-    def handle_keyboard_event(self, event):
+    def handle_keyboard_event(self, in_event):
         """
         Execute the action sequence associated with the supplied key event,
         if the exact key event is handled by this object (which key,
         press/release).
 
-        :param event: The keyboard event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The keyboard event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_keyboard_event(event={}):".format(event))
-        self.execute_action_sequence(event)
+        self.debug("handle_keyboard_event(in_event={}):".format(in_event))
+        self.execute_action_sequence(in_event)
 
-    def handle_collision_event(self, event):
+    def handle_collision_event(self, in_event):
         """
         Execute the action sequence associated with a collision event.
 
@@ -591,57 +594,57 @@ class ObjectType(logging_object.LoggingObject):
         which should have been added as a key in the event_action_sequences
         attribute using the :py:meth:`__setitem__` interface.
 
-        :param event: The collision event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The collision event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_collision_event(event={}):".format(event))
-        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
-            self.execute_action_sequence(event)
+        self.debug("handle_collision_event(in_event={}):".format(in_event))
+        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+            self.execute_action_sequence(in_event)
 
-    def handle_step_event(self, event):
+    def handle_step_event(self, in_event):
         """
         Execute the action sequence associated with the supplied step event, if
         the exact step event is handled by this object (begin, end, normal),
         on every instance.
 
-        :param event: The step event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The step event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_step_event(event={}):".format(event))
-        self.execute_action_sequence(event, targets=[inst for inst in self.instance_list])
+        self.debug("handle_step_event(in_event={}):".format(in_event))
+        self.execute_action_sequence(in_event, targets=[inst for inst in self.instance_list])
 
-    def handle_alarm_event(self, event):
+    def handle_alarm_event(self, in_event):
         """
         Execute the action sequence associated with the alarm event, if the
         exact alarm is handled by this object (one or more of alarms 0-11).
 
-        :param event: The alarm event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The alarm event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_alarm_event(event={}):".format(event))
+        self.debug("handle_alarm_event(in_event={}):".format(in_event))
 
-    def handle_create_event(self, event):
+    def handle_create_event(self, in_event):
         """
         Execute the action sequence associated with the create event, passing
         it on to the instance recorded in the event.
 
-        :param event: The object creation event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The object creation event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_create_event(event={}):".format(event))
-        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
-            self.execute_action_sequence(event)
+        self.debug("handle_create_event(in_event={}):".format(in_event))
+        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+            self.execute_action_sequence(in_event)
 
-    def handle_destroy_event(self, event):
+    def handle_destroy_event(self, in_event):
         """
         Execute the action sequence associated with the destroy event.
 
-        :param event: The destroy event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The destroy event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_destroy_event(event={}):".format(event))
-        if (event.event_params["type"] == self) and (event.event_params["instance"] in self.group):
-            self.execute_action_sequence(event)
+        self.debug("handle_destroy_event(in_event={}):".format(in_event))
+        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+            self.execute_action_sequence(in_event)
 
     def _select_event_handler(self, event_name):
         # Return an event type, given the name of the handled event.
@@ -963,9 +966,9 @@ class CollideableObjectType(ManagerObjectType):
                 collision_name = "collision_{}".format(other_obj.name)
                 if collision_name not in collision_types_queued:
                     collision_types_queued.add(collision_name)
-                self.info("{} inst {}: Queue collision {}".format(self.name,
-                                                                  collider.inst_id,
-                                                                  collision_name))
+                self.debug("{} inst {}: Queue collision {}".format(self.name,
+                                                                   collider.inst_id,
+                                                                   collision_name))
                 collision_event_info = {
                     "type": self, "instance": collider,
                     "others": collision_map[collider]
@@ -1016,14 +1019,14 @@ class CollideableObjectType(ManagerObjectType):
         #  ones should be removed and remove them
         if len(self.instance_delete_list) > 0:
             self.group.remove(self.instance_delete_list)
-            self.instance_delete_list = []
+            self.instance_delete_list = set()
 
-    def draw(self, event):
+    def draw(self, in_event):
         """
         Respond to draw events.
 
-        :param event: The ``draw_self`` event
-        :type event: py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The ``draw_self`` event
+        :type in_event: py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("draw():")
         if (len(self.group) > 0) and self.visible:
@@ -1039,7 +1042,7 @@ class CollideableObjectType(ManagerObjectType):
         self.group.add(new_instance)
         return new_instance
 
-    def get_applied_instance_list(self, action, event):
+    def get_applied_instance_list(self, action, in_event):
         """
         For actions with "apply_to" parameters, return a list of the
         object instances affected.
@@ -1054,31 +1057,35 @@ class CollideableObjectType(ManagerObjectType):
 
         :param action: The action with an "apply_to" field
         :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param event: The received event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The received event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         :return: A list of instances affected by the event that the action
             will apply to
         :rtype: list
         """
-        self.debug("get_applied_instance_list(action={}, event={}):".format(action, event))
+        self.debug("get_applied_instance_list(action={}, in_event={}):".format(action, in_event))
         apply_to_instances = []
-        if (('instance' in event.event_params) and 
-                (event.event_params['instance'] in self.group)):
-            apply_to_instances = [event['instance']]
+        if (('instance' in in_event.event_params) and 
+                (in_event.event_params['instance'] in self.group)):
+            apply_to_instances = [in_event['instance']]
         if 'apply_to' not in action.action_data:
             return apply_to_instances
         if action["apply_to"] == "other":
-            if 'others' in event:
+            if 'others' in in_event:
                 # "others" are part of a collision event
-                apply_to_instances = event['others']
+                apply_to_instances = in_event['others']
         elif action["apply_to"] != "self":
             # applies to an object type; this means apply it to all instances
             #  of that object
             if action["apply_to"] in self.game_engine.resources['objects'].keys():
                 apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
+        elif isinstance(in_event, event.KeyEvent):
+            # keyboard events don't carry instance handles; just select all of
+            # them (user code can decide which instance is "active")
+            apply_to_instances = self.group.sprites()
         return apply_to_instances
 
-    def handle_instance_event(self, event):
+    def handle_instance_event(self, in_event):
         """
         Execute action sequences generated by an instance.
 
@@ -1087,13 +1094,13 @@ class CollideableObjectType(ManagerObjectType):
         * intersect_boundary
         * outside_room
 
-        :param event: The event generated by an ObjectInstance of this type
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The event generated by an ObjectInstance of this type
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_instance_event(event={}):".format(event))
-        self.execute_action_sequence(event)
+        self.debug("handle_instance_event(in_event={}):".format(in_event))
+        self.execute_action_sequence(in_event)
 
-    def handle_mouse_event(self, event):
+    def handle_mouse_event(self, in_event):
         """
         Handle mouse events that intersect with any of this object type's
         instances, after filtering global mouse events through the base class's
@@ -1102,23 +1109,26 @@ class CollideableObjectType(ManagerObjectType):
         If mouse event's XY coordinate intersects one or more instances and the
         exact mouse event is handled by this object (button #, press/release),
         then handle the event.
-        """
-        super(CollideableObjectType, self).handle_mouse_event(event)
-        clicked = self.group.get_sprites_at(event['position'])
-        if len(clicked) > 0:
-            self.execute_action_sequence(event, clicked)
 
-    def handle_step_event(self, event):
+        :param in_event: The event generated by an ObjectInstance of this type
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        super(CollideableObjectType, self).handle_mouse_event(in_event)
+        clicked = self.group.get_sprites_at(in_event['position'])
+        if len(clicked) > 0:
+            self.execute_action_sequence(in_event, clicked)
+
+    def handle_step_event(self, in_event):
         """
         Execute the action sequence associated with the supplied step event, if
         the exact step event is handled by this object (begin, end, normal),
         on every instance.
 
-        :param event: The step event
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param in_event: The step event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
-        self.debug("handle_step_event(event={}):".format(event))
-        self.execute_action_sequence(event, targets=[inst for inst in self.group])
+        self.debug("handle_step_event(in_event={}):".format(in_event))
+        self.execute_action_sequence(in_event, targets=[inst for inst in self.group])
 
     def __repr__(self):
         rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name, self.sprite_resource)
