@@ -369,7 +369,6 @@ class ObjectType(logging_object.LoggingObject):
         :param instance: The ObjectInstance of this type to be removed
         :type instance: :py:class:`~pygame_maker.actors.object_instance.ObjectInstance`
         """
-        # a simple list manages deletions
         self.debug("add_instance_to_delete_list(instance={}):".format(instance))
         self.instance_delete_list.add(instance)
 
@@ -443,6 +442,15 @@ class ObjectType(logging_object.LoggingObject):
                 "create_child", {"type": parent_inst.kind, "instance": parent_inst, "child_type": self}))
             self.game_engine.event_engine.transmit_event('create_child')
         return new_instance
+
+    def get_instances(self):
+        """
+        Return a list of all instances of the ObjectType.
+
+        :return: A list of all instances
+        :rtype: list
+        """
+        return self.instance_list
 
     def collision_check(self, other_obj_types):
         """
@@ -518,7 +526,7 @@ class ObjectType(logging_object.LoggingObject):
                     affected_instances = targets
                 elif isinstance(in_event, event.KeyEvent):
                     # key events will be sent to all instances
-                    affected_instances = self.group.sprites()
+                    affected_instances = self.get_instances()
                 for action in self.event_action_sequences[in_event.name].get_next_action():
                     self.debug("  Execute action {}".format(action))
                     # forward instance actions to instance(s)
@@ -918,6 +926,15 @@ class CollideableObjectType(ManagerObjectType):
             return image, mask, bounding_box, radius
         else:
             return None, None, None, None
+
+    def get_instances(self):
+        """
+        Return a list of all instances of the CollideableObjectType.
+
+        :return: A list of all instances
+        :rtype: list
+        """
+        return self.group.sprites()
 
     def collision_check(self, other_obj_types):
         """

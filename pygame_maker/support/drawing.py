@@ -93,6 +93,8 @@ def draw_line_segments(surface, line_properties):
     sqrd_full_gap_len = (seg_len * 2 + seg_gap) * (seg_len * 2 + seg_gap)
     # divide up all but the final segment between segment + gap pairs
     seg_count = (line_slope_x - seg_len) / (seg_len + seg_gap)
+    if line_slope_x == 0:
+        seg_count = (line_slope_y - seg_len) / (seg_len + seg_gap)
     if sqrd_length <= (seg_len * seg_len):
         # not enough space for a gap, just draw between the two points
         # print("{} line from {} to {}: single segment ({}, {}, {})".format(line_properties.style, line_properties.start, line_properties.end, sqrd_length, sqrd_full_gap_len, seg_count))
@@ -156,8 +158,8 @@ def draw_line_segments(surface, line_properties):
         y_seg_posn = line_properties.start.y
         # draw all line segments segments plus gaps that will fit
         while y_seg_posn < line_properties.end.y - seg_len - 1:
-            pygame.draw.line(surface, line_properties.color.color, (x_posn, y_seg_pos),
-                (x_posn, y_seg_pos + seg_len), line_properties.width)
+            pygame.draw.line(surface, line_properties.color.color, (x_pos, y_seg_posn),
+                (x_pos, y_seg_posn + seg_len), line_properties.width)
             y_seg_posn += seg_len + seg_gap
             if extra_pad is not None:
                 y_seg_posn += extra_pad[seg_idx]

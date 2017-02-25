@@ -15,7 +15,6 @@ class Coordinate(object):
 
     Allows for running callback methods when x and/or y are changed.
     """
-
     def __init__(self, x=0, y=0, x_change_callback=None, y_change_callback=None):
         """
         Store an x, y coordinate.
@@ -55,6 +54,9 @@ class Coordinate(object):
         self._y = value
         if self.y_callback:
             self.y_callback()
+
+    def copy(self):
+        return Coordinate(self.x, self.y, self.x_callback, self.y_callback)
 
     def __getitem__(self, itemkey):
         """
@@ -96,6 +98,9 @@ class Coordinate(object):
     def __len__(self):
         """A coordinate always has 2 items: x and y."""
         return 2
+
+    def __eq__(self, other):
+        return ((self.x == other.x) and (self.y == other.y))
 
     def __repr__(self):
         return "({:d}, {:d})".format(int(self.x), int(self.y))
