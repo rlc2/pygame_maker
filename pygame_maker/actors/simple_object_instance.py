@@ -56,7 +56,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         #: Keep a handle to the game engine for handling certain actions
         self.game_engine = kind.game_engine
         #: Keep track of the screen boundaries for collision detection
-        self.screen_dims = list(screen_dims)
+        self.screen_dims = list(screen_dims[0:2])
         #: Unique ID for this SimpleObjectInstance
         self.inst_id = id_
         # rect for storing the instance's position
