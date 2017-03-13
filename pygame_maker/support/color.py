@@ -141,3 +141,7 @@ class Color(object):
     def rgba(self):
         """The color as a 3-tuple of R, G, B values"""
         return self.color.r, self.color.g, self.color.b, self.color.a
+
+    def __repr__(self):
+        return "Color <r={} g={} b={} a={}>".format(self.red, self.green, self.blue, self.alpha)
+
