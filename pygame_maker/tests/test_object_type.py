@@ -6,6 +6,7 @@ import pg_template
 import random
 import sys
 import os
+from pygame_maker.events import event
 from pygame_maker.events import event_engine
 from pygame_maker.logic import language_engine
 
@@ -104,26 +105,26 @@ class GameEngine(logging_object.LoggingObject):
         if self.mask_surface:
             surf.blit(self.mask_surface, (5,5))
 
-    def execute_action(self, action, event, instance=None):
+    def execute_action(self, an_action, an_event, instance=None):
         action_params = {}
-        for param in action.action_data.keys():
+        for param in an_action.action_data.keys():
             if param == 'apply_to':
                 continue
             if param == 'child_instance':
-                if action.action_data['child_instance'] and instance is not None:
+                if an_action.action_data['child_instance'] and instance is not None:
                     # create_object: connect the child instance to its parent that
                     #   forwarded this action
                     action_params['parent'] = instance
                 continue
-            action_params[param] = action.get_parameter_expression_result(
+            action_params[param] = an_action.get_parameter_expression_result(
                 param, self.symbols, self.language_engine)
 
         #print("Engine recieved action: {}".format(action))
-        if action.name == "play_sound":
+        if an_action.name == "play_sound":
             if ((len(action_params['sound']) > 0) and
                 (action_params['sound'] in self.resources['sounds'].keys())):
                 self.resources['sounds'][action_params['sound']].play_sound()
-        if action.name == "create_object":
+        if an_action.name == "create_object":
             if (self.screen and (len(action_params['object']) > 0) and
                 (action_params['object'] in self.resources['objects'].keys())):
                 self.resources['objects'][action_params['object']].create_instance(
@@ -289,8 +290,9 @@ class TestGameManager(object):
                 })
         )
         print("Setup complete")
-    def collect_event(self, event):
-        self.current_events.append(event)
+    def collect_event(self, an_event):
+        self.current_events.append(an_event)
+
     def update(self):
         key_pressed = False
         mouse_button = False
