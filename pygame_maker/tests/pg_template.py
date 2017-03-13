@@ -22,11 +22,12 @@ class PygameTemplate:
     #  draw_objects()
     #  final_pass()
     #  is_done()
-    def __init__(self, size_tuple, caption, game_manager):
+    def __init__(self, size_tuple, caption, game_manager, frame_rate=30):
 
         self.size = size_tuple
         self.caption = caption
         self.game_manager = game_manager
+        self.frame_rate = frame_rate
         self.done = False
 
         # manage speed of screen updates
@@ -61,7 +62,7 @@ class PygameTemplate:
             self.done = self.game_manager.is_done()
 
             # limit frame rate
-            self.clock.tick(60)
+            self.clock.tick(self.frame_rate)
 
         # close window & quit
         pygame.quit()
