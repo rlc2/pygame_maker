@@ -306,7 +306,7 @@ class ElementPrioritizerTable(object):
                 for element in self.element_table[prop]:
                     # print("Test element {} against {}".format(element, prop))
                     if self.element_matched(element, list(prop), **kwargs):
-                        print("Matched {}; using parameters {}".format(prop, element.parameters))
+                        # print("Matched {}; using parameters {}".format(prop, element.parameters))
                         matched_element = element
                         break
             if matched_element is not None:
