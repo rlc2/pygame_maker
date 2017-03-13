@@ -7,12 +7,16 @@
 # pygame maker widgets
 
 import re
+import math
 import pygame
 from styles import WidgetStyle
 from .. import object_type
 from .. import simple_object_instance
+from pygame_maker.actions import action
+from pygame_maker.actions import action_sequence
 import pygame_maker.support.drawing as drawing
 import pygame_maker.support.coordinate as coord
+import pygame_maker.support.color as color
 
 
 def get_int_from_length_setting(length_setting, total_length):
@@ -52,17 +56,24 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     THIN_BORDER_WIDTH = 1
     MEDIUM_BORDER_WIDTH = 3
     THICK_BORDER_WIDTH = 5
-    def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
+    def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
         simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_, settings, **kwargs)
+        self.screen = screen
         self.screen_width = self.screen_dims[0]
         self.screen_height = self.screen_dims[1]
         self.style_settings = {}
         self.style_values = {}
-        self.has_focus = False
+        self.symbols["widget_class"] = ""
+        self.symbols["widget_id"] = "{}".format(self.inst_id)
+        self.symbols["visible"] = self.kind.visible
 
         style_hash = self.get_widget_instance_style_hash()
         style_info = self.game_engine.global_style_settings.get_style(**style_hash)
         self.get_widget_settings(style_info)
+        self.get_inner_setting_values(screen_dims)
+        width, height = self.get_element_dimensions()
+        self.symbols["width"] = width
+        self.symbols["height"] = height
 
     @property
     def visible(self):
@@ -79,15 +90,15 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @widget_id.setter
     def widget_id(self, new_id):
-        self.symbols["widget_id"] = new_id
+        self.symbols["widget_id"] = "{}".format(new_id)
 
     @property
     def widget_class(self):
         return self.symbols["widget_class"]
 
     @widget_class.setter
-    def widget_class(self, new_id):
-        self.symbols["widget_class"] = new_id
+    def widget_class(self, new_class):
+        self.symbols["widget_class"] = new_class
 
     @property
     def hover(self):
@@ -125,11 +136,16 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         self.rect.height = int_height
         self.symbols["height"] = int_height
 
+    @property
+    def parent(self):
+        return self.symbols["parent"]
+
     def get_style_setting(self, setting_name, css_properties, parent_settings):
         default_setting = WidgetStyle.get_style_entry_default(setting_name)
         setting = default_setting
         if setting_name in css_properties.keys():
-            check_setting = css_properties[setting_name]
+            check_setting = " ".join(css_properties[setting_name])
+            # self.debug("check_setting: {}".format(check_setting))
             if check_setting != "initial":
                 if (WidgetStyle.compare_value_vs_constraint(setting_name, "inherit") and
                                 check_setting == "inherit" and self.parent is not None):
@@ -139,11 +155,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return setting
 
     def get_widget_settings(self, css_properties):
+        parent_settings = None
         if self.parent is not None:
             # this could result in the parent checking its parent's
             # settings..
             parent_settings = self.parent.get_widget_settings(css_properties)
         for setting_name in WidgetStyle.STYLE_CONSTRAINTS.keys():
+            # self.debug("Get widget setting {} .. ".format(setting_name))
             self.style_settings[setting_name] = self.get_style_setting(setting_name, css_properties,
                 parent_settings)
 
@@ -160,7 +178,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             value = int(px_minfo.group(1))
         pc_minfo = WidgetStyle.PERCENT_RE.search(setting)
         if pc_minfo:
-            perc = float(px_minfo.group(1)) / 100.0
+            perc = float(pc_minfo.group(1)) / 100.0
             if perc > 1.0:
                 # WidgetStyle doesn't constrain the percentage; force
                 # maximum to 100% 
@@ -271,7 +289,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         if self.style_settings["width"] != "auto":
             element_width = self.style_values["width"]
         if self.style_settings["height"] != "auto":
-            element_width = self.style_values["height"]
+            element_height = self.style_values["height"]
         return (element_width, element_height)
 
     def get_color_values(self):
@@ -293,7 +311,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                         color_string = "#0{}0{}0{}{}".format(*str_ary)
                     elif len(color_name) == 8:
                         color_string = "{}0{}".format(color_name[:7], color_name[7])
-            self.style_values[color_property] = color.Color(color_string)
+                self.style_values[color_property] = color.Color(color_string)
 
     def get_min_size(self):
         """
@@ -332,7 +350,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     def _calculate_top_outer_border_size(self):
         top_size = self.style_values["margin-top"] + self.style_values["padding-top"]
         border_top_height = 0
-        if self.style_settings["border-top-style"] not in ("none", "hidden"):
+        if (self.style_settings["border-top-style"] not in ("none", "hidden") and
+                (self.style_settings["border-top-color"] != "transparent")):
             border_top_height = self.style_values["border-top-width"]
             if self.style_settings["border-top-style"] == "double":
                 border_top_height = border_top_height * 2 + 1
@@ -342,7 +361,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     def _calculate_left_outer_border_size(self):
         left_size = self.style_values["margin-left"] + self.style_values["padding-left"]
         border_left_width = 0
-        if self.style_settings["border-left-style"] not in ("none", "hidden"):
+        if (self.style_settings["border-left-style"] not in ("none", "hidden") and
+                (self.style_settings["border-left-color"] != "transparent")):
             border_left_width = self.style_values["border-left-width"]
             if self.style_settings["border-left-style"] == "double":
                 border_left_width = border_left_width * 2 + 1
@@ -351,48 +371,56 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     def _draw_border_side(self, screen, side, outer_dims, element_dims, width, color, style):
         draw_rect = pygame.Rect(0,0,0,0)
+        # thick lines are _centered_ on the calculated coordinates, so shift them by 1/2 their width
+        thick_adj = 0
+        if width > 1:
+            thick_adj = int(math.floor((width-1) / 2))
         if side == "top":
             draw_rect.left = self.style_values["margin-left"]
-            draw_rect.top = self.style_values["margin-top"]
-            draw_rect.width = self.style_values["padding-left"] + element_dims[0] + self.style_values["padding-right"]
+            draw_rect.top = self.style_values["margin-top"] + thick_adj
+            draw_rect.width = self.style_values["border-left-width"] + self.style_values["padding-left"] + element_dims[0] + self.style_values["padding-right"]
             if draw_rect.width <= 1:
                 return
         elif side == "bottom":
             draw_rect.left = self.style_values["margin-left"]
             draw_rect.top = (self._calculate_top_outer_border_size() + element_dims[1] +
-                self.style_values["padding-bottom"])
-            draw_rect.width = self.style_values["padding_left"] + element_dims[0] + self.style_values["padding-right"]
+                self.style_values["padding-bottom"] + thick_adj)
+            draw_rect.width = self.style_values["border-left-width"] + self.style_values["padding-left"] + element_dims[0] + self.style_values["padding-right"]
             if draw_rect.width <= 1:
                 return
         elif side == "left":
-            draw_rect.left = self.style_values["margin-left"]
+            draw_rect.left = self.style_values["margin-left"] + thick_adj
             draw_rect.top = self.style_values["margin-top"]
-            draw_rect.height = self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
+            draw_rect.height = self.style_values["border-top-width"] + self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
             if draw_rect.height <= 1:
                 return
         elif side == "right":
             draw_rect.left = (self._calculate_left_outer_border_size() + element_dims[0] +
-                sefl.style_values["padding-right"])
+                self.style_values["padding-right"] + thick_adj)
             draw_rect.top = self.style_values["margin-top"]
-            draw_rect.height = self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
+            draw_rect.height = self.style_values["border-top-width"] + self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
             if draw_rect.height <= 1:
                 return
         start_coord = coord.Coordinate(draw_rect.left, draw_rect.top)
         end_coord = coord.Coordinate(draw_rect.right, draw_rect.bottom)
+        self.debug("Draw {} border from {} to {}, width {}, color {}, style {}".format(
+            side, start_coord, end_coord, width, color, style))
         drawing.draw_line(screen, start_coord, end_coord, width, color, style)
 
     def draw_border(self, screen, outer_dims):
         element_dims = self.get_element_dimensions()
         for side in ("top", "right", "bottom", "left"):
-            border_width = self.style_settings["border-{}-width".format(side)]
+            border_width = self.style_values["border-{}-width".format(side)]
             border_style = self.style_settings["border-{}-style".format(side)]
             border_color_style = self.style_settings["border-{}-color".format(side)]
             border_color = "transparent"
             if border_color_style != "transparent":
                 border_color = self.style_values["border-{}-color".format(side)]
+            else:
+                continue
             if border_style in ("none", "hidden") or (border_width < 1) or border_color == "transparent":
                 continue
-            self._draw_border_side(screen, side, outer_dims, element_dims, width, color, style)
+            self._draw_border_side(screen, side, outer_dims, element_dims, border_width, border_color, border_style)
 
     def draw(self, screen):
         """
@@ -401,14 +429,18 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         Always recalculate the settings, in case the style has been updated,
         or an attribute has changed that may affect the style.
         """
+        self.debug("{} inst {}: draw()".format(self.kind.name, self.inst_id))
         style_hash = self.get_widget_instance_style_hash()
         style_info = self.game_engine.global_style_settings.get_style(**style_hash)
+        self.debug("Find style {} in {} ..".format(style_hash, style_info))
         self.get_widget_settings(style_info)
+        self.debug("Style settings: {}".format(self.style_settings))
         self.get_outer_setting_values(screen)
         outer_dims = self.calculate_outer_dimensions()
         max_inner_dims = (screen.get_width() - outer_dims[0], screen.get_height() - outer_dims[1])
         self.get_inner_setting_values(max_inner_dims)
         self.get_color_values()
+        self.debug("Style values: {}".format(self.style_values))
         self.draw_border(screen, outer_dims)
 
     def get_widget_instance_style_hash(self):
@@ -421,9 +453,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         """
         props = {
             "element_type": self.kind.name,
-            "element_class": self.widget_class,
             "element_id": self.widget_id,
         }
+        if len(self.widget_class) > 0:
+            props["element_class"] = self.widget_class
         if self.hover:
             props["pseudo_class"] = "hover"
         return props
@@ -434,17 +467,30 @@ class WidgetObjectTypeInvalid(Exception):
 
 
 class WidgetObjectType(object_type.ObjectType):
+    DEFAULT_VISIBLE = False
+
+    @classmethod
+    def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
+        kwargs = super(WidgetObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
+        kwargs.update({
+            "visible": WidgetObjectType.DEFAULT_VISIBLE,
+        })
+        if "visible" in obj_yaml.keys():
+            kwargs["visible"] = (obj_yaml["visible"] == True)
+        return kwargs
 
     def __init__(self, widget_name, game_engine, **kwargs):
         super(WidgetObjectType, self).__init__(widget_name, game_engine, **kwargs)
         #: Flag whether this widget type is a container for other widgets
         self.is_container = False
-        #: A Rect bounding the inner portion of the widget after accounting
-        #: for the margins, border size (if any), and padding
-        self.inside_rect = pygame.Rect(0,0,0,0)
-        self.inside_rect_calulated = False
+        self.visible = self.DEFAULT_VISIBLE
+        # default draw action sequence draws the object's sprite
+        self["draw"] = action_sequence.ActionSequence()
+        self["draw"].append_action(action.DrawAction("draw_self"))
+        if kwargs and "visible" in kwargs:
+            self.visible = kwargs["visible"]
 
-    def make_new_instance(self, screen, settings=None, **kwargs):
+    def make_new_instance(self, screen, instance_properties=None):
         """
         Generate a new instance of the widget type in response to
             :py:meth:`~pygame_maker.actors.object_type.ObjectType.create_instance`
@@ -458,7 +504,9 @@ class WidgetObjectType(object_type.ObjectType):
             :py:meth:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance.__init__`
         :type instance_properties: dict
         """
-        pass
+        screen_dims = (screen.get_width(), screen.get_height())
+        new_instance = WidgetInstance(self, screen, screen_dims, self._id, instance_properties)
+        self.instance_list.append(new_instance)
 
     def update(self):
         """
@@ -468,9 +516,12 @@ class WidgetObjectType(object_type.ObjectType):
 
     def draw(self, in_event):
         """Draw all visible instances."""
-        if len(self.instance_list) > 0 and self.visible:
+        if len(self.instance_list) > 0:
             for inst in self.instance_list:
+                self.debug("Check inst {}".format(inst))
                 if inst.parent is not None:
                     continue
-                inst.draw(self.game_engine.draw_surface)
+                if inst.visible:
+                    self.debug("Draw visible inst {}".format(inst))
+                    inst.draw(inst.screen)
 

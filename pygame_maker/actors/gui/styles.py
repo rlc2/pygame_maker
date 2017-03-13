@@ -223,7 +223,7 @@ class WidgetStyle(object):
 
     @classmethod
     def get_style_entry_default(cls, style_entry_name):
-        if style_entry_name in self.STYLE_CONSTRAINTS.keys():
+        if style_entry_name in cls.STYLE_CONSTRAINTS.keys():
             return cls.STYLE_CONSTRAINTS[style_entry_name]["default"]
         else:
             raise(NameError, "Unknown style entry '{}'".format(style_entry_name))
