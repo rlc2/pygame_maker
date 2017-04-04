@@ -21,6 +21,9 @@ class FontRenderer(object):
         if font_resource.underline:
             self._renderer.set_underline(True)
 
+    def get_linesize(self):
+        return self._renderer.get_linesize()
+
     def calc_render_size(self, text):
         """
         Calculate the width and height of a block of text using the current font.
