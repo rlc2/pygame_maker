@@ -6,7 +6,7 @@
 
 # test font resource
 
-import pygame_maker.actors.font as font
+import pygame_maker.support.font as font
 import pygame_maker.support.color as color
 import pygame_maker.support.coordinate as coord
 import pg_template
@@ -125,6 +125,7 @@ class MyGameManager:
                         if self.current_font > self.FONT_TABLE_ROWS:
                             # move one column to the left
                             self.current_font -= self.FONT_TABLE_ROWS
+                    self.changed_setting = True
                     print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif ev.key == pygame.K_RIGHT:
                     # select a different font
@@ -139,6 +140,7 @@ class MyGameManager:
                         if self.current_font < (len(self.fonts) - self.FONT_TABLE_ROWS):
                             # move one columnt to the right
                             self.current_font += self.FONT_TABLE_ROWS
+                    self.changed_setting = True
                     print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif ev.key == pygame.K_UP:
                     # select a different font
@@ -153,6 +155,7 @@ class MyGameManager:
                         if self.current_font > 0:
                             # move up one row
                             self.current_font -= 1
+                    self.changed_setting = True
                     print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif ev.key == pygame.K_DOWN:
                     # select a different font
@@ -172,6 +175,7 @@ class MyGameManager:
                         if self.current_font < (len(self.fonts) - 1):
                             # move down one row
                             self.current_font += 1
+                    self.changed_setting = True
                     print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif ev.key == pygame.K_MINUS:
                     # select the next smallest font size, down to minimum size
