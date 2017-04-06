@@ -51,6 +51,7 @@ class MyGameManager:
         self.screen = None
         self.current_events = []
         self.system_font = None
+        self.file_font = None
         self.fonts = []
         self.bold = False
         self.italic = False
@@ -67,6 +68,7 @@ class MyGameManager:
         self.current_font = 0
         self.current_color = 0
         self.current_size = self.FONT_SIZE
+        self.text_dims = None
         self.changed_setting = True
         self.done = False
 
@@ -75,6 +77,9 @@ class MyGameManager:
         with open(sys.argv[0], "r") as source_f:
             self.textlines = source_f.readlines()
         self.system_font = font.Font("fnt_sys", fontname=None, fontsize=self.FONT_SIZE)
+        self.file_font = font.Font("fnt_file",
+            fontname="file://pygame_maker/tests/unittest_files/DroidSansFallbackFull.ttf",
+            fontsize=14)
         known_fonts = pygame.font.get_fonts()
         for idx, a_font in enumerate(known_fonts):
             self.fonts.append(font.Font("fnt_{}".format(idx),
@@ -229,11 +234,13 @@ class MyGameManager:
         current_font.antialias = self.antialias
         fnt_renderer = current_font.get_font_renderer()
         if self.changed_setting:
-            text_dims = fnt_renderer.calc_render_size(page_text)
-            print("Text page dims: {}x{}".format(text_dims[0], text_dims[1]))
+            self.text_dims = fnt_renderer.calc_render_size(page_text)
+            print("Text page dims: {}x{}".format(self.text_dims[0], self.text_dims[1]))
             self.changed_setting = False
         fnt_renderer.render_text(self.screen, coord.Coordinate(self.TEXT_INDENT, self.TEXT_TOP),
             page_text, self.COLOR_LIST[self.current_color])
+        text_rect = pygame.Rect(self.TEXT_INDENT, self.TEXT_TOP, self.text_dims[0], self.text_dims[1])
+        pygame.draw.rect(self.screen, self.SYSTEM_FONT_COLOR.color, text_rect, 1)
 
     def draw_font_table(self):
         current_font = self.fonts[self.current_font]
@@ -260,10 +267,11 @@ class MyGameManager:
                 sys_renderer.render_text(self.screen, text_coord, font_text, font_color)
             if entry_idx > (len(font_table_entries) - 1):
                 break
+        file_font_renderer = self.file_font.get_font_renderer()
         page_indicator_text = "(page {} of {})".format(self.current_font_page+1, self.font_pages)
-        indicator_width, indicator_height = sys_renderer.calc_render_size(page_indicator_text)
+        indicator_width, indicator_height = file_font_renderer.calc_render_size(page_indicator_text)
         indic_left = (SCREEN_WIDTH / 2) - (indicator_width / 2)
-        sys_renderer.render_text(self.screen, coord.Coordinate(indic_left, self.FONT_PAGE_TOP),
+        file_font_renderer.render_text(self.screen, coord.Coordinate(indic_left, self.FONT_PAGE_TOP),
             page_indicator_text, self.FONT_TABLE_ACTIVE_FG_COLOR)
 
     def draw_objects(self):

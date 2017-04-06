@@ -8,21 +8,70 @@
 
 import re
 import pygame
-import os.path
 
 
 class FontRenderer(object):
+    FILE_URI_RE = re.compile("^file://(.*)")
+    NON_WHITESPACE_RE = re.compile("\S")
+
+    @staticmethod
+    def get_render_hash_key(text, color, background):
+        return "{}|{}|{}".format(text, color, background)
+
     def __init__(self, font_resource):
         self.font_resource = font_resource
-        self._renderer = pygame.font.SysFont(font_resource.fontname,
-                         font_resource.fontsize,
-                         font_resource.bold,
-                         font_resource.italic)
+        self.fontfile = False
+        self.fontpath = None
+        minfo = False
+        if font_resource.fontname is not None:
+            minfo = self.FILE_URI_RE.match(font_resource.fontname)
+        if minfo:
+            self.fontpath = minfo.group(1)
+            if len(self.fontpath) > 0:
+                self.fontfile = True
+        if self.fontfile:
+            self._renderer = pygame.font.Font(self.fontpath, font_resource.fontsize)
+            # a font file is likely to be one of regular, bold, or italic.  In
+            # this case, believe the user that created the font resource
+            # regarding those text effects as well as font size.  It should be
+            # obvious that an italic font wouldn't need the italic flag set..
+            self._renderer.set_bold(font_resource.bold)
+            self._renderer.set_italic(font_resource.italic)
+        else:
+            self._renderer = pygame.font.SysFont(font_resource.fontname,
+                             font_resource.fontsize,
+                             font_resource.bold,
+                             font_resource.italic)
         if font_resource.underline:
             self._renderer.set_underline(True)
+        self.cached_renders = {}
+        # controls whether future lines will be added to the cache
+        self._cache_enabled = True
+
+    def cache_enabled(self):
+        return self._cache_enabled
+
+    def disable_text_cache(self):
+        self._cache_enabled = False
+
+    def enable_text_cache(self):
+        self._cache_enabled = True
 
     def get_linesize(self):
         return self._renderer.get_linesize()
+
+    def cache_render(self, text_line, color, background, surface):
+        if not self.cache_enabled():
+            return
+        line_hash_key = FontRenderer.get_render_hash_key(text_line, color, background)
+        if line_hash_key not in self.cached_renders.keys():
+            self.cached_renders[line_hash_key] = surface
+        # cache with a key without colors, to make calculating the size of
+        # this line quicker in calc_render_size()
+        no_color_hash_key = FontRenderer.get_render_hash_key(text_line, None, None)
+        if no_color_hash_key not in self.cached_renders.keys():
+            self.cached_renders[no_color_hash_key] = surface
+        # print("Updated text cache:\n{}".format(self.cached_renders))
 
     def calc_render_size(self, text):
         """
@@ -42,11 +91,21 @@ class FontRenderer(object):
         for idx, line in enumerate(lines):
             if idx > 0:
                 height += self.font_resource.line_spacing
-            if len(line) == 0:
+            minfo = self.NON_WHITESPACE_RE.search(line)
+            if (len(line) == 0) or not minfo:
                 height += self._renderer.get_linesize()
                 continue
             has_text = True
-            line_width, line_height = self._renderer.size(line)
+            line_width = 0
+            line_height = 0
+            # every render also caches a version without colors, to be used
+            # when querying the size of the text render later
+            no_color_hash_key = FontRenderer.get_render_hash_key(line, None, None)
+            if no_color_hash_key in self.cached_renders.keys():
+                line_width = self.cached_renders[no_color_hash_key].get_width()
+                line_height = self.cached_renders[no_color_hash_key].get_height()
+            else:
+                line_width, line_height = self._renderer.size(line)
             if line_width > width:
                 width = line_width
             height += line_height
@@ -60,8 +119,9 @@ class FontRenderer(object):
         Draw the text contained in the text string to the screen at the given
         position, using the given color and background (if any).
         
-        Uses pygame.font.render() to produce the text, which is then blitted
-        to the given surface.
+        Use pygame.font.render() to produce the text, which is then blitted
+        to the given surface.  Rendered text is cached so it can be redrawn
+        quickly later.
 
         :param screen: A pygame surface
         :type screen: :py:class:`pygame.Surface`
@@ -92,10 +152,16 @@ class FontRenderer(object):
                 y_posn += self._renderer.get_linesize()
                 continue
             font_surf = None
-            if background is None:
-                font_surf = self._renderer.render(line, self.font_resource.antialias, color.color)
+            line_hash_key = FontRenderer.get_render_hash_key(line, color, background)
+            if line_hash_key in self.cached_renders.keys():
+                font_surf = self.cached_renders[line_hash_key]
             else:
-                font_surf = self._renderer.render(line, self.font_resource.antialias, color.color, background.color)
+                if background is None:
+                    font_surf = self._renderer.render(line, self.font_resource.antialias, color.color)
+                else:
+                    font_surf = self._renderer.render(line, self.font_resource.antialias, color.color, background.color)
+                # cache this render to make drawing the same line again faster
+                self.cache_render(line, color, background, font_surf)
             screen.blit(font_surf, (x_posn, y_posn))
             # print("Adding text line height {}".format(font_surf.get_height()))
             y_posn += font_surf.get_height()
@@ -103,6 +169,8 @@ class FontRenderer(object):
 
 class Font(object):
     DEFAULT_FONT_PREFIX = "fnt_"
+
+    FONT_CACHE = {}
 
     @staticmethod
     def load_from_yaml(font_yaml_stream, unused):
@@ -157,6 +225,30 @@ class Font(object):
                 new_font = Font(font_name, **font_args)
                 new_font_list.append(new_font)
         return new_font_list
+
+    @staticmethod
+    def hash_font(font_resource):
+        return "|".join([str(font_resource.fontname), str(font_resource.fontsize),
+            str(font_resource.bold), str(font_resource.italic),
+            str(font_resource.underline), str(font_resource.antialias)])
+
+    @classmethod
+    def is_cached_font(cls, font_resource):
+        fhash = cls.hash_font(font_resource)
+        return fhash in cls.FONT_CACHE.keys()
+
+    @classmethod
+    def get_cached_font(cls, font_resource):
+        fhash = cls.hash_font(font_resource)
+        # print("Get {} from font cache".format(fhash))
+        return cls.FONT_CACHE[fhash]
+
+    @classmethod
+    def add_font_to_cache(cls, font_resource, renderer):
+        fhash = cls.hash_font(font_resource)
+        if fhash not in cls.FONT_CACHE.keys():
+            # print("Add {} to font cache".format(fhash))
+            cls.FONT_CACHE[fhash] = renderer
 
     def __init__(self, name, **kwargs):
         self.name = self.DEFAULT_FONT_PREFIX
@@ -267,9 +359,23 @@ class Font(object):
 
     def get_font_renderer(self):
         if self._property_changed:
-            self._cached_renderer = FontRenderer(self)
+            renderer = None
+            if not Font.is_cached_font(self):
+                renderer = FontRenderer(self)
+                Font.add_font_to_cache(self, renderer)
+            else:
+                renderer = Font.get_cached_font(self)
+            self._cached_renderer = renderer
             self._property_changed = False
         return self._cached_renderer
+
+    def font_settings_match(self, other):
+        return (self.fontname == other.fontname and
+            self.fontsize == other.fontsize and
+            self.bold == other.bold and
+            self.italic == other.italic and
+            self.underline == other.underline and
+            self.antialias == other.antialias)
 
     def __repr__(self):
         return "<Font {} size {}>".format(self.name, self.fontsize)
