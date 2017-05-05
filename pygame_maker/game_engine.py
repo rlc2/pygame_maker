@@ -161,6 +161,7 @@ class GameEngine(logging_object.LoggingObject):
             'sprites': {},
             'sounds': {},
             'backgrounds': {},
+            'fonts': {},
             'objects': {},
             'rooms': []
         }

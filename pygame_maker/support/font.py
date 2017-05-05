@@ -270,6 +270,7 @@ class Font(object):
         self._antialias = False
         self._property_changed = True
         self._cached_renderer = None
+        self._copy_count = 0
         if 'fontname' in kwargs:
             self.fontname = kwargs['fontname']
         if 'fontsize' in kwargs:
@@ -376,6 +377,14 @@ class Font(object):
             self.italic == other.italic and
             self.underline == other.underline and
             self.antialias == other.antialias)
+
+    def copy(self):
+        new_font = Font("{}_copy{}".format(self.name, self._copy_count), fontname=self.fontname,
+            fontsize=self.fontsize, bold=self.bold, italic=self.italic, underline=self.underline,
+            antialias=self.antialias, line_spacing=self.line_spacing)
+        self._copy_count += 1
+        if self._cached_renderer is not None:
+            new_font._cached_renderer = self._cached_renderer
 
     def __repr__(self):
         return "<Font {} size {}>".format(self.name, self.fontsize)

@@ -457,7 +457,9 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             child_inst.rect.x = self.rect.x + child_inst.position[0]
             child_inst.rect.y = self.rect.y + child_inst.position[1]
             # perform boundary checks on child instance
-            child_event_queued = child_inst._detect_boundary_events()
+            child_event_queued = None
+            if hasattr(child_inst, "_detect_boundary_events"):
+                child_event_queued = child_inst._detect_boundary_events()
             if child_event_queued is not None:
                 event_names_queued.add(child_event_queued.name)
                 self.debug("bounds {} event in child {}".format(child_event_queued.name, child_inst))

@@ -19,23 +19,9 @@ import pygame_maker.support.coordinate as coord
 import pygame_maker.support.color as color
 
 
-def get_int_from_length_setting(length_setting, total_length):
-    """
-    For any length setting, whether numeric, a number with 'px' suffix, or
-    a percentage, return a numeric value.
-
-    Invalid length strings will be returned as 0.
-
-    :param length_setting: The length found in a style property
-    :type length_setting: str
-    :param total_length: The maximum possible numeric value, for calculating
-        percentages
-    :return: The numeric value
-    :rtype: int
-    """
-    pass
-
-
+# An object that can be substituted for a pygame Surface, for checking
+# width and height (helpful when calculating a minimum widget size without
+# having a surface to draw it on).
 class DummySurface(pygame.Rect):
     def get_width(self):
         return self.width
@@ -52,6 +38,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         "selected": False,
         "width": 0,
         "height": 0,
+    }
+    # WidgetInstance subclasses set this dict to add additional symbols with
+    # default values
+    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
     }
     THIN_BORDER_WIDTH = 1
     MEDIUM_BORDER_WIDTH = 3
@@ -74,6 +64,9 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         width, height = self.get_element_dimensions()
         self.symbols["width"] = width
         self.symbols["height"] = height
+        for subclass_sym in self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS.keys():
+            if subclass_sym not in self.symbols:
+                self.symbols[subclass_sym] = self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS[subclass_sym]
 
     @property
     def visible(self):
@@ -113,8 +106,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return int(self.symbols["selected"])
 
     @selected.setter
-    def selected(self, hover_on):
-        self.symbols["selected"] = (hover_on == True)
+    def selected(self, is_selected):
+        self.symbols["selected"] = (is_selected == True)
 
     @property
     def width(self):
@@ -156,7 +149,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     def get_widget_settings(self, css_properties):
         parent_settings = None
-        if self.parent is not None:
+        if self.parent is not None and isinstance(self.parent, WidgetInstance):
             # this could result in the parent checking its parent's
             # settings..
             parent_settings = self.parent.get_widget_settings(css_properties)
@@ -293,10 +286,12 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (element_width, element_height)
 
     def get_color_values(self):
+        color_property_list = ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+                               "background-color", "color"]
         # put Color objects into border/background color settings
-        for color_property in ("border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-                               "background-color"):
+        for color_property in color_property_list:
             color_name = self.style_settings[color_property]
+            default_color = str(WidgetStyle.STYLE_CONSTRAINTS[color_property]["default"])
             color_string = color_name
             if color_name != "transparent":
                 minfo = WidgetStyle.WEB_COLOR_RE.match(color_name)
@@ -311,7 +306,14 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                         color_string = "#0{}0{}0{}{}".format(*str_ary)
                     elif len(color_name) == 8:
                         color_string = "{}0{}".format(color_name[:7], color_name[7])
-                self.style_values[color_property] = color.Color(color_string)
+                try:
+                    self.style_values[color_property] = color.Color(color_string)
+                except ValueError:
+                    self.style_values[color_property] = color.Color(default_color)
+            elif color_property == "color":
+                # font color isn't supposed to be "transparent", so replace
+                # this string with the default color
+                self.style_values[color_property] = color.Color(default_color)
 
     def get_min_size(self):
         """
@@ -324,13 +326,6 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         contents: the sum of margin, border, and padding widths for each side.
         Subclasses should call this method, then determine the element's
         actual dimensions after taking min/max width and height into account.
-
-        :param screen: The surface the widget will be drawn on
-        :type screen: pygame.Surface
-        :param css_properties: The CSS properties that apply to this widget
-        :type css_properties: dict
-        :param parent_settings: The parent's widget style
-        :type parent_settings: dict
         """
         # create a surface such that 1% is a minimum of 1 pixel
         dummy_surface = DummySurface(0,0,100,100)
@@ -428,8 +423,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
         Always recalculate the settings, in case the style has been updated,
         or an attribute has changed that may affect the style.
+
+        :param screen: A pygame surface upon which to draw the widget
+        :type screen: :py:class:`pygame.Surface`
         """
         self.debug("{} inst {}: draw()".format(self.kind.name, self.inst_id))
+        if not self.visible:
+            return
         style_hash = self.get_widget_instance_style_hash()
         style_info = self.game_engine.global_style_settings.get_style(**style_hash)
         self.debug("Find style {} in {} ..".format(style_hash, style_info))
@@ -462,12 +462,133 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return props
 
 
+class LabelWidgetInstance(WidgetInstance):
+    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
+        "label": "",
+        "font": "",
+        "font_size": "initial",
+        "font_style": "initial",
+        "font_weight": "initial",
+        "text_decoration": "initial",
+        "text_transform": "initial",
+        "text_align": "initial",
+        "vertical_align": "initial",
+        "color": color.Color("black")
+    }
+    FONT_SIZE_CATEGORIES = {
+        "small": 10,
+        "medium": 14,
+        "large": 20
+    }
+
+    def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
+        super(LabelWidgetInstance, self).__init__(kind, screen, screen_dims, id_, settings, **kwargs)
+        self.font_resource = None
+        # @@@@ need to get text properties: color, alignment, spacing, etc
+        # @@@@ need to decide on how css properties affect font resources
+        self.get_font_resource()
+        self._font_point_size = 12
+
+    @property
+    def label(self):
+        return self.symbols["label"]
+
+    @label.setter
+    def label(self, new_label):
+        try:
+            self.symbols["label"] = str(new_label)
+        except ValueError:
+            pass
+
+    @property
+    def font(self):
+        return self.symbols["font"]
+
+    @font.setter
+    def font(self, new_font):
+        try:
+            self.symbols["font"] = str(new_font)
+            self.get_font_resource()
+        except ValueError:
+            pass
+
+    @property
+    def font_size(self):
+        return self.symbols["font_size"]
+
+    @font_size.setter
+    def font_size(self, new_size):
+        self.symbols["font_size"] = new_size
+
+    def get_font_resource(self):
+        if (len(self.font) == 0) or self.font not in self.kind.game_engine.resources['fonts'].keys():
+            # revert to a system font, if found
+            if hasattr(self.kind.game_engine, 'system_font'):
+                self.font_resource = self.kind.game_engine.system_font
+            else:
+                return None
+        else:
+            self.font_resource = self.kind.game_engine.resources['fonts'][self.font]
+
+    def calc_label_size(self):
+        if self.font_resource is None:
+            return (0, 0)
+        if len(self.label) == 0:
+            return (0, 0)
+        font_rndr = self.font_resource.get_font_renderer()
+        return font_rndr.calc_render_size(self.label)
+
+    def get_min_size(self):
+        total_width, total_height = super(LabelWidgetInstance, self).get_min_size()
+        text_width, text_height = self.calc_label_size()
+        total_width += text_width
+        total_height += text_height
+        return (total_width, total_height)
+
+    def get_element_dimensions(self):
+        element_width = self.style_values["min-width"]
+        element_height = self.style_values["min-height"]
+        label_width, label_height = self.calc_label_size()
+        if self.style_settings["width"] != "auto":
+            element_width = self.style_values["width"]
+        elif label_width > element_width:
+            element_width = label_width
+        if self.style_settings["height"] != "auto":
+            element_height = self.style_values["height"]
+        elif label_height > element_height:
+            element_height = label_height
+        return (element_width, element_height)
+
+    def draw(self, screen):
+        # draw any visible borders
+        super(LabelWidgetInstance, self).draw(screen)
+        # create a subsurface big enough to hold the element dimensions
+        label_width, label_height = self.calc_label_size()
+        if (label_width > 0) and (label_height > 0):
+            subsurf_width, subsurf_height = self.get_element_dimensions()
+            subsurf_left = super(LabelWidgetInstance, self)._calculate_left_outer_border_size()
+            subsurf_top = super(LabelWidgetInstance, self)._calculate_top_outer_border_size()
+            subsurf_rect = Rect(subsurf_left, subsurf_top, subsurf_width, subsurf_height)
+            subsurf = screen.subsurface(subsurf_rect)
+            font_rndr = self.font_resource.get_font_renderer()
+            # @@@ remember to apply horizontal, vertical alignment
+            font_rndr.render_text(subsurf, coord.Coordinate(0, 0), self.label, self.style_values["color"])
+
+
 class WidgetObjectTypeInvalid(Exception):
     pass
 
 
 class WidgetObjectType(object_type.ObjectType):
     DEFAULT_VISIBLE = False
+
+    # subclasses set this to their own instance type
+    WIDGET_INSTANCE_TYPE = WidgetInstance
+
+    # subclasses can add their own YAML properties by setting this class
+    # variable to a list of tuples [(entry_name, entry_type), ..] where
+    # entry_type is usually a standard type: str, int, or bool
+    WIDGET_SUBCLASS_KW_ENTRIES = []
 
     @classmethod
     def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
@@ -477,6 +598,16 @@ class WidgetObjectType(object_type.ObjectType):
         })
         if "visible" in obj_yaml.keys():
             kwargs["visible"] = (obj_yaml["visible"] == True)
+        for kw_entry, entry_type in self.WIDGET_SUBCLASS_KW_ENTRIES:
+            if kw_entry in obj_yaml.keys():
+                if isinstance(entry_type, bool):
+                    kwargs[kw_entry] = (obj_yaml[kw_entry] == True)
+                else:
+                    # set the kwarg if the type conversion succeeds
+                    try:
+                        kwargs[kw_entry] = entry_type(obj_yaml[kw_entry])
+                    except ValueError:
+                        pass
         return kwargs
 
     def __init__(self, widget_name, game_engine, **kwargs):
@@ -505,7 +636,7 @@ class WidgetObjectType(object_type.ObjectType):
         :type instance_properties: dict
         """
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = WidgetInstance(self, screen, screen_dims, self._id, instance_properties)
+        new_instance = self.WIDGET_INSTANCE_TYPE(self, screen, screen_dims, self._id, instance_properties)
         self.instance_list.append(new_instance)
 
     def update(self):
@@ -524,4 +655,7 @@ class WidgetObjectType(object_type.ObjectType):
                 if inst.visible:
                     self.debug("Draw visible inst {}".format(inst))
                     inst.draw(inst.screen)
+
+# class LabelWidgetObjectType(WidgetObjectType):
+#     WIDGET_INSTANCE_TYPE = LabelWidgetInstance
 

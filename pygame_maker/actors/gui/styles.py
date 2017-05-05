@@ -66,7 +66,7 @@ class WidgetStyle(object):
     BORDER_STYLES = (("none", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset", "hidden") +
         COMMON_PROPERTIES)
     BORDER_WIDTHS = ("medium", "thin", "thick") + COMMON_PROPERTIES
-    BORDER_COLORS = ("transparent",) + COMMON_PROPERTIES
+    BORDER_COLORS = ("transparent",)
     HORIZONTAL_POSITIONS = ("left", "center", "right")
     VERTICAL_POSITIONS = ("top", "center", "bottom")
     BACKGROUND_IMAGE_OPTIONS = ("none",) + COMMON_PROPERTIES
@@ -98,8 +98,16 @@ class WidgetStyle(object):
     DISPLAY_OPTIONS = ("none", "inline", "block") + COMMON_PROPERTIES
     VISIBILITY = ("visible", "hidden") + COMMON_PROPERTIES
     POSITIONS = ("static", "relative", "fixed", "absolute") + COMMON_PROPERTIES
-    COLOR_CONSTRAINTS = (color.Color.ADDITIONAL_COLORS.keys() + pygame.colordict.THECOLORS.keys() + [WEB_COLOR_RE] +
-        list(BORDER_COLORS))
+    COLOR_CONSTRAINTS = (color.Color.ADDITIONAL_COLORS.keys() + pygame.colordict.THECOLORS.keys() + [WEB_COLOR_RE])
+    HORIZONTAL_ALIGNMENT = ("left", "right", "center", "justify") + COMMON_PROPERTIES
+    VERTICAL_ALIGNMENT = ("top", "middle", "bottom") + COMMON_PROPERTIES
+    TEXT_DECORATIONS = ("none", "underline", "overline", "line-through") + COMMON_PROPERTIES
+    TEXT_TRANSFORMATIONS= ("none", "uppercase", "lowercase", "capitalize") + COMMON_PROPERTIES
+    FONT_STYLES = ("normal", "italic") + COMMON_PROPERTIES
+    FONT_WEIGHTS = ("normal", "bold") + COMMON_PROPERTIES
+    FONT_SIZES = ("small", "medium", "large") + COMMON_PROPERTIES
+    FONTNAME_RE = re.compile("^[a-zA-Z][0-9a-zA-Z_]+$")
+    FONT_FAMILIES = ("serif", "sans", "cursive", "mono") + COMMON_PROPERTIES
     STYLE_CONSTRAINTS = {
         "margin-top": {"default": "0", "valid_settings": LENGTH_RE_SET},
         "margin-right": {"default": "0", "valid_settings": LENGTH_RE_SET},
@@ -113,17 +121,17 @@ class WidgetStyle(object):
         "border-right-width": {"default": "0px", "valid_settings": BORDER_WIDTHS + LENGTH_RE_SET},
         "border-bottom-width": {"default": "0px", "valid_settings": BORDER_WIDTHS + LENGTH_RE_SET},
         "border-left-width": {"default": "0px", "valid_settings": BORDER_WIDTHS + LENGTH_RE_SET},
-        "border-top-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS},
-        "border-right-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS},
-        "border-bottom-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS},
-        "border-left-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS},
+        "border-top-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
+        "border-right-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
+        "border-bottom-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
+        "border-left-color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
         "padding-top": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "padding-right": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "padding-bottom": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "padding-left": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "align": {"default": "left", "valid_settings": HORIZONTAL_POSITIONS},
         "valign": {"default": "top", "valid_settings": VERTICAL_POSITIONS},
-        "background-color": {"default": "transparent", "valid_settings": COLOR_CONSTRAINTS},
+        "background-color": {"default": "transparent", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
         "background-resource": {"default": "none", "valid_settings": (BACKGROUND_RESOURCE_RE,) + BACKGROUND_IMAGE_OPTIONS},
         "background-repeat": {"default": "repeat", "valid_settings": BACKGROUND_REPEAT_OPTIONS},
         "background-attachment": {"default": "scroll", "valid_settings": BACKGROUND_ATTACHMENTS},
@@ -142,6 +150,15 @@ class WidgetStyle(object):
         "top": {"default": "auto", "valid_settings": LENGTH_RE_SET + LENGTHS},
         "bottom": {"default": "auto", "valid_settings": LENGTH_RE_SET + LENGTHS},
         "z-index": {"default": "auto", "valid_settings": (SIGNED_NUMBER_RE,) + LENGTHS},
+        "color": {"default": "black", "valid_settings": COLOR_CONSTRAINTS + list(COMMON_PROPERTIES)},
+        "text-align": {"default": "left", "valid_settings": HORIZONTAL_ALIGNMENT},
+        "vertical-align": {"default": "bottom", "valid_settings": VERTICAL_ALIGNMENT},
+        "text-decoration": {"default": "none", "valid_settings": TEXT_DECORATIONS},
+        "text-transform": {"default": "none", "valid_settings": TEXT_TRANSFORMATIONS},
+        "font-style": {"default": "normal", "valid_settings": FONT_STYLES},
+        "font-weight": {"default": "normal", "valid_settings": FONT_WEIGHTS},
+        "font-size": {"default": "medium", "valid_settings": FONT_SIZES + LENGTH_RE_SET},
+        "font": {"default": "", "valid_settings": ("",) + (FONTNAME_RE,)},
     }
     BACKGROUND_POSITION_TRANSFORMATIONS = {
         re.compile("^((left)|(center)|(right))$"): "{group1} center",
