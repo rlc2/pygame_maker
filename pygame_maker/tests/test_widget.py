@@ -10,6 +10,7 @@ from pygame_maker.support import css_to_style
 import pygame_maker.support.drawing as drawing
 import pygame_maker.support.color as color
 import pygame_maker.support.coordinate as coord
+import pygame_maker.support.font as font
 import pg_template
 import logging
 import pygame
@@ -32,8 +33,22 @@ wihandler.setFormatter(wiformatter)
 wilogger.addHandler(wihandler)
 wilogger.setLevel(logging.DEBUG)
 
+lwtlogger = logging.getLogger("LabelWidgetObjectType")
+lwthandler = logging.StreamHandler()
+lwtformatter = logging.Formatter("%(levelname)s: %(message)s")
+lwthandler.setFormatter(lwtformatter)
+lwtlogger.addHandler(lwthandler)
+lwtlogger.setLevel(logging.DEBUG)
 
-class MyGameManager:
+lwilogger = logging.getLogger("LabelWidgetInstance")
+lwihandler = logging.StreamHandler()
+lwiformatter = logging.Formatter("%(levelname)s: %(message)s")
+lwihandler.setFormatter(lwiformatter)
+lwilogger.addHandler(lwihandler)
+lwilogger.setLevel(logging.DEBUG)
+
+
+class MyGameManager(object):
     WIDGET_STYLES = """
 WidgetObjectType#0 {
     border-top-color: red;
@@ -67,6 +82,9 @@ WidgetObjectType#1 {
     width: 100%;
     height: 100%;
 }
+LabelWidgetObjectType {
+    color: orange;
+}
 """
     GRID_COLOR = color.Color( (255,0,255) )
     GRID_START_X = 100
@@ -87,6 +105,7 @@ WidgetObjectType#1 {
         self.widget_cols = 0
         self.widget_surface_matrix = []
         self.widget_types = {}
+        self.resources = {'fonts': {}}
 
     def create_subsurfaces(self, screen_width, screen_height):
         self.widget_rows = (screen_width - self.GRID_START_X) / self.GRID_SPACING_X
@@ -119,6 +138,39 @@ WidgetObjectType#1 {
         self.widget_types['WidgetObjectType'] = WidgetObjectType('WidgetObjectType', self, visible=True)
         self.widget_types['WidgetObjectType'].create_instance(self.widget_surface_matrix[0][0])
         self.widget_types['WidgetObjectType'].create_instance(self.widget_surface_matrix[0][1])
+        # import pdb; pdb.set_trace()
+        self.widget_types['LabelWidgetObjectType'] = LabelWidgetObjectType('LabelWidgetObjectType', self, visible=True)
+        self.widget_types['LabelWidgetObjectType'].create_instance(self.widget_surface_matrix[0][2],
+            font="fnt_test", label="Test Font")
+        position_surf = self.widget_surface_matrix[1][0]
+        pwidth = position_surf.get_width()
+        pheight = position_surf.get_height()
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            font="fnt_test", label="LB", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"vertical-align": "top"},
+            font="fnt_test", label="LT", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"vertical-align": "middle"},
+            font="fnt_test", label="LM", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "center"},
+            font="fnt_test", label="CB", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "center", "vertical-align": "top"},
+            font="fnt_test", label="CT", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "center", "vertical-align": "middle"},
+            font="fnt_test", label="CM", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "right"},
+            font="fnt_test", label="RB", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "right", "vertical-align": "top"},
+            font="fnt_test", label="RT", width=str(pwidth), height=str(pheight))
+        self.widget_types['LabelWidgetObjectType'].create_instance(position_surf,
+            {"text-align": "right", "vertical-align": "middle"},
+            font="fnt_test", label="RM", width=str(pwidth), height=str(pheight))
 
     def setup(self, screen):
         self.screen = screen
@@ -126,6 +178,7 @@ WidgetObjectType#1 {
         screen_height = screen.get_height()
         self.draw_surface = pygame.Surface((screen_width, screen_height))
         self.create_subsurfaces(screen_width, screen_height)
+        self.resources['fonts']['fnt_test'] = font.Font("fnt_test", fontname="freemono", fontsize=18)
         self.create_widgets()
 
     def collect_event(self, event):

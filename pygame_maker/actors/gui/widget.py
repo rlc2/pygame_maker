@@ -36,8 +36,6 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         "widget_class": "",
         "hover": False,
         "selected": False,
-        "width": 0,
-        "height": 0,
     }
     # WidgetInstance subclasses set this dict to add additional symbols with
     # default values
@@ -61,11 +59,11 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         style_info = self.game_engine.global_style_settings.get_style(**style_hash)
         self.get_widget_settings(style_info)
         self.get_inner_setting_values(screen_dims)
-        width, height = self.get_element_dimensions()
-        self.symbols["width"] = width
-        self.symbols["height"] = height
+        # width, height = self.get_element_dimensions()
+        # self.symbols["width"] = width
+        # self.symbols["height"] = height
         for subclass_sym in self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS.keys():
-            if subclass_sym not in self.symbols:
+            if subclass_sym not in self.symbols.keys():
                 self.symbols[subclass_sym] = self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS[subclass_sym]
 
     @property
@@ -111,7 +109,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def width(self):
-        return self.symbols["width"]
+        if "width" in self.symbols.keys():
+            return self.symbols["width"]
+        else:
+            return 0
 
     @width.setter
     def width(self, new_width):
@@ -134,8 +135,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return self.symbols["parent"]
 
     def get_style_setting(self, setting_name, css_properties, parent_settings):
+        self.debug("WidgetInstance.get_style_setting(setting_name={}, css_properties={}, parent_settings={})".format(setting_name, css_properties, parent_settings))
         default_setting = WidgetStyle.get_style_entry_default(setting_name)
         setting = default_setting
+        if setting_name in self.symbols.keys():
+            # settings passed in from object YAML or constructor override
+            # default CSS
+            setting = self.symbols[setting_name]
         if setting_name in css_properties.keys():
             check_setting = " ".join(css_properties[setting_name])
             # self.debug("check_setting: {}".format(check_setting))
@@ -148,6 +154,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return setting
 
     def get_widget_settings(self, css_properties):
+        self.debug("WidgetInstance.get_style_settings(css_properties={})".format(css_properties))
         parent_settings = None
         if self.parent is not None and isinstance(self.parent, WidgetInstance):
             # this could result in the parent checking its parent's
@@ -160,6 +167,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     def _get_integer_setting(self, setting, max_value):
         value = 0
+        # self.debug("search '{}', which is type '{}'".format(setting, type(setting).__name__))
+        if not isinstance(setting, str):
+            # in case the value is already a number
+            return setting
         num_minfo = WidgetStyle.NUMBER_RE.search(setting)
         if num_minfo:
             value = int(setting)
@@ -180,6 +191,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return value
 
     def get_outer_setting_values(self, surface):
+        self.debug("WidgetInstance.get_outer_setting_values(surface={})".format(surface))
         # CSS box model: calculate margin, border, and padding so the remaining
         # setting values can be calculated
         surface_width = surface.get_width()
@@ -194,6 +206,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             self.style_values[setting_name] = style_val
 
     def calculate_outer_dimensions(self):
+        self.debug("WidgetInstance.calculate_outer_dimensions()")
         # calculate width
         outer_width = (self.style_values["margin-left"] + self.style_values["margin-right"] +
             self.style_values["padding-left"] + self.style_values["padding-right"])
@@ -225,6 +238,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (outer_width, outer_height)
 
     def get_inner_setting_values(self, max_dimensions):
+        self.debug("WidgetInstance.get_inner_setting_values(max_dimensions={})".format(max_dimensions))
         # calculate min-width, width, max-width values
         min_width_val = self._get_integer_setting(self.style_settings["min-width"], max_dimensions[0])
         if min_width_val > max_dimensions[0]:
@@ -277,6 +291,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         Subclasses should start here, and expand as needed to fit widget
         content, honoring the 'max-width' and 'max-height' properties.
         """
+        self.debug("WidgetInstance.get_element_dimensions()")
         element_width = self.style_values["min-width"]
         element_height = self.style_values["min-height"]
         if self.style_settings["width"] != "auto":
@@ -286,6 +301,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (element_width, element_height)
 
     def get_color_values(self):
+        self.debug("WidgetInstance.get_color_values()")
         color_property_list = ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
                                "background-color", "color"]
         # put Color objects into border/background color settings
@@ -327,6 +343,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         Subclasses should call this method, then determine the element's
         actual dimensions after taking min/max width and height into account.
         """
+        self.debug("WidgetInstance.get_min_size()")
         # create a surface such that 1% is a minimum of 1 pixel
         dummy_surface = DummySurface(0,0,100,100)
         min_width = 1
@@ -398,11 +415,12 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                 return
         start_coord = coord.Coordinate(draw_rect.left, draw_rect.top)
         end_coord = coord.Coordinate(draw_rect.right, draw_rect.bottom)
-        self.debug("Draw {} border from {} to {}, width {}, color {}, style {}".format(
-            side, start_coord, end_coord, width, color, style))
+        # self.debug("Draw {} border from {} to {}, width {}, color {}, style {}".format(
+        #     side, start_coord, end_coord, width, color, style))
         drawing.draw_line(screen, start_coord, end_coord, width, color, style)
 
     def draw_border(self, screen, outer_dims):
+        self.debug("WidgetInstance.draw_border(screen={}, outer_dims={})".format(screen, outer_dims))
         element_dims = self.get_element_dimensions()
         for side in ("top", "right", "bottom", "left"):
             border_width = self.style_values["border-{}-width".format(side)]
@@ -427,20 +445,20 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         :param screen: A pygame surface upon which to draw the widget
         :type screen: :py:class:`pygame.Surface`
         """
-        self.debug("{} inst {}: draw()".format(self.kind.name, self.inst_id))
+        self.debug("{} inst {}: WidgetInstance.draw(screen={})".format(self.kind.name, self.inst_id, screen))
         if not self.visible:
             return
         style_hash = self.get_widget_instance_style_hash()
         style_info = self.game_engine.global_style_settings.get_style(**style_hash)
-        self.debug("Find style {} in {} ..".format(style_hash, style_info))
+        # self.debug("Find style {} in {} ..".format(style_hash, style_info))
         self.get_widget_settings(style_info)
-        self.debug("Style settings: {}".format(self.style_settings))
+        # self.debug("Style settings: {}".format(self.style_settings))
         self.get_outer_setting_values(screen)
         outer_dims = self.calculate_outer_dimensions()
         max_inner_dims = (screen.get_width() - outer_dims[0], screen.get_height() - outer_dims[1])
         self.get_inner_setting_values(max_inner_dims)
         self.get_color_values()
-        self.debug("Style values: {}".format(self.style_values))
+        # self.debug("Style values: {}".format(self.style_values))
         self.draw_border(screen, outer_dims)
 
     def get_widget_instance_style_hash(self):
@@ -451,6 +469,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         Subclasses should start here and add attribute matches (e.g. a
         checkbutton could match on "checked" attribute "on" or "off")
         """
+        self.debug("WidgetInstance.get_widget_instance_style_hash()")
         props = {
             "element_type": self.kind.name,
             "element_id": self.widget_id,
@@ -484,8 +503,6 @@ class LabelWidgetInstance(WidgetInstance):
     def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
         super(LabelWidgetInstance, self).__init__(kind, screen, screen_dims, id_, settings, **kwargs)
         self.font_resource = None
-        # @@@@ need to get text properties: color, alignment, spacing, etc
-        # @@@@ need to decide on how css properties affect font resources
         self.get_font_resource()
         self._font_point_size = 12
 
@@ -521,6 +538,7 @@ class LabelWidgetInstance(WidgetInstance):
         self.symbols["font_size"] = new_size
 
     def get_font_resource(self):
+        self.debug("LabelWidgetInstance.get_font_resource()")
         if (len(self.font) == 0) or self.font not in self.kind.game_engine.resources['fonts'].keys():
             # revert to a system font, if found
             if hasattr(self.kind.game_engine, 'system_font'):
@@ -531,6 +549,7 @@ class LabelWidgetInstance(WidgetInstance):
             self.font_resource = self.kind.game_engine.resources['fonts'][self.font]
 
     def calc_label_size(self):
+        self.debug("LabelWidgetInstance.calc_label_size()")
         if self.font_resource is None:
             return (0, 0)
         if len(self.label) == 0:
@@ -539,6 +558,7 @@ class LabelWidgetInstance(WidgetInstance):
         return font_rndr.calc_render_size(self.label)
 
     def get_min_size(self):
+        self.debug("LabelWidgetInstance.get_min_size()")
         total_width, total_height = super(LabelWidgetInstance, self).get_min_size()
         text_width, text_height = self.calc_label_size()
         total_width += text_width
@@ -546,6 +566,7 @@ class LabelWidgetInstance(WidgetInstance):
         return (total_width, total_height)
 
     def get_element_dimensions(self):
+        self.debug("LabelWidgetInstance.get_element_dimensions()")
         element_width = self.style_values["min-width"]
         element_height = self.style_values["min-height"]
         label_width, label_height = self.calc_label_size()
@@ -559,7 +580,28 @@ class LabelWidgetInstance(WidgetInstance):
             element_height = label_height
         return (element_width, element_height)
 
+    def draw_text(self, surface):
+        self.debug("LabelWidgetInstance.draw_text(surface={})".format(surface))
+        surf_width = surface.get_width()
+        surf_height = surface.get_height()
+        font_rndr = self.font_resource.get_font_renderer()
+        # apply horizontal, vertical alignment
+        text_width, text_height = font_rndr.calc_render_size(self.label)
+        top_left = coord.Coordinate(0, 0)
+        if (surf_width > text_width):
+            if self.style_settings["text-align"] == "center":
+                top_left.x = (surf_width / 2) - (text_width / 2)
+            elif self.style_settings["text-align"] == "right":
+                top_left.x = surf_width - text_width
+        if (surf_height > text_height):
+            if self.style_settings["vertical-align"] == "middle":
+                top_left.y = (surf_height / 2) - (text_height / 2)
+            elif self.style_settings["vertical-align"] == "bottom":
+                top_left.y = surf_height - text_height
+        font_rndr.render_text(surface, top_left, self.label, self.style_values["color"])
+
     def draw(self, screen):
+        self.debug("LabelWidgetInstance.draw(screen={})".format(screen))
         # draw any visible borders
         super(LabelWidgetInstance, self).draw(screen)
         # create a subsurface big enough to hold the element dimensions
@@ -568,11 +610,9 @@ class LabelWidgetInstance(WidgetInstance):
             subsurf_width, subsurf_height = self.get_element_dimensions()
             subsurf_left = super(LabelWidgetInstance, self)._calculate_left_outer_border_size()
             subsurf_top = super(LabelWidgetInstance, self)._calculate_top_outer_border_size()
-            subsurf_rect = Rect(subsurf_left, subsurf_top, subsurf_width, subsurf_height)
+            subsurf_rect = pygame.Rect(subsurf_left, subsurf_top, subsurf_width, subsurf_height)
             subsurf = screen.subsurface(subsurf_rect)
-            font_rndr = self.font_resource.get_font_renderer()
-            # @@@ remember to apply horizontal, vertical alignment
-            font_rndr.render_text(subsurf, coord.Coordinate(0, 0), self.label, self.style_values["color"])
+            self.draw_text(subsurf)
 
 
 class WidgetObjectTypeInvalid(Exception):
@@ -635,6 +675,7 @@ class WidgetObjectType(object_type.ObjectType):
             :py:meth:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance.__init__`
         :type instance_properties: dict
         """
+        self.debug("WidgetObjectType.make_new_instance(screen={}, instance_properties={})".format(screen, instance_properties))
         screen_dims = (screen.get_width(), screen.get_height())
         new_instance = self.WIDGET_INSTANCE_TYPE(self, screen, screen_dims, self._id, instance_properties)
         self.instance_list.append(new_instance)
@@ -647,15 +688,16 @@ class WidgetObjectType(object_type.ObjectType):
 
     def draw(self, in_event):
         """Draw all visible instances."""
+        self.debug("WidgetObjectType.draw(in_event={})".format(in_event))
         if len(self.instance_list) > 0:
             for inst in self.instance_list:
-                self.debug("Check inst {}".format(inst))
+                # self.debug("Check inst {}".format(inst))
                 if inst.parent is not None:
                     continue
                 if inst.visible:
-                    self.debug("Draw visible inst {}".format(inst))
+                    # self.debug("Draw visible inst {}".format(inst))
                     inst.draw(inst.screen)
 
-# class LabelWidgetObjectType(WidgetObjectType):
-#     WIDGET_INSTANCE_TYPE = LabelWidgetInstance
+class LabelWidgetObjectType(WidgetObjectType):
+    WIDGET_INSTANCE_TYPE = LabelWidgetInstance
 
