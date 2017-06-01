@@ -198,6 +198,8 @@ class ElementPrioritizerTable(object):
                 self.element_table[prop] = attribute_table
             else:
                 self.element_table[prop] = []
+        self.rvs_precedence = list(self.PROPERTY_PRECEDENCE)
+        self.rvs_precedence.reverse()
 
     def add_element(self, element):
         # print("Add {} to element table..".format(element))
@@ -292,6 +294,7 @@ class ElementPrioritizerTable(object):
 
         """
         matched_element = None
+        matched_props = None
         for prop in self.PROPERTY_PRECEDENCE:
             if "attribute" in prop:
                 for attr_type_name in self.ATTR_SELECTOR_PRECEDENCE:
@@ -299,6 +302,7 @@ class ElementPrioritizerTable(object):
                         if self.element_matched(element, list(prop), **kwargs):
                             print("Matched {} (attr); using parameters {}".format(prop, element.parameters))
                             matched_element = element
+                            matched_props = prop
                             break
                     if matched_element is not None:
                         break
@@ -308,10 +312,43 @@ class ElementPrioritizerTable(object):
                     if self.element_matched(element, list(prop), **kwargs):
                         # print("Matched {}; using parameters {}".format(prop, element.parameters))
                         matched_element = element
+                        matched_props = prop
                         break
             if matched_element is not None:
                 break
-        return matched_element
+        return (matched_element, matched_props)
+
+    def collect_hash_from_props(self, props, all_kwargs):
+        new_kwargs = {}
+        if "id" in props:
+            new_kwargs["element_id"] = all_kwargs["element_id"]
+        if "type" in props:
+            new_kwargs["element_type"] = all_kwargs["element_type"]
+        if "class" in props:
+            new_kwargs["element_class"] = all_kwargs["element_class"]
+        if "pclass" in props:
+            new_kwargs["pseudo_class"] = all_kwargs["pseudo_class"]
+        if "attribute" in props:
+            new_kwargs["attribute_dict"] = all_kwargs["attribute_dict"]
+        return new_kwargs
+
+    def compose_style(self, **kwargs):
+        specific_match, all_props = self.priority_match(**kwargs)
+        style = {}
+        if specific_match is None:
+            return style
+        specific_params = specific_match.parameters
+        print("kwargs {}: specific style: {}".format(kwargs, specific_params))
+        if all_props is not None and (len(all_props) > 1):
+            for rvs_props in self.rvs_precedence:
+                # collect from least to most specific parameters
+                if rvs_props < all_props:
+                    kwarg_hash = self.collect_hash_from_props(rvs_props, kwargs)
+                    general_match, unused = self.priority_match(**kwarg_hash)
+                    style.update(general_match.parameters)
+                    print("  kwargs {}: current style: {}".format(kwarg_hash, style))
+        style.update(specific_params)
+        return style
 
     def pretty_print(self):
         for prop_set in self.PROPERTY_PRECEDENCE:
@@ -351,11 +388,7 @@ class CSSStyle(object):
             * attribute_dict: A dict mapping an element's attribute values
 
         """
-        style = {}
-        matched_element = self.element_table.priority_match(**kwargs)
-        if matched_element is not None:
-            style.update(matched_element.parameters)
-        return style
+        return self.element_table.compose_style(**kwargs)
 
     def copy(self, other):
         self.element_table = other.element_table
