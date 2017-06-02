@@ -252,13 +252,13 @@ class WidgetStyle(object):
             self.construct_shorthand_style_table()
         for style_entry in style_table.keys():
             if style_entry in self.style.keys():
-                if not isinstance(style_table[style_entry], str) and hasattr(style_table[style_entry], 'join'):
+                if not isinstance(style_table[style_entry], str) and hasattr(style_table[style_entry], '__len__'):
                     # the style engine always uses lists to store values
                     # if there are multiple entries, join them with spaces
                     self.style[style_entry] = " ".join(style_table[style_entry])
                 else:
                     self.style[style_entry] = style_table[style_entry]
-                if not type(self).compare_value_vs_constraint(style_entry, style_table[style_entry]):
+                if not type(self).compare_value_vs_constraint(style_entry, self.style[style_entry]):
                     raise(WidgetStyleInvalid("Invalid value {} for style {}".format(style_table[style_entry], style_entry)))
             elif style_entry in self.SHORTHAND_STYLES.keys():
                 # shorthand properties must supply values in a list
@@ -341,6 +341,9 @@ class WidgetStyle(object):
             if not type(self).compare_value_vs_constraint(sub_prop_name, sub_props[sub_prop_name]):
                 raise(WidgetStyleInvalid("Invalid value {} for style {}".format(sub_props[sub_prop_name], sub_prop_name)))
         return sub_props
+
+    def keys(self):
+        return self.style.keys()
 
     def __getitem__(self, itemname):
         return self.style.get(itemname, None)

@@ -56,7 +56,9 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         self.symbols["visible"] = self.kind.visible
 
         style_hash = self.get_widget_instance_style_hash()
-        style_info = self.game_engine.global_style_settings.get_style(**style_hash)
+        style_info_hash = self.game_engine.global_style_settings.get_style(**style_hash)
+        print("{}".format(style_info_hash))
+        style_info = WidgetStyle(style_info_hash)
         self.get_widget_settings(style_info)
         self.get_inner_setting_values(screen_dims)
         # width, height = self.get_element_dimensions()
@@ -307,6 +309,9 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         # put Color objects into border/background color settings
         for color_property in color_property_list:
             color_name = self.style_settings[color_property]
+            if isinstance(color_name, color.Color):
+                self.style_values[color_property] = color_name
+                continue
             default_color = str(WidgetStyle.STYLE_CONSTRAINTS[color_property]["default"])
             color_string = color_name
             if color_name != "transparent":
@@ -349,7 +354,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         min_width = 1
         min_height = 1
         style_hash = self.get_widget_instance_style_hash()
-        style_info = self.game_engine.global_style_settings.get_style(**style_hash)
+        style_info = WidgetStyle(self.game_engine.global_style_settings.get_style(**style_hash))
         self.get_widget_settings(style_info)
         self.get_outer_setting_values(dummy_surface)
         min_outer_dims = self.calculate_outer_dimensions()
@@ -449,8 +454,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         if not self.visible:
             return
         style_hash = self.get_widget_instance_style_hash()
-        style_info = self.game_engine.global_style_settings.get_style(**style_hash)
         # self.debug("Find style {} in {} ..".format(style_hash, style_info))
+        style_info = WidgetStyle(self.game_engine.global_style_settings.get_style(**style_hash))
         self.get_widget_settings(style_info)
         # self.debug("Style settings: {}".format(self.style_settings))
         self.get_outer_setting_values(screen)

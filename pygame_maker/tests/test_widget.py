@@ -85,6 +85,9 @@ WidgetObjectType#1 {
 LabelWidgetObjectType {
     color: orange;
 }
+LabelWidgetObjectType#0 {
+    border: 1 solid red;
+}
 """
     GRID_COLOR = color.Color( (255,0,255) )
     GRID_START_X = 100
