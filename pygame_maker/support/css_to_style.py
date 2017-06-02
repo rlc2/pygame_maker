@@ -221,10 +221,24 @@ class ElementPrioritizerTable(object):
                 matched = (element.attr_val == attr_val)
             elif element.attr_type == "starts_with_word":
                 minfo = re.search("^{}\W".format(element.attr_val), attr_val)
-                matched = (minfo is not None)
+                if minfo is not None:
+                    matched = True
+                minfo = re.search("^{}$".format(element.attr_val), attr_val)
+                if minfo is not None:
+                    matched = True
             elif element.attr_type == "contains_word":
                 minfo = re.search("\W{}\W".format(element.attr_val), attr_val)
-                matched = (minfo is not None)
+                if minfo is not None:
+                    matched = True
+                minfo = re.search("^{}\W".format(element.attr_val), attr_val)
+                if minfo is not None:
+                    matched = True
+                minfo = re.search("\W{}$".format(element.attr_val), attr_val)
+                if minfo is not None:
+                    matched = True
+                minfo = re.search("^{}$".format(element.attr_val), attr_val)
+                if minfo is not None:
+                    matched = True
             elif element.attr_type == "starts_with":
                 matched = element.attr_val.startswith(attr_val)
             elif element.attr_type == "ends_with":
@@ -300,7 +314,7 @@ class ElementPrioritizerTable(object):
                 for attr_type_name in self.ATTR_SELECTOR_PRECEDENCE:
                     for element in self.element_table[prop][attr_type_name]:
                         if self.element_matched(element, list(prop), **kwargs):
-                            print("Matched {} (attr); using parameters {}".format(prop, element.parameters))
+                            # print("Matched {} (attr); using parameters {}".format(prop, element.parameters))
                             matched_element = element
                             matched_props = prop
                             break
@@ -338,7 +352,7 @@ class ElementPrioritizerTable(object):
         if specific_match is None:
             return style
         specific_params = specific_match.parameters
-        print("kwargs {}: specific style: {}".format(kwargs, specific_params))
+        # print("kwargs {}: specific style: {}".format(kwargs, specific_params))
         if all_props is not None and (len(all_props) > 1):
             for rvs_props in self.rvs_precedence:
                 # collect from least to most specific parameters
@@ -346,7 +360,7 @@ class ElementPrioritizerTable(object):
                     kwarg_hash = self.collect_hash_from_props(rvs_props, kwargs)
                     general_match, unused = self.priority_match(**kwarg_hash)
                     style.update(general_match.parameters)
-                    print("  kwargs {}: current style: {}".format(kwarg_hash, style))
+                    # print("  kwargs {}: current style: {}".format(kwarg_hash, style))
         style.update(specific_params)
         return style
 

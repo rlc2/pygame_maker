@@ -16,19 +16,51 @@ csslogger.setLevel(logging.INFO)
 
 def get_test_style():
     style_test = CSSStyleGenerator.get_css_style("""/* one identifier from each precedence entry */
-a { border: gray; }
-a.foo { border: blue; }
-a.foo:hover { border: green; }
-a:hover { border: brown; }
-a#bar { border: red; }
-a#bar:hover { border: orange; }
-a[target] { border: black; }
-a[target="_blank"] { border: pink; }
-[target] { border: peach; }
-.foo { border: turquoise; }
-.foo:hover { border: teal; }
-#bar { border: puce; }
-#bar:hover { border: white; }
+a {
+    color: blue;
+    border: gray;
+}
+a.foo {
+    text-align: center;
+    border: blue;
+}
+a.foo:hover {
+    border: green;
+}
+a:hover {
+    border: brown;
+}
+a#bar {
+    vertical-align: middle;
+    border: red;
+}
+a#bar:hover {
+    border: orange;
+}
+a[target] {
+    border: black;
+}
+a[target="_blank"] {
+    border: pink;
+}
+[target] {
+    padding: 10%;
+    border: peach;
+}
+.foo {
+    width: 50%;
+    border: turquoise;
+}
+.foo:hover {
+    border: teal;
+}
+#bar {
+    height: 100;
+    border: puce;
+}
+#bar:hover {
+    border: white;
+}
 """)
     return style_test
 
@@ -227,31 +259,31 @@ a[target="_blank"] { border: pink; }
     def test_055priority_test(self):
         style_test = get_test_style()
         check_style = style_test.get_style(element_type="a")
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_class="foo")
-        self.assertEqual({"border": ["turquoise"]}, check_style)
+        self.assertEqual({"border": ["turquoise"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_class="foo")
-        self.assertEqual({"border": ["blue"]}, check_style)
+        self.assertEqual({"border": ["blue"], "color": ["blue"], "width": ["50%"], "text-align":["center"]}, check_style)
         check_style = style_test.get_style(element_class="foo", pseudo_class="hover")
-        self.assertEqual({"border": ["teal"]}, check_style)
+        self.assertEqual({"border": ["teal"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="a", pseudo_class="hover")
-        self.assertEqual({"border": ["brown"]}, check_style)
+        self.assertEqual({"border": ["brown"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_class="foo", pseudo_class="hover")
-        self.assertEqual({"border": ["green"]}, check_style)
+        self.assertEqual({"border": ["green"], "color": ["blue"], "width": ["50%"], "text-align":["center"]}, check_style)
         check_style = style_test.get_style(element_id="bar")
-        self.assertEqual({"border": ["puce"]}, check_style)
+        self.assertEqual({"border": ["puce"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_id="bar")
-        self.assertEqual({"border": ["red"]}, check_style)
+        self.assertEqual({"border": ["red"], "color": ["blue"], "height": ["100"], "vertical-align": ["middle"]}, check_style)
         check_style = style_test.get_style(element_id="bar", pseudo_class="hover")
-        self.assertEqual({"border": ["white"]}, check_style)
+        self.assertEqual({"border": ["white"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_id="bar", pseudo_class="hover")
-        self.assertEqual({"border": ["orange"]}, check_style)
+        self.assertEqual({"border": ["orange"], "color": ["blue"], "height": ["100"], "vertical-align": ["middle"]}, check_style)
         check_style = style_test.get_style(attribute_dict={"target": ""})
-        self.assertEqual({"border": ["peach"]}, check_style)
+        self.assertEqual({"border": ["peach"], "padding": ["10%"]}, check_style)
         check_style = style_test.get_style(element_type="a", attribute_dict={"target": ""})
-        self.assertEqual({"border": ["black"]}, check_style)
+        self.assertEqual({"border": ["black"], "color": ["blue"], "padding": ["10%"]}, check_style)
         check_style = style_test.get_style(element_type="a", attribute_dict={"target": "_blank"})
-        self.assertEqual({"border": ["pink"]}, check_style)
+        self.assertEqual({"border": ["pink"], "color": ["blue"], "padding": ["10%"]}, check_style)
 
     def test_056mismatched_styles(self):
         style_test = get_test_style()
@@ -260,49 +292,49 @@ a[target="_blank"] { border: pink; }
         check_style = style_test.get_style(element_class="bar")
         self.assertEqual(len(check_style), 0)
         check_style = style_test.get_style(element_type="b", element_class="foo")
-        self.assertEqual({"border": ["turquoise"]}, check_style)
+        self.assertEqual({"border": ["turquoise"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_class="bar")
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_class="bar", pseudo_class="link")
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_class="foo", element_id="baz")
-        self.assertEqual({"border": ["turquoise"]}, check_style)
+        self.assertEqual({"border": ["turquoise"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_class="foo", pseudo_class="link")
-        self.assertEqual({"border": ["turquoise"]}, check_style)
+        self.assertEqual({"border": ["turquoise"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="b", element_class="foo", pseudo_class="hover")
-        self.assertEqual({"border": ["teal"]}, check_style)
+        self.assertEqual({"border": ["teal"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="b", element_class="foo", pseudo_class="link")
-        self.assertEqual({"border": ["turquoise"]}, check_style)
+        self.assertEqual({"border": ["turquoise"], "width": ["50%"]}, check_style)
         check_style = style_test.get_style(element_type="a", pseudo_class="link")
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_class="foo", pseudo_class="link")
-        self.assertEqual({"border": ["blue"]}, check_style)
+        self.assertEqual({"border": ["blue"], "color": ["blue"], "width": ["50%"], "text-align":["center"]}, check_style)
         check_style = style_test.get_style(element_id="baz")
         self.assertEqual(len(check_style), 0)
         check_style = style_test.get_style(element_type="a", element_id="baz")
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="b", element_id="bar")
-        self.assertEqual({"border": ["puce"]}, check_style)
+        self.assertEqual({"border": ["puce"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(element_id="bar", pseudo_class="link")
-        self.assertEqual({"border": ["puce"]}, check_style)
+        self.assertEqual({"border": ["puce"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_id="bar", pseudo_class="link")
-        self.assertEqual({"border": ["red"]}, check_style)
+        self.assertEqual({"border": ["red"], "color": ["blue"], "height": ["100"], "vertical-align": ["middle"]}, check_style)
         check_style = style_test.get_style(element_type="b", element_id="bar", pseudo_class="link")
-        self.assertEqual({"border": ["puce"]}, check_style)
+        self.assertEqual({"border": ["puce"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(element_type="a", element_id="baz", pseudo_class="hover")
-        self.assertEqual({"border": ["brown"]}, check_style)
+        self.assertEqual({"border": ["brown"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="b", element_id="bar", pseudo_class="hover")
-        self.assertEqual({"border": ["white"]}, check_style)
+        self.assertEqual({"border": ["white"], "height": ["100"]}, check_style)
         check_style = style_test.get_style(attribute_dict={"href": ""})
         self.assertEqual(len(check_style), 0)
         check_style = style_test.get_style(attribute_dict={"target": "foo"})
-        self.assertEqual({"border": ["peach"]}, check_style)
+        self.assertEqual({"border": ["peach"], "padding": ["10%"]}, check_style)
         check_style = style_test.get_style(element_type="b", attribute_dict={"target": ""})
-        self.assertEqual({"border": ["peach"]}, check_style)
+        self.assertEqual({"border": ["peach"], "padding": ["10%"]}, check_style)
         check_style = style_test.get_style(element_type="a", attribute_dict={"href": ""})
-        self.assertEqual({"border": ["gray"]}, check_style)
+        self.assertEqual({"border": ["gray"], "color": ["blue"]}, check_style)
         check_style = style_test.get_style(element_type="a", attribute_dict={"target": "foo"})
-        self.assertEqual({"border": ["black"]}, check_style)
+        self.assertEqual({"border": ["black"], "color": ["blue"], "padding": ["10%"]}, check_style)
 
 
 unittest.main()
