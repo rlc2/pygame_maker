@@ -67,8 +67,6 @@ class WidgetStyle(object):
         COMMON_PROPERTIES)
     BORDER_WIDTHS = ("medium", "thin", "thick") + COMMON_PROPERTIES
     BORDER_COLORS = ("transparent",)
-    HORIZONTAL_POSITIONS = ("left", "center", "right")
-    VERTICAL_POSITIONS = ("top", "center", "bottom")
     BACKGROUND_IMAGE_OPTIONS = ("none",) + COMMON_PROPERTIES
     BACKGROUND_ATTACHMENTS = ("scroll", "fixed", "local") + COMMON_PROPERTIES
     BACKGROUND_REPEAT_OPTIONS = ("repeat", "repeat-x", "repeat-y", "no-repeat") + COMMON_PROPERTIES
@@ -129,8 +127,6 @@ class WidgetStyle(object):
         "padding-right": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "padding-bottom": {"default": "0px", "valid_settings": LENGTH_RE_SET},
         "padding-left": {"default": "0px", "valid_settings": LENGTH_RE_SET},
-        "align": {"default": "left", "valid_settings": HORIZONTAL_POSITIONS},
-        "valign": {"default": "top", "valid_settings": VERTICAL_POSITIONS},
         "background-color": {"default": "transparent", "valid_settings": COLOR_CONSTRAINTS + list(BORDER_COLORS) + list(COMMON_PROPERTIES)},
         "background-resource": {"default": "none", "valid_settings": (BACKGROUND_RESOURCE_RE,) + BACKGROUND_IMAGE_OPTIONS},
         "background-repeat": {"default": "repeat", "valid_settings": BACKGROUND_REPEAT_OPTIONS},
@@ -355,4 +351,10 @@ class WidgetStyle(object):
                 self.style[itemname] = value
             else:
                 print("Warning: value '{}' is not valid for style entry '{}'".format(value, itemname))
+
+    def __repr__(self):
+        key_list = self.style.keys()
+        key_list.sort()
+        prop_info = ["'{}': '{}'".format(k, self.style[k]) for k in key_list]
+        return "{{{}}}".format(", ".join(prop_info))
 
