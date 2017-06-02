@@ -207,12 +207,12 @@ class TestWidget(unittest.TestCase):
     def test_055valid_horizontal_vertical(self):
         test_values = ("left", "center", "right")
         for val in test_values:
-            style = WidgetStyle({"align": val})
-            self.assertEqual(style.style["align"], val)
-        test_values = ("top", "center", "bottom")
+            style = WidgetStyle({"text-align": val})
+            self.assertEqual(style.style["text-align"], val)
+        test_values = ("top", "middle", "bottom")
         for val in test_values:
-            style = WidgetStyle({"valign": val})
-            self.assertEqual(style.style["valign"], val)
+            style = WidgetStyle({"vertical-align": val})
+            self.assertEqual(style.style["vertical-align"], val)
 
     def test_060valid_background_image_options(self):
         test_values = ("bkg_test_0", "none", "inherit", "initial")
