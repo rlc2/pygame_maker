@@ -144,8 +144,9 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             # settings passed in from object YAML or constructor override
             # default CSS
             setting = self.symbols[setting_name]
-        if setting_name in css_properties.keys():
-            check_setting = " ".join(css_properties[setting_name])
+        elif setting_name in css_properties.keys():
+            # check_setting = " ".join(css_properties[setting_name])
+            check_setting = css_properties[setting_name]
             # self.debug("check_setting: {}".format(check_setting))
             if check_setting != "initial":
                 if (WidgetStyle.compare_value_vs_constraint(setting_name, "inherit") and
@@ -309,9 +310,6 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         # put Color objects into border/background color settings
         for color_property in color_property_list:
             color_name = self.style_settings[color_property]
-            if isinstance(color_name, color.Color):
-                self.style_values[color_property] = color_name
-                continue
             default_color = str(WidgetStyle.STYLE_CONSTRAINTS[color_property]["default"])
             color_string = color_name
             if color_name != "transparent":
@@ -487,18 +485,18 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
 
 class LabelWidgetInstance(WidgetInstance):
-    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
-        "label": "",
-        "font": "",
-        "font_size": "initial",
-        "font_style": "initial",
-        "font_weight": "initial",
-        "text_decoration": "initial",
-        "text_transform": "initial",
-        "text_align": "initial",
-        "vertical_align": "initial",
-        "color": color.Color("black")
-    }
+#    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
+#        "label": "",
+#        "font": "",
+#        "font_size": "initial",
+#        "font_style": "initial",
+#        "font_weight": "initial",
+#        "text_decoration": "initial",
+#        "text_transform": "initial",
+#        "text_align": "initial",
+#        "vertical_align": "initial",
+#        "color": "black"
+#    }
     FONT_SIZE_CATEGORIES = {
         "small": 10,
         "medium": 14,
