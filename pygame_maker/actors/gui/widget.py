@@ -57,7 +57,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
         style_hash = self.get_widget_instance_style_hash()
         style_info_hash = self.game_engine.global_style_settings.get_style(**style_hash)
-        print("{}".format(style_info_hash))
+        # print("{}".format(style_info_hash))
         style_info = WidgetStyle(style_info_hash)
         self.get_widget_settings(style_info)
         self.get_inner_setting_values(screen_dims)

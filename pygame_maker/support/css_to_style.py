@@ -352,7 +352,7 @@ class ElementPrioritizerTable(object):
         if specific_match is None:
             return style
         specific_params = specific_match.parameters
-        print("kwargs {}: specific style: {}".format(kwargs, specific_params))
+        # print("kwargs {}: specific style: {}".format(kwargs, specific_params))
         if all_props is not None and (len(all_props) > 1):
             for rvs_props in self.rvs_precedence:
                 # collect from least to most specific parameters
@@ -361,7 +361,7 @@ class ElementPrioritizerTable(object):
                     general_match, unused = self.priority_match(**kwarg_hash)
                     if general_match is not None:
                         style.update(general_match.parameters)
-                        print("  kwargs {}: current style: {}".format(kwarg_hash, style))
+                        # print("  kwargs {}: current style: {}".format(kwarg_hash, style))
         style.update(specific_params)
         return style
 
