@@ -1,15 +1,14 @@
-#!/usr/bin/python -W all
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Widget types and instances.
+"""
 
-# pygame maker widgets
-
-import re
 import math
 import pygame
-from styles import WidgetStyle
+from pygame_maker.actors.gui.styles import WidgetStyle
 from .. import object_type
 from .. import simple_object_instance
 from pygame_maker.actions import action
@@ -19,10 +18,12 @@ import pygame_maker.support.coordinate as coord
 import pygame_maker.support.color as color
 
 
-# An object that can be substituted for a pygame Surface, for checking
-# width and height (helpful when calculating a minimum widget size without
-# having a surface to draw it on).
 class DummySurface(pygame.Rect):
+    """
+    An object that can be substituted for a pygame Surface, for checking width
+    and height (helpful when calculating a minimum widget size without having a
+    surface to draw it on).
+    """
     def get_width(self):
         return self.width
     def get_height(self):
@@ -30,6 +31,9 @@ class DummySurface(pygame.Rect):
 
 
 class WidgetInstance(simple_object_instance.SimpleObjectInstance):
+    """
+    Base class for an instance of any Widget type.
+    """
     INSTANCE_SYMBOLS = {
         "visible": 0,
         "widget_id": "",
@@ -44,8 +48,41 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     THIN_BORDER_WIDTH = 1
     MEDIUM_BORDER_WIDTH = 3
     THICK_BORDER_WIDTH = 5
+
+    @staticmethod
+    def get_integer_setting(setting, max_value):
+        """
+        Apply an integer setting value appropriately based on whether the
+        value supplied is signed, unsigned, an integer 'px' size (in pixels),
+        or a percentage of the given max_value.
+        """
+        value = 0
+        # self.debug("search '{}', which is type '{}'".format(setting, type(setting).__name__))
+        if not isinstance(setting, str):
+            # in case the value is already a number
+            return setting
+        num_minfo = WidgetStyle.NUMBER_RE.search(setting)
+        if num_minfo:
+            value = int(setting)
+        num_minfo = WidgetStyle.SIGNED_NUMBER_RE.search(setting)
+        if num_minfo:
+            value = int(setting)
+        px_minfo = WidgetStyle.PX_RE.search(setting)
+        if px_minfo:
+            value = int(px_minfo.group(1))
+        pc_minfo = WidgetStyle.PERCENT_RE.search(setting)
+        if pc_minfo:
+            perc = float(pc_minfo.group(1)) / 100.0
+            if perc > 1.0:
+                # WidgetStyle doesn't constrain the percentage; force
+                # maximum to 100%
+                perc = 1.0
+            value = int(math.floor(perc * max_value))
+        return value
+
     def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
-        simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_, settings, **kwargs)
+        simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_,
+                                                             settings, **kwargs)
         self.screen = screen
         self.screen_width = self.screen_dims[0]
         self.screen_height = self.screen_dims[1]
@@ -99,7 +136,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @hover.setter
     def hover(self, hover_on):
-        self.symbols["hover"] = (hover_on == True)
+        self.symbols["hover"] = (hover_on is True)
 
     @property
     def selected(self):
@@ -107,7 +144,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @selected.setter
     def selected(self, is_selected):
-        self.symbols["selected"] = (is_selected == True)
+        self.symbols["selected"] = (is_selected is True)
 
     @property
     def width(self):
@@ -137,7 +174,22 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return self.symbols["parent"]
 
     def get_style_setting(self, setting_name, css_properties, parent_settings):
-        self.debug("WidgetInstance.get_style_setting(setting_name={}, css_properties={}, parent_settings={})".format(setting_name, css_properties, parent_settings))
+        """
+        Given a setting's name, the CSS properties, and the widget's parent's
+        settings, determine its value.
+
+        If not found in the following places:
+
+        * the instance symbol table (I.E. in object YAML or passed into
+          constructor)
+        * CSS properties
+        * inherited parent settings
+
+        then use the default value.
+        """
+        self.debug("WidgetInstance.get_style_setting(" +
+                   "setting_name={}, css_properties={}, parent_settings={})".
+                   format(setting_name, css_properties, parent_settings))
         default_setting = WidgetStyle.get_style_entry_default(setting_name)
         setting = default_setting
         if setting_name in self.symbols.keys():
@@ -150,13 +202,24 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             # self.debug("check_setting: {}".format(check_setting))
             if check_setting != "initial":
                 if (WidgetStyle.compare_value_vs_constraint(setting_name, "inherit") and
-                                check_setting == "inherit" and self.parent is not None):
+                        check_setting == "inherit" and self.parent is not None):
                     setting = parent_settings[setting_name]
                 elif WidgetStyle.compare_value_vs_constraint(setting_name, check_setting):
                     setting = check_setting
         return setting
 
     def get_widget_settings(self, css_properties):
+        """
+        Collect all settings for the widget, using (in order of precedence):
+
+        1. values set in the constructor or in YAML properties
+        2. applicable CSS properties
+        3. values inherited from a parent widget
+
+        :param css_properties: Style settings found in the game engine based on
+            the widget's current properties (id, class name, etc.)
+        :type css_properties: WidgetStyle
+        """
         self.debug("WidgetInstance.get_style_settings(css_properties={})".format(css_properties))
         parent_settings = None
         if self.parent is not None and isinstance(self.parent, WidgetInstance):
@@ -166,34 +229,16 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         for setting_name in WidgetStyle.STYLE_CONSTRAINTS.keys():
             # self.debug("Get widget setting {} .. ".format(setting_name))
             self.style_settings[setting_name] = self.get_style_setting(setting_name, css_properties,
-                parent_settings)
-
-    def _get_integer_setting(self, setting, max_value):
-        value = 0
-        # self.debug("search '{}', which is type '{}'".format(setting, type(setting).__name__))
-        if not isinstance(setting, str):
-            # in case the value is already a number
-            return setting
-        num_minfo = WidgetStyle.NUMBER_RE.search(setting)
-        if num_minfo:
-            value = int(setting)
-        num_minfo = WidgetStyle.SIGNED_NUMBER_RE.search(setting)
-        if num_minfo:
-            value = int(setting)
-        px_minfo = WidgetStyle.PX_RE.search(setting)
-        if px_minfo:
-            value = int(px_minfo.group(1))
-        pc_minfo = WidgetStyle.PERCENT_RE.search(setting)
-        if pc_minfo:
-            perc = float(pc_minfo.group(1)) / 100.0
-            if perc > 1.0:
-                # WidgetStyle doesn't constrain the percentage; force
-                # maximum to 100% 
-                perc = 1.0
-            value = int(math.floor(perc * max_value))
-        return value
+                                                                       parent_settings)
 
     def get_outer_setting_values(self, surface):
+        """
+        Calculate values for all margin, border, and padding settings.
+
+        :param surface: A (sub-)surface that can report its own width and
+            height
+        :type surface: pygame.Surface or DummySurface
+        """
         self.debug("WidgetInstance.get_outer_setting_values(surface={})".format(surface))
         # CSS box model: calculate margin, border, and padding so the remaining
         # setting values can be calculated
@@ -201,11 +246,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         surface_height = surface.get_height()
         for setting_name in ("margin-left", "border-left-width", "padding-left",
                              "padding-right", "border-right-width", "margin-right"):
-            style_val = self._get_integer_setting(self.style_settings[setting_name], surface_width)
+            style_val = type(self).get_integer_setting(self.style_settings[setting_name],
+                                                       surface_width)
             self.style_values[setting_name] = style_val
         for setting_name in ("margin-top", "border-top-width", "padding-top",
                              "padding-bottom", "border-bottom-width", "margin-bottom"):
-            style_val = self._get_integer_setting(self.style_settings[setting_name], surface_height)
+            style_val = type(self).get_integer_setting(self.style_settings[setting_name],
+                                                       surface_height)
             self.style_values[setting_name] = style_val
 
     def calculate_outer_dimensions(self):
@@ -243,40 +290,46 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     def get_inner_setting_values(self, max_dimensions):
         self.debug("WidgetInstance.get_inner_setting_values(max_dimensions={})".format(max_dimensions))
         # calculate min-width, width, max-width values
-        min_width_val = self._get_integer_setting(self.style_settings["min-width"], max_dimensions[0])
+        min_width_val = type(self).get_integer_setting(self.style_settings["min-width"],
+                                                       max_dimensions[0])
         if min_width_val > max_dimensions[0]:
             min_width_val = max_dimensions[0]
         self.style_values["min-width"] = min_width_val
         max_width_val = max_dimensions[0]
         if self.style_settings["max-width"] != "none":
-            max_width_val = self._get_integer_setting(self.style_settings["max-width"], max_dimensions[0])
+            max_width_val = type(self).get_integer_setting(self.style_settings["max-width"],
+                                                           max_dimensions[0])
             if max_width_val > max_dimensions[0]:
                 max_width_val = max_dimensions[0]
             elif max_width_val < min_width_val:
                 max_width_val = min_width_val
             self.style_values["max-width"] = max_width_val
         if self.style_settings["width"] != "auto":
-            width_val = self._get_integer_setting(self.style_settings["width"], max_dimensions[0])
+            width_val = type(self).get_integer_setting(self.style_settings["width"],
+                                                       max_dimensions[0])
             if width_val < min_width_val:
                 width_val = min_width_val
             if width_val > max_width_val:
                 width_val = max_width_val
             self.style_values["width"] = width_val
         # calculate min-height, height, max-height values
-        min_height_val = self._get_integer_setting(self.style_settings["min-height"], max_dimensions[1])
+        min_height_val = type(self).get_integer_setting(self.style_settings["min-height"],
+                                                        max_dimensions[1])
         if min_height_val > max_dimensions[1]:
             min_height_val = max_dimensions[1]
         self.style_values["min-height"] = min_height_val
         max_height_val = max_dimensions[1]
         if self.style_settings["max-height"] != "none":
-            max_height_val = self._get_integer_setting(self.style_settings["max-height"], max_dimensions[1])
+            max_height_val = type(self).get_integer_setting(self.style_settings["max-height"],
+                                                            max_dimensions[1])
             if max_height_val > max_dimensions[1]:
                 max_height_val = max_dimensions[1]
             elif max_height_val < min_height_val:
                 max_height_val = min_height_val
             self.style_values["max-height"] = max_height_val
         if self.style_settings["height"] != "auto":
-            height_val = self._get_integer_setting(self.style_settings["height"], max_dimensions[1])
+            height_val = type(self).get_integer_setting(self.style_settings["height"],
+                                                        max_dimensions[1])
             if height_val < min_height_val:
                 height_val = min_height_val
             if height_val > max_height_val:
@@ -336,7 +389,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     def get_min_size(self):
         """
-        Calculate the widget's mininum width and height, and return them in a
+        Calculate the widget's minimum width and height, and return them in a
         tuple.
 
         Container widgets may call this to find out how much space it needs
@@ -362,7 +415,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             min_height = min_outer_dims[1]
         return (min_width, min_height)
 
-    def _calculate_top_outer_border_size(self):
+    def calculate_top_outer_border_size(self):
         top_size = self.style_values["margin-top"] + self.style_values["padding-top"]
         border_top_height = 0
         if (self.style_settings["border-top-style"] not in ("none", "hidden") and
@@ -373,7 +426,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         top_size += border_top_height
         return top_size
 
-    def _calculate_left_outer_border_size(self):
+    def calculate_left_outer_border_size(self):
         left_size = self.style_values["margin-left"] + self.style_values["padding-left"]
         border_left_width = 0
         if (self.style_settings["border-left-style"] not in ("none", "hidden") and
@@ -384,8 +437,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         left_size += border_left_width
         return left_size
 
-    def _draw_border_side(self, screen, side, outer_dims, element_dims, width, color, style):
-        draw_rect = pygame.Rect(0,0,0,0)
+    def draw_border_side(self, screen, side, outer_dims, element_dims, width, color, style):
+        draw_rect = pygame.Rect(0, 0, 0, 0)
         # thick lines are _centered_ on the calculated coordinates, so shift them by 1/2 their width
         thick_adj = 0
         if width > 1:
@@ -393,27 +446,35 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         if side == "top":
             draw_rect.left = self.style_values["margin-left"]
             draw_rect.top = self.style_values["margin-top"] + thick_adj
-            draw_rect.width = self.style_values["border-left-width"] + self.style_values["padding-left"] + element_dims[0] + self.style_values["padding-right"]
+            draw_rect.width = self.style_values["border-left-width"] + \
+                              self.style_values["padding-left"] + element_dims[0] + \
+                              self.style_values["padding-right"]
             if draw_rect.width <= 1:
                 return
         elif side == "bottom":
             draw_rect.left = self.style_values["margin-left"]
-            draw_rect.top = (self._calculate_top_outer_border_size() + element_dims[1] +
-                self.style_values["padding-bottom"] + thick_adj)
-            draw_rect.width = self.style_values["border-left-width"] + self.style_values["padding-left"] + element_dims[0] + self.style_values["padding-right"]
+            draw_rect.top = (self.calculate_top_outer_border_size() + element_dims[1] +
+                             self.style_values["padding-bottom"] + thick_adj)
+            draw_rect.width = self.style_values["border-left-width"] + \
+                              self.style_values["padding-left"] + element_dims[0] + \
+                              self.style_values["padding-right"]
             if draw_rect.width <= 1:
                 return
         elif side == "left":
             draw_rect.left = self.style_values["margin-left"] + thick_adj
             draw_rect.top = self.style_values["margin-top"]
-            draw_rect.height = self.style_values["border-top-width"] + self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
+            draw_rect.height = self.style_values["border-top-width"] + \
+                               self.style_values["padding-top"] + element_dims[1] + \
+                               self.style_values["padding-bottom"]
             if draw_rect.height <= 1:
                 return
         elif side == "right":
-            draw_rect.left = (self._calculate_left_outer_border_size() + element_dims[0] +
-                self.style_values["padding-right"] + thick_adj)
+            draw_rect.left = (self.calculate_left_outer_border_size() + element_dims[0] +
+                              self.style_values["padding-right"] + thick_adj)
             draw_rect.top = self.style_values["margin-top"]
-            draw_rect.height = self.style_values["border-top-width"] + self.style_values["padding-top"] + element_dims[1] + self.style_values["padding-bottom"]
+            draw_rect.height = self.style_values["border-top-width"] + \
+                               self.style_values["padding-top"] + element_dims[1] + \
+                               self.style_values["padding-bottom"]
             if draw_rect.height <= 1:
                 return
         start_coord = coord.Coordinate(draw_rect.left, draw_rect.top)
@@ -423,7 +484,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         drawing.draw_line(screen, start_coord, end_coord, width, color, style)
 
     def draw_border(self, screen, outer_dims):
-        self.debug("WidgetInstance.draw_border(screen={}, outer_dims={})".format(screen, outer_dims))
+        self.debug("WidgetInstance.draw_border(screen={}, outer_dims={})".
+                   format(screen, outer_dims))
         element_dims = self.get_element_dimensions()
         for side in ("top", "right", "bottom", "left"):
             border_width = self.style_values["border-{}-width".format(side)]
@@ -434,9 +496,11 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                 border_color = self.style_values["border-{}-color".format(side)]
             else:
                 continue
-            if border_style in ("none", "hidden") or (border_width < 1) or border_color == "transparent":
+            if border_style in ("none", "hidden") or (border_width < 1) or \
+                    (border_color == "transparent"):
                 continue
-            self._draw_border_side(screen, side, outer_dims, element_dims, border_width, border_color, border_style)
+            self.draw_border_side(screen, side, outer_dims, element_dims, border_width,
+                                  border_color, border_style)
 
     def draw(self, screen):
         """
@@ -448,7 +512,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         :param screen: A pygame surface upon which to draw the widget
         :type screen: :py:class:`pygame.Surface`
         """
-        self.debug("{} inst {}: WidgetInstance.draw(screen={})".format(self.kind.name, self.inst_id, screen))
+        self.debug("{} inst {}: WidgetInstance.draw(screen={})".
+                   format(self.kind.name, self.inst_id, screen))
         if not self.visible:
             return
         style_hash = self.get_widget_instance_style_hash()
@@ -504,7 +569,8 @@ class LabelWidgetInstance(WidgetInstance):
     }
 
     def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
-        super(LabelWidgetInstance, self).__init__(kind, screen, screen_dims, id_, settings, **kwargs)
+        super(LabelWidgetInstance, self).__init__(kind, screen, screen_dims, id_, settings,
+                                                  **kwargs)
         self.font_resource = None
         self.get_font_resource()
         self._font_point_size = 12
@@ -542,7 +608,8 @@ class LabelWidgetInstance(WidgetInstance):
 
     def get_font_resource(self):
         self.debug("LabelWidgetInstance.get_font_resource()")
-        if (len(self.font) == 0) or self.font not in self.kind.game_engine.resources['fonts'].keys():
+        if (len(self.font) == 0) or (self.font not in
+                                     self.kind.game_engine.resources['fonts'].keys()):
             # revert to a system font, if found
             if hasattr(self.kind.game_engine, 'system_font'):
                 self.font_resource = self.kind.game_engine.system_font
@@ -591,12 +658,12 @@ class LabelWidgetInstance(WidgetInstance):
         # apply horizontal, vertical alignment
         text_width, text_height = font_rndr.calc_render_size(self.label)
         top_left = coord.Coordinate(0, 0)
-        if (surf_width > text_width):
+        if surf_width > text_width:
             if self.style_settings["text-align"] == "center":
                 top_left.x = (surf_width / 2) - (text_width / 2)
             elif self.style_settings["text-align"] == "right":
                 top_left.x = surf_width - text_width
-        if (surf_height > text_height):
+        if surf_height > text_height:
             if self.style_settings["vertical-align"] == "middle":
                 top_left.y = (surf_height / 2) - (text_height / 2)
             elif self.style_settings["vertical-align"] == "bottom":
@@ -611,8 +678,8 @@ class LabelWidgetInstance(WidgetInstance):
         label_width, label_height = self.calc_label_size()
         if (label_width > 0) and (label_height > 0):
             subsurf_width, subsurf_height = self.get_element_dimensions()
-            subsurf_left = super(LabelWidgetInstance, self)._calculate_left_outer_border_size()
-            subsurf_top = super(LabelWidgetInstance, self)._calculate_top_outer_border_size()
+            subsurf_left = super(LabelWidgetInstance, self).calculate_left_outer_border_size()
+            subsurf_top = super(LabelWidgetInstance, self).calculate_top_outer_border_size()
             subsurf_rect = pygame.Rect(subsurf_left, subsurf_top, subsurf_width, subsurf_height)
             subsurf = screen.subsurface(subsurf_rect)
             self.draw_text(subsurf)
@@ -635,16 +702,17 @@ class WidgetObjectType(object_type.ObjectType):
 
     @classmethod
     def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
-        kwargs = super(WidgetObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
+        kwargs = super(WidgetObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml,
+                                                                       game_engine)
         kwargs.update({
             "visible": WidgetObjectType.DEFAULT_VISIBLE,
         })
         if "visible" in obj_yaml.keys():
-            kwargs["visible"] = (obj_yaml["visible"] == True)
-        for kw_entry, entry_type in self.WIDGET_SUBCLASS_KW_ENTRIES:
+            kwargs["visible"] = (obj_yaml["visible"] is True)
+        for kw_entry, entry_type in cls.WIDGET_SUBCLASS_KW_ENTRIES:
             if kw_entry in obj_yaml.keys():
                 if isinstance(entry_type, bool):
-                    kwargs[kw_entry] = (obj_yaml[kw_entry] == True)
+                    kwargs[kw_entry] = (obj_yaml[kw_entry] is True)
                 else:
                     # set the kwarg if the type conversion succeeds
                     try:
