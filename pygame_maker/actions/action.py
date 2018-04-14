@@ -350,7 +350,7 @@ common_parameters:
         # print("{}: get expression for field {}: {}".format(self, field_name,
         #    self.action_data[field_name]))
         if (not isinstance(self.action_data[field_name], str) or
-                (self.action_data[field_name][0] != '=')):
+                (len(self.action_data[field_name]) == 0) or (self.action_data[field_name][0] != '=')):
             # not an expression, so just return the contents of the field
             return self.action_data[field_name]
         exp_name = "{}_block".format(field_name)
@@ -996,6 +996,7 @@ class InfoAction(Action):
     :param kwargs: Set parameter values using named arguments
     """
     INFO_ACTIONS = [
+        "debug",
         "display_message",
         "show_game_info",
         "show_video"
@@ -1004,6 +1005,10 @@ class InfoAction(Action):
     HANDLED_ACTIONS = INFO_ACTIONS
     INFO_ACTION_DATA_YAML = """
 actions:
+    debug:
+        message:
+            type: str
+            default: ''
     display_message:
         message:
             type: str

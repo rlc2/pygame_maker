@@ -6,6 +6,7 @@
 
 # pygame maker simple object instances
 
+import re
 import math
 import pygame
 from pygame_maker.support import coordinate
@@ -22,6 +23,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
     access symbols, and supporting variable and code execution type actions.
     """
     INSTANCE_SYMBOLS = {}
+    # Regex for searching for symbol interpolations in debug strings
+    INTERPOLATION_REGEX = re.compile("{([^}]*)}")
 
     def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
         """
@@ -86,6 +89,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # self.symbols.dumpVars()
 
         self.action_name_to_method_map = {
+            'debug': self.print_debug,
             'execute_code': self.execute_code,
             'if_variable_value': self.if_variable_value,
             'set_variable_value': self.set_variable_value,
@@ -244,6 +248,45 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                     action['language_engine_handle']
                 )
                 del(action.runtime_data['language_engine_handle'])
+
+    def print_debug(self, action):
+        """
+        Handle the debug action.
+
+        Debug messages are treated as format strings, where {symbol} will be
+        replaced with actual values from the symbol tables.
+
+        :param action: The Action instance that triggered this method
+        :type action: :py:class:`~pygame_maker.actions.action.Action`
+        """
+        message_parts = ["DEBUG FROM {} instance #{}: ".format(self.kind.name, self.inst_id)]
+        if len(action['message']) > 0:
+            interpolations = self.INTERPOLATION_REGEX.findall(action['message'])
+            msg_str = action['message']
+            if len(interpolations) > 0:
+                inter_set = set(interpolations)
+                for inter in inter_set:
+                    inter_str = "{" + inter + "}"
+                    rstr = "UNKNOWN"
+                    if inter in self.symbols.keys():
+                        rstr = self.symbols[inter]
+                    elif inter in self.game_engine.language_engine.global_symbol_table.keys():
+                        rstr = self.game_engine.language_engine.global_symbol_table[inter]
+                    msg_str = re.sub(inter_str, str(rstr), msg_str)
+            message_parts.append(msg_str)
+        else:
+            message_parts.append("\nlocal symbol table entries:\n")
+            for lsym in self.symbols.keys():
+                if lsym in ["parent", "children", "position"]:
+                    continue
+                message_parts.append("\t{:30s} = {:30s}\n".format(lsym, str(self.symbols[lsym])))
+            message_parts.append("global symbol table entries:\n")
+            for gsym in self.game_engine.language_engine.global_symbol_table.keys():
+                if gsym in ["pi", "e"]:
+                    continue
+                message_parts.append("\t{:30s} = {:30s}\n".format(gsym,
+                                     str(self.game_engine.language_engine.global_symbol_table[gsym])))
+        print("".join(message_parts))
 
     def if_variable_value(self, action):
         """

@@ -531,7 +531,7 @@ class ObjectType(logging_object.LoggingObject):
                     self.debug("  Execute action {}".format(action))
                     # forward instance actions to instance(s)
                     action_targets = affected_instances
-                    if "apply_to" in action.action_data:
+                    if "apply_to" in action.action_data and affected_instances is None:
                         # follow any special apply_to rules in the action
                         action_targets = self.get_applied_instance_list(action, in_event)
                     elif affected_instances is None:
@@ -1096,8 +1096,8 @@ class CollideableObjectType(ManagerObjectType):
             #  of that object
             if action["apply_to"] in self.game_engine.resources['objects'].keys():
                 apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
-        elif isinstance(in_event, event.KeyEvent):
-            # keyboard events don't carry instance handles; just select all of
+        elif isinstance(in_event, event.KeyEvent) or isinstance(in_event, event.StepEvent):
+            # certain events don't carry instance handles; just select all of
             # them (user code can decide which instance is "active")
             apply_to_instances = self.group.sprites()
         return apply_to_instances
