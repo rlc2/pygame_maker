@@ -259,7 +259,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         self.debug("WidgetInstance.calculate_outer_dimensions()")
         # calculate width
         outer_width = (self.style_values["margin-left"] + self.style_values["margin-right"] +
-            self.style_values["padding-left"] + self.style_values["padding-right"])
+                       self.style_values["padding-left"] + self.style_values["padding-right"])
         border_left_width = 0
         if self.style_settings["border-left-style"] not in ("none", "hidden"):
             border_left_width = self.style_values["border-left-width"]
@@ -273,7 +273,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         outer_width += border_left_width + border_right_width
         # calculate height
         outer_height = (self.style_values["margin-top"] + self.style_values["margin-bottom"] +
-            self.style_values["padding-top"] + self.style_values["padding-bottom"])
+                        self.style_values["padding-top"] + self.style_values["padding-bottom"])
         border_top_height = 0
         if self.style_settings["border-top-style"] not in ("none", "hidden"):
             border_top_height = self.style_values["border-top-width"]
@@ -288,7 +288,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (outer_width, outer_height)
 
     def get_inner_setting_values(self, max_dimensions):
-        self.debug("WidgetInstance.get_inner_setting_values(max_dimensions={})".format(max_dimensions))
+        self.debug("WidgetInstance.get_inner_setting_values(max_dimensions={})".
+                   format(max_dimensions))
         # calculate min-width, width, max-width values
         min_width_val = type(self).get_integer_setting(self.style_settings["min-width"],
                                                        max_dimensions[0])
@@ -358,8 +359,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     def get_color_values(self):
         self.debug("WidgetInstance.get_color_values()")
-        color_property_list = ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-                               "background-color", "color"]
+        color_property_list = ["border-top-color", "border-right-color", "border-bottom-color",
+                               "border-left-color", "background-color", "color"]
         # put Color objects into border/background color settings
         for color_property in color_property_list:
             color_name = self.style_settings[color_property]
@@ -373,7 +374,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                     elif len(color_name) == 5:
                         color_string = "#0{}0{}0{}0{}".format(*color_name[1:5])
                     elif len(color_name) == 6:
-                        str_ary = [color_name[idx] for idx in range(1,4)]
+                        str_ary = [color_name[idx] for idx in range(1, 4)]
                         str_ary.append(color_name[4:])
                         color_string = "#0{}0{}0{}{}".format(*str_ary)
                     elif len(color_name) == 8:
@@ -401,7 +402,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         """
         self.debug("WidgetInstance.get_min_size()")
         # create a surface such that 1% is a minimum of 1 pixel
-        dummy_surface = DummySurface(0,0,100,100)
+        dummy_surface = DummySurface(0, 0, 100, 100)
         min_width = 1
         min_height = 1
         style_hash = self.get_widget_instance_style_hash()
@@ -437,12 +438,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         left_size += border_left_width
         return left_size
 
-    def draw_border_side(self, screen, side, outer_dims, element_dims, width, color, style):
+    def draw_border_side(self, screen, side, element_dims, bwidth, bcolor, style):
         draw_rect = pygame.Rect(0, 0, 0, 0)
-        # thick lines are _centered_ on the calculated coordinates, so shift them by 1/2 their width
+        # thick lines are _centered_ on the calculated coordinates, so shift
+        #  them by 1/2 their width
         thick_adj = 0
-        if width > 1:
-            thick_adj = int(math.floor((width-1) / 2))
+        if bwidth > 1:
+            thick_adj = int(math.floor((bwidth-1) / 2))
         if side == "top":
             draw_rect.left = self.style_values["margin-left"]
             draw_rect.top = self.style_values["margin-top"] + thick_adj
@@ -481,7 +483,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         end_coord = coord.Coordinate(draw_rect.right, draw_rect.bottom)
         # self.debug("Draw {} border from {} to {}, width {}, color {}, style {}".format(
         #     side, start_coord, end_coord, width, color, style))
-        drawing.draw_line(screen, start_coord, end_coord, width, color, style)
+        drawing.draw_line(screen, start_coord, end_coord, bwidth, bcolor, style)
 
     def draw_border(self, screen, outer_dims):
         self.debug("WidgetInstance.draw_border(screen={}, outer_dims={})".
@@ -499,8 +501,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             if border_style in ("none", "hidden") or (border_width < 1) or \
                     (border_color == "transparent"):
                 continue
-            self.draw_border_side(screen, side, outer_dims, element_dims, border_width,
-                                  border_color, border_style)
+            self.draw_border_side(screen, side, element_dims, border_width, border_color,
+                                  border_style)
 
     def draw(self, screen):
         """
@@ -746,9 +748,11 @@ class WidgetObjectType(object_type.ObjectType):
             :py:meth:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance.__init__`
         :type instance_properties: dict
         """
-        self.debug("WidgetObjectType.make_new_instance(screen={}, instance_properties={})".format(screen, instance_properties))
+        self.debug("WidgetObjectType.make_new_instance(screen={}, instance_properties={})".
+                   format(screen, instance_properties))
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = self.WIDGET_INSTANCE_TYPE(self, screen, screen_dims, self._id, instance_properties)
+        new_instance = self.WIDGET_INSTANCE_TYPE(self, screen, screen_dims, self._id,
+                                                 instance_properties)
         self.instance_list.append(new_instance)
 
     def update(self):
