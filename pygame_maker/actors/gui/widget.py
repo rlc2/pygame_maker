@@ -25,8 +25,10 @@ class DummySurface(pygame.Rect):
     surface to draw it on).
     """
     def get_width(self):
+        """Return the surface's width"""
         return self.width
     def get_height(self):
+        """Return the surface's height"""
         return self.height
 
 
@@ -43,7 +45,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     }
     # WidgetInstance subclasses set this dict to add additional symbols with
     # default values
-    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
+    WIDGET_INSTANCE_SUBCLASS_SYMS = {
     }
     THIN_BORDER_WIDTH = 1
     MEDIUM_BORDER_WIDTH = 3
@@ -52,7 +54,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     @staticmethod
     def get_integer_setting(setting, max_value):
         """
-        Apply an integer setting value appropriately based on whether the
+        Convert an integer setting value appropriately based on whether the
         value supplied is signed, unsigned, an integer 'px' size (in pixels),
         or a percentage of the given max_value.
         """
@@ -80,6 +82,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             value = int(math.floor(perc * max_value))
         return value
 
+#pylint: disable-msg=too-many-arguments
     def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
         simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_,
                                                              settings, **kwargs)
@@ -101,12 +104,14 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         # width, height = self.get_element_dimensions()
         # self.symbols["width"] = width
         # self.symbols["height"] = height
-        for subclass_sym in self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS.keys():
+        for subclass_sym in self.WIDGET_INSTANCE_SUBCLASS_SYMS.keys():
             if subclass_sym not in self.symbols.keys():
-                self.symbols[subclass_sym] = self.WIDGET_INSTANCE_SUBCLASS_SYMBOLS[subclass_sym]
+                self.symbols[subclass_sym] = self.WIDGET_INSTANCE_SUBCLASS_SYMS[subclass_sym]
+#pylint: enable-msg=too-many-arguments
 
     @property
     def visible(self):
+        """Get and set visibility of widget instance"""
         return self.symbols["visible"]
 
     @visible.setter
@@ -116,6 +121,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def widget_id(self):
+        """Get and set widget's id"""
         return self.symbols["widget_id"]
 
     @widget_id.setter
@@ -124,6 +130,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def widget_class(self):
+        """Get and set widget's class"""
         return self.symbols["widget_class"]
 
     @widget_class.setter
@@ -132,6 +139,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def hover(self):
+        """Get and set hover state"""
         return int(self.symbols["hover"])
 
     @hover.setter
@@ -140,6 +148,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def selected(self):
+        """Get and set selected state"""
         return int(self.symbols["selected"])
 
     @selected.setter
@@ -148,6 +157,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def width(self):
+        """Get and set widget's width"""
         if "width" in self.symbols.keys():
             return self.symbols["width"]
         else:
@@ -161,6 +171,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def height(self):
+        """Get and set widget's height"""
         return self.symbols["height"]
 
     @height.setter
@@ -171,6 +182,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
     @property
     def parent(self):
+        """Get widget's parent"""
         return self.symbols["parent"]
 
     def get_style_setting(self, setting_name, css_properties, parent_settings):
@@ -256,6 +268,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             self.style_values[setting_name] = style_val
 
     def calculate_outer_dimensions(self):
+        """
+        Produce a tuple of (width, height) for the size of the space
+        surrounding the widget (margins, borders, and padding).
+        """
         self.debug("WidgetInstance.calculate_outer_dimensions()")
         # calculate width
         outer_width = (self.style_values["margin-left"] + self.style_values["margin-right"] +
@@ -288,6 +304,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (outer_width, outer_height)
 
     def get_inner_setting_values(self, max_dimensions):
+        """
+        Calculate min-width, width, max-width, min-height, height, and max-
+        height settings.
+        """
         self.debug("WidgetInstance.get_inner_setting_values(max_dimensions={})".
                    format(max_dimensions))
         # calculate min-width, width, max-width values
@@ -358,6 +378,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         return (element_width, element_height)
 
     def get_color_values(self):
+        """
+        Wrap color properties in color.Color objects, performing string
+        conversions as needed (CSS color formats are more flexible).
+        """
         self.debug("WidgetInstance.get_color_values()")
         color_property_list = ["border-top-color", "border-right-color", "border-bottom-color",
                                "border-left-color", "background-color", "color"]
@@ -416,7 +440,11 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             min_height = min_outer_dims[1]
         return (min_width, min_height)
 
-    def calculate_top_outer_border_size(self):
+    def calculate_top_outer_size(self):
+        """
+        Return the height of the area above the widget contents (margin +
+        border width + padding).
+        """
         top_size = self.style_values["margin-top"] + self.style_values["padding-top"]
         border_top_height = 0
         if (self.style_settings["border-top-style"] not in ("none", "hidden") and
@@ -427,7 +455,11 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         top_size += border_top_height
         return top_size
 
-    def calculate_left_outer_border_size(self):
+    def calculate_left_outer_size(self):
+        """
+        Return the width of the area left of the widget contents (margin +
+        border width + padding).
+        """
         left_size = self.style_values["margin-left"] + self.style_values["padding-left"]
         border_left_width = 0
         if (self.style_settings["border-left-style"] not in ("none", "hidden") and
@@ -438,7 +470,12 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         left_size += border_left_width
         return left_size
 
+#pylint: disable-msg=too-many-arguments
     def draw_border_side(self, screen, side, element_dims, bwidth, bcolor, style):
+        """
+        Draw one side of the widget's border, honoring margin, padding and
+        border styles.
+        """
         draw_rect = pygame.Rect(0, 0, 0, 0)
         # thick lines are _centered_ on the calculated coordinates, so shift
         #  them by 1/2 their width
@@ -455,7 +492,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                 return
         elif side == "bottom":
             draw_rect.left = self.style_values["margin-left"]
-            draw_rect.top = (self.calculate_top_outer_border_size() + element_dims[1] +
+            draw_rect.top = (self.calculate_top_outer_size() + element_dims[1] +
                              self.style_values["padding-bottom"] + thick_adj)
             draw_rect.width = self.style_values["border-left-width"] + \
                               self.style_values["padding-left"] + element_dims[0] + \
@@ -471,7 +508,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             if draw_rect.height <= 1:
                 return
         elif side == "right":
-            draw_rect.left = (self.calculate_left_outer_border_size() + element_dims[0] +
+            draw_rect.left = (self.calculate_left_outer_size() + element_dims[0] +
                               self.style_values["padding-right"] + thick_adj)
             draw_rect.top = self.style_values["margin-top"]
             draw_rect.height = self.style_values["border-top-width"] + \
@@ -484,8 +521,13 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         # self.debug("Draw {} border from {} to {}, width {}, color {}, style {}".format(
         #     side, start_coord, end_coord, width, color, style))
         drawing.draw_line(screen, start_coord, end_coord, bwidth, bcolor, style)
+#pylint: enable-msg=too-many-arguments
 
     def draw_border(self, screen, outer_dims):
+        """
+        Draw widget borders, honoring margin, border, and padding style
+        settings.
+        """
         self.debug("WidgetInstance.draw_border(screen={}, outer_dims={})".
                    format(screen, outer_dims))
         element_dims = self.get_element_dimensions()
@@ -552,7 +594,10 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
 
 
 class LabelWidgetInstance(WidgetInstance):
-#    WIDGET_INSTANCE_SUBCLASS_SYMBOLS = {
+    """
+    Wrap label widget instances.
+    """
+#    WIDGET_INSTANCE_SUBCLASS_SYMS = {
 #        "label": "",
 #        "font": "",
 #        "font_size": "initial",
@@ -570,15 +615,18 @@ class LabelWidgetInstance(WidgetInstance):
         "large": 20
     }
 
+#pylint: disable-msg=too-many-arguments
     def __init__(self, kind, screen, screen_dims, id_, settings=None, **kwargs):
         super(LabelWidgetInstance, self).__init__(kind, screen, screen_dims, id_, settings,
                                                   **kwargs)
         self.font_resource = None
         self.get_font_resource()
         self._font_point_size = 12
+#pylint: enable-msg=too-many-arguments
 
     @property
     def label(self):
+        """Get and set the label text"""
         return self.symbols["label"]
 
     @label.setter
@@ -590,6 +638,7 @@ class LabelWidgetInstance(WidgetInstance):
 
     @property
     def font(self):
+        """Get and set the font resource's name"""
         return self.symbols["font"]
 
     @font.setter
@@ -602,6 +651,7 @@ class LabelWidgetInstance(WidgetInstance):
 
     @property
     def font_size(self):
+        """Get and set the font size"""
         return self.symbols["font_size"]
 
     @font_size.setter
@@ -609,6 +659,10 @@ class LabelWidgetInstance(WidgetInstance):
         self.symbols["font_size"] = new_size
 
     def get_font_resource(self):
+        """
+        Set the font_resource attribute to a game engine font that matches
+        the font name, or a system font if the name isn't known.
+        """
         self.debug("LabelWidgetInstance.get_font_resource()")
         if (len(self.font) == 0) or (self.font not in
                                      self.kind.game_engine.resources['fonts'].keys()):
@@ -621,6 +675,10 @@ class LabelWidgetInstance(WidgetInstance):
             self.font_resource = self.kind.game_engine.resources['fonts'][self.font]
 
     def calc_label_size(self):
+        """
+        Return a tuple of (width, height) for the size of the label text
+        rendered using the correct font.
+        """
         self.debug("LabelWidgetInstance.calc_label_size()")
         if self.font_resource is None:
             return (0, 0)
@@ -630,6 +688,10 @@ class LabelWidgetInstance(WidgetInstance):
         return font_rndr.calc_render_size(self.label)
 
     def get_min_size(self):
+        """
+        Return a tuple of (width, height) for the minimum area required by the
+        label text rendered using the correct font.
+        """
         self.debug("LabelWidgetInstance.get_min_size()")
         total_width, total_height = super(LabelWidgetInstance, self).get_min_size()
         text_width, text_height = self.calc_label_size()
@@ -638,6 +700,11 @@ class LabelWidgetInstance(WidgetInstance):
         return (total_width, total_height)
 
     def get_element_dimensions(self):
+        """
+        Return a tuple of (width, height) for the width and height of the
+        widget contents, applying any style settings that may be set for width
+        and/or height in CSS.
+        """
         self.debug("LabelWidgetInstance.get_element_dimensions()")
         element_width = self.style_values["min-width"]
         element_height = self.style_values["min-height"]
@@ -653,6 +720,11 @@ class LabelWidgetInstance(WidgetInstance):
         return (element_width, element_height)
 
     def draw_text(self, surface):
+        """
+        Render the label text to the given (sub-)surface.
+
+        Applies any horizontal or vertical alignment settings found in CSS.
+        """
         self.debug("LabelWidgetInstance.draw_text(surface={})".format(surface))
         surf_width = surface.get_width()
         surf_height = surface.get_height()
@@ -673,6 +745,11 @@ class LabelWidgetInstance(WidgetInstance):
         font_rndr.render_text(surface, top_left, self.label, self.style_values["color"])
 
     def draw(self, screen):
+        """
+        Call the base class draw() method to draw the borders around the
+        widget, then create a subsurface in the correct location within the
+        margins, borders, and padding areas and render the label text into it.
+        """
         self.debug("LabelWidgetInstance.draw(screen={})".format(screen))
         # draw any visible borders
         super(LabelWidgetInstance, self).draw(screen)
@@ -680,18 +757,17 @@ class LabelWidgetInstance(WidgetInstance):
         label_width, label_height = self.calc_label_size()
         if (label_width > 0) and (label_height > 0):
             subsurf_width, subsurf_height = self.get_element_dimensions()
-            subsurf_left = super(LabelWidgetInstance, self).calculate_left_outer_border_size()
-            subsurf_top = super(LabelWidgetInstance, self).calculate_top_outer_border_size()
+            subsurf_left = super(LabelWidgetInstance, self).calculate_left_outer_size()
+            subsurf_top = super(LabelWidgetInstance, self).calculate_top_outer_size()
             subsurf_rect = pygame.Rect(subsurf_left, subsurf_top, subsurf_width, subsurf_height)
             subsurf = screen.subsurface(subsurf_rect)
             self.draw_text(subsurf)
 
 
-class WidgetObjectTypeInvalid(Exception):
-    pass
-
-
 class WidgetObjectType(object_type.ObjectType):
+    """
+    Base class for all widget object types.
+    """
     DEFAULT_VISIBLE = False
 
     # subclasses set this to their own instance type
@@ -774,5 +850,6 @@ class WidgetObjectType(object_type.ObjectType):
                     inst.draw(inst.screen)
 
 class LabelWidgetObjectType(WidgetObjectType):
+    """Label widget type for displaying text"""
     WIDGET_INSTANCE_TYPE = LabelWidgetInstance
 

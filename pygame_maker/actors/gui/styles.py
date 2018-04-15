@@ -28,6 +28,10 @@ def split_regex_and_str_list(regex_and_str_list):
 
 
 class ShorthandStyleError(Exception):
+    """
+    Raised when values in a shorthand style were not recognized by the optional
+    value_check_method() in ShorthandStyle.
+    """
     pass
 
 
@@ -93,6 +97,9 @@ class ShorthandStyle(object):
 
 
 class WidgetStyleInvalid(Exception):
+    """
+    Raised by WidgetStyle methods when given invalid style values.
+    """
     pass
 
 
@@ -112,10 +119,10 @@ class WidgetStyle(object):
     BACKGROUND_POSITIONS = ("left top", "left center", "left bottom", "right top", "right center",
                             "right bottom", "center top", "center center", "center bottom", "left",
                             "center", "right", "top", "bottom") + COMMON_PROPERTIES
-    NUMBER_RE = re.compile("^\d+$")
-    SIGNED_NUMBER_RE = re.compile("^[-+]?\d+$")
-    PX_RE = re.compile("^(\d+)px$")
-    PERCENT_RE = re.compile("^(\d+)%$")
+    NUMBER_RE = re.compile(r"^\d+$")
+    SIGNED_NUMBER_RE = re.compile(r"^[-+]?\d+$")
+    PX_RE = re.compile(r"^(\d+)px$")
+    PERCENT_RE = re.compile(r"^(\d+)%$")
     #: Web color interpretation:
     #:   * #123: red = 1, green = 2, blue = 3, alpha = 0xff
     #:   * #1234: red = 1, green = 2, blue = 3, alpha = 4
@@ -125,7 +132,7 @@ class WidgetStyle(object):
     #:   * #12345678: red = 0x12, green = 0x34, blue = 0x56, alpha = 0x78
     WEB_COLOR_RE = re.compile("^#[0-9a-fA-F]{3,8}$")
     BACKGROUND_RESOURCE_RE = re.compile("^bkg_[0-9a-zA-Z_]+$")
-    BACKGROUND_POSITION_RE = re.compile("^\d+%?( \d+%?)?$")
+    BACKGROUND_POSITION_RE = re.compile(r"^\d+%?( \d+%?)?$")
     LENGTH_RE_SET = (
         NUMBER_RE,
         PX_RE,
@@ -218,23 +225,23 @@ class WidgetStyle(object):
         "font-size": {"default": "medium", "valid_settings": FONT_SIZES + LENGTH_RE_SET},
         "font": {"default": "", "valid_settings": ("",) + (FONTNAME_RE,)},
     }
-    BACKGROUND_POSITION_TRANSFORMATIONS = {
+    BACKGROUND_POSITION_TRANSFORMS = {
         re.compile("^((left)|(center)|(right))$"): "{group1} center",
         re.compile("^((top)|(bottom))$"): "center {group1}",
-        re.compile("^(\d+%?)$"): "{group1} 50%",
+        re.compile(r"^(\d+%?)$"): "{group1} 50%",
     }
     STYLE_TRANSFORMATIONS = {
-        "background-position": BACKGROUND_POSITION_TRANSFORMATIONS,
+        "background-position": BACKGROUND_POSITION_TRANSFORMS,
     }
     # Join together adjacent properties that match the given regex tuple lists
     # for the properties named as keys
     PROPERTY_JOIN_TABLE = {
         "background-position": ((re.compile("^((left)|(right)|(center))$"),
                                  re.compile("^((top)|(center)|(bottom))$")),
-                                (re.compile("\d+%?"), re.compile("\d+%?"))),
+                                (re.compile(r"\d+%?"), re.compile(r"\d+%?"))),
         "background": ((re.compile("^((left)|(right)|(center))$"),
                         re.compile("^((top)|(center)|(bottom))$")),
-                       (re.compile("\d+%?"), re.compile("\d+%?"))),
+                       (re.compile(r"\d+%?"), re.compile(r"\d+%?"))),
     }
     SHORTHAND_STYLES = None
 
