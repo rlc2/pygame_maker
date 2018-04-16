@@ -1,19 +1,20 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Pygame maker object instance module.
+"""
 
-# pygame maker object instance class
-
-import pygame
 import math
 import random
+import pygame
 import numpy as np
-import simple_object_instance
+from pygame_maker.actors.simple_object_instance import SimpleObjectInstance
+import pygame_maker.events.event as event
 
 
-def get_vector_xy_from_speed_direction(speed, direction):
+def get_vector_xy_from_velocity(speed, direction):
     """
     Return an x,y vector representing the given speed and angle of motion.
 
@@ -26,39 +27,39 @@ def get_vector_xy_from_speed_direction(speed, direction):
     """
     xval = speed * math.sin(direction / 180.0 * math.pi)
     yval = speed * -1 * math.cos(direction / 180.0 * math.pi)
-    xy = (xval, yval)
-    return np.array(xy)
+    xy_tuple = (xval, yval)
+    return np.array(xy_tuple)
 
 
-def get_speed_direction_from_xy(x, y):
+def get_velocity_from_xy(xcom, ycom):
     """
-    Return speed and direction of motion, given an x,y vector starting from 0,0
+    Return speed and direction of motion, given an x, y vector starting from
+    0, 0.
 
-    :param x: X component of the velocity.
-    :type x: float
-    :param y: Y component of the velocity.
-    :type y: float
+    :param xcom: X component of the velocity.
+    :type xcom: float
+    :param ycom: Y component of the velocity.
+    :type ycom: float
     :return: A tuple (speed, direction) representing the velocity
     :rtype: (float, float)
     """
-    speed = math.sqrt(x * x + y * y)
-    direction = direction_from_a_to_b(np.zeros(2), (x, y))
-    spdir = (speed, direction)
-    return spdir
+    speed = math.sqrt(xcom**2 + ycom**2)
+    direction = direction_from_a_to_b(np.zeros(2), (xcom, ycom))
+    return (speed, direction)
 
 
-def get_radius_angle_from_xy(x, y):
+def get_radius_angle_from_xy(xpos, ypos):
     """
     Return polar coordinates from an x, y coordinate.  This is the same
     operation as converting a velocity represented as x, y into speed,
     direction.
 
-    :param x: X coordinate
-    :param y: Y coordinate
+    :param xpos: X coordinate
+    :param ypos: Y coordinate
     :return: A tuple (radius, angle) representing the polar coordinate
     :rtype: (float, float)
     """
-    return get_speed_direction_from_xy(x, y)
+    return get_velocity_from_xy(xpos, ypos)
 
 
 def direction_from_a_to_b(pointa, pointb):
@@ -76,8 +77,7 @@ def direction_from_a_to_b(pointa, pointb):
     return (math.atan2(normal_vector[1], normal_vector[0]) * 180) / math.pi
 
 
-class ObjectInstance(simple_object_instance.SimpleObjectInstance,
-                     pygame.sprite.DirtySprite):
+class ObjectInstance(SimpleObjectInstance, pygame.sprite.DirtySprite):
     """
     Fits the purpose of pygame's Sprite class.
 
@@ -120,18 +120,18 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
     ``critical()`` methods.
     """
     INSTANCE_SYMBOLS = {
-            "visible": 0,
-            "speed": 0.0,
-            "direction": 0.0,
-            "gravity": 0.0,
-            "gravity_direction": 0.0,
-            "friction": 0.0,
-            "hspeed": 0.0,
-            "vspeed": 0.0,
-            "subimage_number": 0,
+        "visible": 0,
+        "speed": 0.0,
+        "direction": 0.0,
+        "gravity": 0.0,
+        "gravity_direction": 0.0,
+        "friction": 0.0,
+        "hspeed": 0.0,
+        "vspeed": 0.0,
+        "subimage_number": 0,
     }
 
-    def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
+    def __init__(self, kind, screen_dims, new_id, settings=None, **kwargs):
         """
         Initialize an ObjectInstance.
 
@@ -140,8 +140,8 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         :param screen_dims: Width, height of the surface this instance will be
             drawn to.  Allows boundary collisions to be detected.
         :type screen_dims: [int, int]
-        :param id\_: A unique integer ID for this instance
-        :type id\_: int
+        :param new_id: A unique integer ID for this instance
+        :type new_id: int
         :param settings: Used along with kwargs for settings attributes
             (allows attributes to be set that have a '.' character, which
             cannot be set in kwargs).  Known attributes are the same as for
@@ -170,7 +170,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         # Flag when methods shouldn't automatically update speed, direction
         self._delay_motion_updates = False
         # call the superclasses' __init__
-        simple_object_instance.SimpleObjectInstance.__init__(self, kind, screen_dims, id_, settings, **kwargs)
+        SimpleObjectInstance.__init__(self, kind, screen_dims, new_id, settings, **kwargs)
         pygame.sprite.DirtySprite.__init__(self)
         # set up the Sprite/DirtySprite expected parameters
         # default visibility comes from this instance's type
@@ -186,7 +186,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         #  instance
         self.layer = kind.depth
 
-        self.start_position = (self.position.x, self.position.y)
+        self.start_position = tuple(self.position)
         self.action_name_to_method_map.update({
             'set_velocity_compass': self.set_velocity_compass,
             'move_toward_point': self.move_toward_point,
@@ -197,6 +197,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def visible(self):
+        """Get and set the instance's visibility."""
         vis = self.symbols["visible"]
         # self.warn("{}{} visible is {}".format(self.kind.name, self.inst_id, vis))
         return vis
@@ -221,15 +222,17 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         # number of times math functions will be called for object instances
         # with constant velocity.
         self.debug("_change_motion_x_y():")
-        xadj, yadj = get_vector_xy_from_speed_direction(self.symbols['speed'],
-                                                        self.symbols['direction'])
+        xadj, yadj = get_vector_xy_from_velocity(self.symbols['speed'],
+                                                 self.symbols['direction'])
         # print("new inst {} xyadj {}, {}".format(self.inst_id, xadj, yadj))
         self.symbols['hspeed'] = xadj
         self.symbols['vspeed'] = yadj
 
     @property
     def direction(self):
-        """Direction of motion in degrees, between 0.0 and 360.0"""
+        """
+        Get and set direction of motion in degrees, between 0.0 and 360.0.
+        """
         return self.symbols['direction']
 
     @direction.setter
@@ -247,7 +250,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def speed(self):
-        """Speed of motion in pixels (or fractions) per frame"""
+        """Get and set speed of motion in pixels (or fractions) per frame."""
         return self.symbols['speed']
 
     @speed.setter
@@ -258,7 +261,9 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def friction(self):
-        """Magnitude of friction applied against motion each frame"""
+        """
+        Get and set magnitude of friction applied against motion each frame.
+        """
         return self.symbols['friction']
 
     @friction.setter
@@ -267,7 +272,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def gravity(self):
-        """Magnitude of gravity applied each frame"""
+        """Get and set magnitude of gravity applied each frame."""
         return self.symbols['gravity']
 
     @gravity.setter
@@ -276,7 +281,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def gravity_direction(self):
-        """Direction gravity pulls the instance in degrees"""
+        """Get and set direction gravity pulls the instance in degrees."""
         return self.symbols['gravity_direction']
 
     @gravity_direction.setter
@@ -292,35 +297,35 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
 
     @property
     def hspeed(self):
-        """Horizontal speed"""
+        """Get and set horizontal speed."""
         return self.symbols['hspeed']
 
     @hspeed.setter
     def hspeed(self, value):
         # skip setting motion x,y and hspeed, vspeed
         self._delay_motion_updates = True
-        self.speed, self.direction = get_speed_direction_from_xy(value,
-                                                                 self.vspeed)
+        self.speed, self.direction = get_velocity_from_xy(value,
+                                                          self.vspeed)
         self._delay_motion_updates = False
         self.symbols['hspeed'] = value
 
     @property
     def vspeed(self):
-        """Vertical speed"""
+        """Get and set vertical speed."""
         return self.symbols['vspeed']
 
     @vspeed.setter
     def vspeed(self, value):
         # skip setting motion x,y and hspeed, vspeed
         self._delay_motion_updates = True
-        self.speed, self.direction = get_speed_direction_from_xy(self.hspeed,
-                                                                 value)
+        self.speed, self.direction = get_velocity_from_xy(self.hspeed,
+                                                          value)
         self._delay_motion_updates = False
         self.symbols['vspeed'] = value
 
     @property
     def subimage_number(self):
-        """Current subimage number"""
+        """Get and set current subimage number."""
         return self.symbols['subimage_number']
 
     @subimage_number.setter
@@ -351,13 +356,12 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         update().
         """
         self.debug("update():")
-        inst_moved = False
         event_queued = None
         if self in self.kind.instance_delete_list:
             # save time detecting events for instances that have already been
             # destroyed this frame
             return
-        # child instances do not use any of the 'speed' parameters, since 
+        # child instances do not use any of the 'speed' parameters, since
         # they are placed relative to their parent instance
         if self.symbols["parent"] is None and self.speed > 0.0:
             self.position[0] += self.symbols['hspeed']
@@ -365,8 +369,8 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             self.rect.x = int(math.floor(self.position[0] + 0.5))
             self.rect.y = int(math.floor(self.position[1] + 0.5))
             event_queued = self._detect_boundary_events()
-            self.debug("  {} inst {} new position: {} ({})".format(self.kind.name,
-                                                                   self.inst_id, self.position, self.rect))
+            self.debug("  {} inst {} new position: {} ({})".
+                       format(self.kind.name, self.inst_id, self.position, self.rect))
         # ultimate parent will update all descendants
         if self.symbols["parent"] is None:
             event_names_queued = self._update_child_instances(event_queued)
@@ -398,34 +402,30 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         in_y_bounds = (((self.rect.y + self.rect.height) >= 0) and
                        (self.rect.y <= self.screen_dims[1]))
         if ((self.rect.x <= 0 <= (self.rect.x + self.rect.width)) or
-            (self.rect.x <= self.screen_dims[0] <=
-             (self.rect.x + self.rect.width)) and in_y_bounds):
+                (self.rect.x <= self.screen_dims[0] <=
+                 (self.rect.x + self.rect.width)) and in_y_bounds):
             # queue and handle boundary collision event
-            event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
-                                                                                  {"type": self.kind,
-                                                                                   "instance": self})
+            event_queued = event.OtherEvent("intersect_boundary", {"type": self.kind,
+                                                                   "instance": self})
             # print("inst {} hit x bound".format(self.inst_id))
         if ((self.rect.y <= 0 <= (self.rect.y + self.rect.height)) or
-            (self.rect.y <= self.screen_dims[1] <=
-             (self.rect.y + self.rect.width)) and in_x_bounds):
+                (self.rect.y <= self.screen_dims[1] <=
+                 (self.rect.y + self.rect.width)) and in_x_bounds):
             # queue and handle boundary collision event
             if event_queued is None:
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["intersect_boundary"]("intersect_boundary",
-                                                                                      {"type": self.kind,
-                                                                                       "instance": self})
+                event_queued = event.OtherEvent("intersect_boundary", {"type": self.kind,
+                                                                       "instance": self})
         # check for outside room
         if ((self.rect.x > self.screen_dims[0]) or
                 ((self.rect.x + self.rect.width) < 0)):
             if event_queued is None:
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
-                                                                                {"type": self.kind,
-                                                                                "instance": self})
+                event_queued = event.OtherEvent("outside_room", {"type": self.kind,
+                                                                 "instance": self})
         if ((self.rect.y > self.screen_dims[1]) or
                 ((self.rect.y + self.rect.height) < 0)):
             if event_queued is None:
-                event_queued = self.kind.EVENT_NAME_OBJECT_HASH["outside_room"]("outside_room",
-                                                                                {"type": self.kind,
-                                                                                 "instance": self})
+                event_queued = event.OtherEvent("outside_room", {"type": self.kind,
+                                                                 "instance": self})
         if event_queued is not None:
             self.game_engine.event_engine.queue_event(event_queued)
         return event_queued
@@ -434,24 +434,24 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         # update any child instances' positions based on this one's position
         event_names_queued = set()
         new_event = None
+        #pylint: disable=not-an-iterable
         for child_inst in self.symbols["children"]:
+            #pylint: enable=not-an-iterable
             # pass on parent events (if any)
             if parent_event_queued is not None:
                 new_event = None
                 if parent_event_queued.name == "outside_room":
                     ev_name = "parent_outside_room"
                     event_names_queued.add(ev_name)
-                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
-                                                                          {"type": child_inst.kind,
-                                                                          "instance": child_inst,
-                                                                          "parent_type": self.kind})
+                    new_event = event.OtherEvent(ev_name, {"type": child_inst.kind,
+                                                           "instance": child_inst,
+                                                           "parent_type": self.kind})
                 elif parent_event_queued.name == "intersect_boundary":
                     ev_name = "parent_intersect_boundary"
                     event_names_queued.add(ev_name)
-                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
-                                                                          {"type": child_inst.kind,
-                                                                          "instance": child_inst,
-                                                                          "parent_type": self.kind})
+                    new_event = event.OtherEvent(ev_name, {"type": child_inst.kind,
+                                                           "instance": child_inst,
+                                                           "parent_type": self.kind})
                 self.game_engine.event_engine.queue_event(new_event)
             # set child x and y relative to parent x and y
             child_inst.rect.x = self.rect.x + child_inst.position[0]
@@ -462,21 +462,20 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                 child_event_queued = child_inst._detect_boundary_events()
             if child_event_queued is not None:
                 event_names_queued.add(child_event_queued.name)
-                self.debug("bounds {} event in child {}".format(child_event_queued.name, child_inst))
+                self.debug("bounds {} event in child {}".
+                           format(child_event_queued.name, child_inst))
                 if child_event_queued.name == "outside_room":
                     ev_name = "child_outside_room"
                     event_names_queued.add(ev_name)
-                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
-                                                                          {"type": self.kind,
-                                                                          "instance": self,
-                                                                          "child_type": child_inst.kind})
+                    new_event = event.OtherEvent(ev_name, {"type": self.kind,
+                                                           "instance": self,
+                                                           "child_type": child_inst.kind})
                 elif child_event_queued.name == "intersect_boundary":
                     ev_name = "child_intersect_boundary"
                     event_names_queued.add(ev_name)
-                    new_event = self.kind.EVENT_NAME_OBJECT_HASH[ev_name](ev_name,
-                                                                          {"type": self.kind,
-                                                                          "instance": self,
-                                                                          "child_type": child_inst.kind})
+                    new_event = event.OtherEvent(ev_name, {"type": self.kind,
+                                                           "instance": self,
+                                                           "child_type": child_inst.kind})
                 self.game_engine.event_engine.queue_event(new_event)
             event_names_queued |= child_inst._update_child_instances(child_event_queued)
         return event_names_queued
@@ -499,7 +498,8 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
         Set the current subimage, source_rect, and collision mask (and possibly
         a radius)
         """
-        self.image, self.mask, self.source_rect, radius = self.kind.get_image(self.symbols["subimage_number"])
+        subimage_info = self.kind.get_image(self.symbols["subimage_number"])
+        self.image, self.mask, self.source_rect, radius = subimage_info
         if self.image is not None:
             self.debug("Setting subimage {}".format(self.symbols["subimage_number"]))
             image_rect = self.image.get_rect()
@@ -549,7 +549,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             elif dirs[new_dir] == "STOP":
                 # if stop was selected, set speed to zero
                 new_params['speed'] = 0
-        del(new_params["compass_directions"])
+        del new_params["compass_directions"]
         self._apply_kwargs(new_params)
 
     def move_toward_point(self, action):
@@ -585,7 +585,7 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             speed = action.action_data["horizontal_speed"]
             direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
             # horiz_vec has only x direction
-            horiz_vec = get_vector_xy_from_speed_direction(speed, direction)
+            horiz_vec = get_vector_xy_from_velocity(speed, direction)
             new_hspeed = horiz_vec[0]
             if relative:
                 new_hspeed += self.hspeed
@@ -607,27 +607,27 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
             speed = action.action_data["vertical_speed"]
             direction = action.COMPASS_DIRECTION_DEGREES[compass_name]
             # vert_vec has only y direction
-            vert_vec = get_vector_xy_from_speed_direction(speed, direction)
+            vert_vec = get_vector_xy_from_velocity(speed, direction)
             new_vspeed = vert_vec[1]
             if relative:
                 new_vspeed += self.vspeed
             self.vspeed = new_vspeed
 
-    def execute_action(self, action, event):
+    def execute_action(self, action, an_event):
         """
         Perform an action in an action sequence, in response to an event.
 
         :param action: The Action instance that triggered this method
         :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param event: The Event instance that triggered this method
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param an_event: The Event instance that triggered this method
+        :type an_event: :py:class:`~pygame_maker.events.event.Event`
         """
         # Apply any setting names that match property names found in the
         #  action_data.  For some actions, this is enough.
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
-        action_params, handled_action = simple_object_instance.SimpleObjectInstance.execute_action(self, action, event)
+        action_params, handled_action = SimpleObjectInstance.execute_action(self, action, an_event)
         # check for expressions that need to be executed
         if not handled_action:
             if action.name == "jump_to_start":
@@ -641,12 +641,12 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                 self.direction = 180.0 - self.direction
                 # self.debug("Reverse vdir {} to {}".format(old_dir, self.direction))
             elif action.name == "bounce_off_collider":
-                # self.debug("bounce event: {}".format(event))
-                if ((action_params['precision'] == 'imprecise') or ('normal' not in
-                                                                    event.event_params.keys())):
+                # self.debug("bounce event: {}".format(an_event))
+                if ((action_params['precision'] == 'imprecise') or
+                        ('normal' not in an_event.event_params.keys())):
                     self.direction = 180.0 + self.direction
                 else:
-                    norm = np.array(event['normal'])
+                    norm = np.array(an_event['normal'])
                     # print("Check normal {}".format(norm))
                     if abs(norm[0]) == abs(norm[1]):
                         self.direction = 180.0 + self.direction
@@ -657,11 +657,11 @@ class ObjectInstance(simple_object_instance.SimpleObjectInstance,
                         # Y component is greater; reverse Y
                         self.direction = 180.0 - self.direction
             else:
-                self.debug("  {} inst {} execute_action {} fell through..".format(self.kind.name,
-                                                                                  self.inst_id,
-                                                                                  action.name))
+                self.debug("  {} inst {} execute_action {} fell through..".
+                           format(self.kind.name, self.inst_id, action.name))
         self._apply_kwargs(action_params)
 
     def __repr__(self):
-        return "<{} {:03d} @ {} dir {} speed {}>".format(type(self).__name__,
-                                                         self.inst_id, self.position, self.direction, self.speed)
+        return ("<{} {:03d} @ {} dir {} speed {}>".
+                format(type(self).__name__, self.inst_id, self.position, self.direction,
+                       self.speed))

@@ -1,28 +1,31 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Pygame maker object type resource module.
+"""
 
-# pygame maker object resource
-
-import pygame
 import math
-import random
 import re
-import yaml
 import logging
+import pygame
+import yaml
 from pygame_maker.support import logging_object
-import simple_object_instance
-import object_instance
-import object_sprite
+import pygame_maker.actors.simple_object_instance as simple_object_instance
+import pygame_maker.actors.object_instance as object_instance
+import pygame_maker.actors.object_sprite as object_sprite
 from pygame_maker.events import event
 from pygame_maker.actions import action
 from pygame_maker.actions import action_sequence
-from pygame_maker.sounds import sound
 
 
 class ObjectTypeException(logging_object.LoggingException):
+    """
+    Raised when an ObjectType references an unknown sprite resource, or
+    unhandled event types are added to the event handler, or an event
+    handler was passed an invalid object.
+    """
     pass
 
 
@@ -83,19 +86,18 @@ def get_collision_normal(instance_a, instance_b):
     if overlap == 0:
         # no collision here..
         return None
-    nx = (instance_a.mask.overlap_area(instance_b.mask,
-                                       (offset[0]+1, offset[1])) -
-          instance_a.mask.overlap_area(instance_b.mask,
-                                       (offset[0]-1, offset[1])))
-    ny = (instance_a.mask.overlap_area(instance_b.mask,
-                                       (offset[0], offset[1] + 1)) -
-          instance_a.mask.overlap_area(instance_b.mask,
-                                       (offset[0], offset[1] - 1)))
-    if (nx == 0) and (ny == 0):
+    normx = (instance_a.mask.overlap_area(instance_b.mask,
+                                          (offset[0]+1, offset[1])) -
+             instance_a.mask.overlap_area(instance_b.mask,
+                                          (offset[0]-1, offset[1])))
+    normy = (instance_a.mask.overlap_area(instance_b.mask,
+                                          (offset[0], offset[1] + 1)) -
+             instance_a.mask.overlap_area(instance_b.mask,
+                                          (offset[0], offset[1] - 1)))
+    if (normx == 0) and (normy == 0):
         # can't get a normal when one object is inside another..
         return None
-    n = (nx, ny)
-    return n
+    return (normx, normy)
 
 
 def get_offset_between_instances(instance_a, instance_b):
@@ -133,18 +135,18 @@ def get_mask_overlap(instance_a, instance_b):
     return overlap
 
 
-def dot_product(v1, v2):
+def dot_product(vec1, vec2):
     """
     Calculate a dot product between 2 vectors.
 
-    :param v1: The first vector
-    :type v1: (float, float)
-    :param v2: The second vector
-    :type v2: (float, float)
+    :param vec1: The first vector
+    :type vec1: (float, float)
+    :param vec2: The second vector
+    :type vec2: (float, float)
     :return: The dot product
     :rtype: float
     """
-    return v1[0] * v2[0] + v1[1] * v2[1]
+    return vec1[0] * vec2[0] + vec1[1] * vec2[1]
 
 
 class ObjectType(logging_object.LoggingObject):
@@ -220,10 +222,11 @@ class ObjectType(logging_object.LoggingObject):
         if "events" in obj_yaml.keys():
             # print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
             for ev_seq in obj_yaml["events"]:
-                game_engine.debug("{}: create event sequence from '{}'".format(obj_name,
-                                                                               obj_yaml['events'][ev_seq]))
+                game_engine.debug("{}: create event sequence from '{}'".
+                                  format(obj_name, obj_yaml['events'][ev_seq]))
                 kwargs["event_action_sequences"][ev_seq] = \
-                    action_sequence.ActionSequence.load_sequence_from_yaml_obj(obj_yaml['events'][ev_seq])
+                    action_sequence.ActionSequence.load_sequence_from_yaml_obj(
+                        obj_yaml['events'][ev_seq])
                 game_engine.debug("Loaded sequence {}:".format(ev_seq))
                 if game_engine.logger.level <= logging.DEBUG:
                     kwargs["event_action_sequences"][ev_seq].pretty_print()
@@ -248,7 +251,7 @@ class ObjectType(logging_object.LoggingObject):
             # 'events' key contains event -> action sequence mappings
             obj_yaml = top_level[obj_name]
             kwargs = cls.gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
-            print("Creating new obj '{}' of type {}".format(obj_name, cls.__name__))
+            print "Creating new obj '{}' of type {}".format(obj_name, cls.__name__)
             new_cls = cls(obj_name, game_engine, **kwargs)
             new_object_list.append(new_cls)
         return new_object_list
@@ -336,7 +339,7 @@ class ObjectType(logging_object.LoggingObject):
         self.instance_delete_list = set()
         #: A mapping of event regexs to handler methods
         self.handler_table = {
-            re.compile("^alarm(\d{1,2})$"):     self.handle_alarm_event,
+            re.compile(r"^alarm(\d{1,2})$"):    self.handle_alarm_event,
             re.compile("^kb_(.*)$"):            self.handle_keyboard_event,
             re.compile("^mouse_(.*)$"):         self.handle_mouse_event,
             re.compile("^(parent_|child_)?collision_(.*)$"):     self.handle_collision_event,
@@ -354,7 +357,8 @@ class ObjectType(logging_object.LoggingObject):
             ev_dict = kwargs["event_action_sequences"]
             for ev_name in ev_dict:
                 if not isinstance(ev_dict[ev_name], action_sequence.ActionSequence):
-                    raise(ObjectTypeException("Event '{}' does not contain an ActionSequence", self.error))
+                    raise(ObjectTypeException("Event '{}' does not contain an ActionSequence",
+                                              self.error))
                 self[ev_name] = ev_dict[ev_name]
 
     def add_instance_to_delete_list(self, instance):
@@ -388,8 +392,8 @@ class ObjectType(logging_object.LoggingObject):
         :type instance_properties: dict
         """
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = simple_object_instance.SimpleObjectInstance(self,
-            screen_dims, self._id, instance_properties)
+        new_instance = simple_object_instance.SimpleObjectInstance(
+            self, screen_dims, self._id, instance_properties)
         self.instance_list.append(new_instance)
         return new_instance
 
@@ -411,9 +415,8 @@ class ObjectType(logging_object.LoggingObject):
         :param kwargs: Named settings can be passed in, in addition to
             the settings hash
         """
-        self.debug("create_instance(screen={}, settings={}, kwargs={}):".format(screen, settings, kwargs))
-        # print("Create new instance of {}".format(self))
-        # print("Create obj with args: '{}'".format(settings))
+        self.debug("create_instance(screen={}, settings={}, kwargs={}):".
+                   format(screen, settings, kwargs))
         self.info("  Create instance of {} with args {}, {}".format(self.name, settings, kwargs))
         instance_properties = {}
         if settings is not None:
@@ -425,21 +428,22 @@ class ObjectType(logging_object.LoggingObject):
             # just record the parent and connect the two instances once the
             # child instance has been created
             parent_inst = instance_properties["parent"]
-            del(instance_properties["parent"])
+            del instance_properties["parent"]
         new_instance = self.make_new_instance(screen, instance_properties)
         if parent_inst is not None:
             # connect parent and child instances
             new_instance.set_parent_instance(parent_inst)
         self._id += 1
         # queue and transmit the creation event for the new instance
-        self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create"]("create",
-                                                                                        {"type": self,
-                                                                                         "instance": new_instance}))
+        self.game_engine.event_engine.queue_event(
+            self.EVENT_NAME_OBJECT_HASH["create"]("create", {"type": self,
+                                                             "instance": new_instance}))
         self.game_engine.event_engine.transmit_event('create')
         if parent_inst is not None:
             # queue and transmit the create_child instance for the instance's parent
             self.game_engine.event_engine.queue_event(self.EVENT_NAME_OBJECT_HASH["create_child"](
-                "create_child", {"type": parent_inst.kind, "instance": parent_inst, "child_type": self}))
+                "create_child", {"type": parent_inst.kind, "instance": parent_inst,
+                                 "child_type": self}))
             self.game_engine.event_engine.transmit_event('create_child')
         return new_instance
 
@@ -452,6 +456,8 @@ class ObjectType(logging_object.LoggingObject):
         """
         return self.instance_list
 
+    #pylint: disable=no-self-use
+    #pylint: disable=unused-argument
     def collision_check(self, other_obj_types):
         """
         Override this method in subclasses that implement collision detection.
@@ -463,6 +469,8 @@ class ObjectType(logging_object.LoggingObject):
             empty list if none
         """
         return set()
+    #pylint: enable=unused-argument
+    #pylint: enable=no-self-use
 
     def update(self):
         """
@@ -485,7 +493,9 @@ class ObjectType(logging_object.LoggingObject):
         """
         pass
 
-    def get_applied_instance_list(self, action, in_event):
+    #pylint: disable=no-self-use
+    #pylint: disable=unused-argument
+    def get_applied_instance_list(self, an_action, in_event):
         """
         Return a list of the instances affected by the combination of an event
         and an action triggered by the event.  Meant to be overridden if needed
@@ -497,6 +507,8 @@ class ObjectType(logging_object.LoggingObject):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         return []
+    #pylint: enable=unused-argument
+    #pylint: enable=no-self-use
 
     def execute_action_sequence(self, in_event, targets=None):
         """
@@ -527,27 +539,29 @@ class ObjectType(logging_object.LoggingObject):
                 elif isinstance(in_event, event.KeyEvent):
                     # key events will be sent to all instances
                     affected_instances = self.get_instances()
-                for action in self.event_action_sequences[in_event.name].get_next_action():
-                    self.debug("  Execute action {}".format(action))
+                for an_action in self.event_action_sequences[in_event.name].get_next_action():
+                    self.debug("  Execute action {}".format(an_action))
                     # forward instance actions to instance(s)
                     action_targets = affected_instances
-                    if "apply_to" in action.action_data and affected_instances is None:
+                    if "apply_to" in an_action.action_data and affected_instances is None:
                         # follow any special apply_to rules in the action
-                        action_targets = self.get_applied_instance_list(action, in_event)
+                        action_targets = self.get_applied_instance_list(an_action, in_event)
                     elif affected_instances is None:
-                        self.debug("  call game engine execute_action for {}".format(action))
-                        self.game_engine.execute_action(action, in_event)
+                        self.debug("  call game engine execute_action for {}".format(an_action))
+                        self.game_engine.execute_action(an_action, in_event)
                         continue
-                    self.debug("apply {} to targets {}".format(action.name, action_targets))
+                    self.debug("apply {} to targets {}".format(an_action.name, action_targets))
                     for target in action_targets:
                         if target in self.instance_delete_list:
-                            self.info("Skipping about-to-be-destroyed instance {}".format(target.inst_id))
+                            self.info("Skipping about-to-be-destroyed instance {}".
+                                      format(target.inst_id))
                             continue
-                        if action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
-                            target.execute_action(action, in_event)
+                        if an_action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                            target.execute_action(an_action, in_event)
                         else:
-                            # the game engine additionally receives the target instance as a parameter
-                            self.game_engine.execute_action(action, in_event, target)
+                            # the game engine additionally receives the target
+                            #  instance as a parameter
+                            self.game_engine.execute_action(an_action, in_event, target)
 
     def handle_instance_event(self, in_event):
         """
@@ -606,7 +620,8 @@ class ObjectType(logging_object.LoggingObject):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_collision_event(in_event={}):".format(in_event))
-        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+        if ((in_event.event_params["type"] == self) and
+                (in_event.event_params["instance"] in self.group)):
             self.execute_action_sequence(in_event)
 
     def handle_step_event(self, in_event):
@@ -640,7 +655,8 @@ class ObjectType(logging_object.LoggingObject):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_create_event(in_event={}):".format(in_event))
-        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+        if ((in_event.event_params["type"] == self) and
+                (in_event.event_params["instance"] in self.group)):
             self.execute_action_sequence(in_event)
 
     def handle_destroy_event(self, in_event):
@@ -651,7 +667,8 @@ class ObjectType(logging_object.LoggingObject):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_destroy_event(in_event={}):".format(in_event))
-        if (in_event.event_params["type"] == self) and (in_event.event_params["instance"] in self.group):
+        if ((in_event.event_params["type"] == self) and
+                (in_event.event_params["instance"] in self.group)):
             self.execute_action_sequence(in_event)
 
     def _select_event_handler(self, event_name):
@@ -712,7 +729,7 @@ class ObjectType(logging_object.LoggingObject):
         """
         self.debug("__setitem__(itemname={}, val={}):".format(itemname, val))
         if not isinstance(itemname, str):
-            raise(KeyError("Event action sequence keys must be strings", self.error))
+            raise KeyError("Event action sequence keys must be strings", self.error)
         if not isinstance(val, action_sequence.ActionSequence):
             raise(ValueError("Supplied event action sequence is not an ActionSequence instance",
                              self.error))
@@ -723,8 +740,8 @@ class ObjectType(logging_object.LoggingObject):
             self.info("{}: Register handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.register_event_handler(itemname, new_handler)
         else:
-            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".format(itemname),
-                                      self.error))
+            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".
+                                      format(itemname), self.error))
 
     def __delitem__(self, itemname):
         """
@@ -740,10 +757,14 @@ class ObjectType(logging_object.LoggingObject):
             self.info("  {}: Unregister handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.unregister_event_handler(itemname, old_handler)
             # remove the event from the table
-            del(self.event_action_sequences[itemname])
+            del self.event_action_sequences[itemname]
 
 
 class ManagerObjectType(ObjectType):
+    """
+    Another name for the base ObjectType, to flag that the object type is meant
+    to manage game state.
+    """
     pass
 
 
@@ -790,7 +811,8 @@ class CollideableObjectType(ManagerObjectType):
 
     @classmethod
     def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
-        kwargs = super(CollideableObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
+        kwargs = super(CollideableObjectType, cls).gen_kwargs_from_yaml_obj(obj_name, obj_yaml,
+                                                                            game_engine)
         kwargs.update({
             "visible": CollideableObjectType.DEFAULT_VISIBLE,
             "solid": CollideableObjectType.DEFAULT_SOLID,
@@ -798,9 +820,9 @@ class CollideableObjectType(ManagerObjectType):
             "sprite": CollideableObjectType.DEFAULT_SPRITE_RESOURCE,
         })
         if "visible" in obj_yaml.keys():
-            kwargs["visible"] = (obj_yaml["visible"] == True)
+            kwargs["visible"] = (obj_yaml["visible"] is True)
         if "solid" in obj_yaml.keys():
-            kwargs["solid"] = (obj_yaml["solid"] == True)
+            kwargs["solid"] = (obj_yaml["solid"] is True)
         if "depth" in obj_yaml.keys():
             kwargs["depth"] = int(obj_yaml["depth"])
         if "sprite" in obj_yaml.keys():
@@ -840,26 +862,28 @@ class CollideableObjectType(ManagerObjectType):
         self["draw"] = action_sequence.ActionSequence()
         self["draw"].append_action(action.DrawAction("draw_self"))
         if kwargs:
-            for kw in kwargs:
-                if kw == "visible":
+            for kwarg in kwargs:
+                if kwarg == "visible":
                     self.visible = kwargs["visible"]
-                if kw == "solid":
-                    self.solid = (kwargs["solid"] == True)
-                if kw == "depth":
+                if kwarg == "solid":
+                    self.solid = (kwargs["solid"] is True)
+                if kwarg == "depth":
                     self.depth = int(kwargs["depth"])
-                if (kw == "sprite") and kwargs[kw]:
+                if (kwarg == "sprite") and kwargs[kwarg]:
                     if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
                         assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
                         if not isinstance(assigned_sprite, object_sprite.ObjectSprite):
-                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".format(kwargs["sprite"]),
-                                                      self.error))
+                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".
+                                                      format(kwargs["sprite"]), self.error))
                         self.sprite_resource = assigned_sprite
 
         # print("Finished setup of {}".format(self.name))
 
     @property
     def visible(self):
-        """Flag whether the ObjectType is to be drawn"""
+        """
+        Get and set the flag that determines whether the ObjectType will be drawn.
+        """
         return self._visible
 
     @visible.setter
@@ -913,16 +937,17 @@ class CollideableObjectType(ManagerObjectType):
                 self.info("  Queued 'image_loaded' event")
             # return an image (a copy of the subimage), a mask and possibly
             # radius from the sprite resource
-            sn = subimage_number
-            if subimage_number > self.sprite_resource.subimage_count:
-                self.warn("{}: An instance requested a subimage number ({}) out of range (max {})".format(
-                          self.name, subimage_number, self.sprite_resource.subimage_count))
+            snum = subimage_number
+            if subimage_number > self.sprite_resource.subimage_info["count"]:
+                self.warn("{}: An instance requested a subimage number ({}) out of range (max {})".
+                          format(self.name, subimage_number,
+                                 self.sprite_resource.subimage_info["count"]))
                 # select the last subimage (counting from 0)
-                sn = self.sprite_resource.subimage_count - 1
-            image = self.sprite_resource.subimages[sn].copy()
-            mask = self.sprite_resource.subimage_masks[sn]
-            bounding_box = self.sprite_resource.subimage_bounding_box_rects[sn]
-            radius = self.sprite_resource.subimage_radii[sn]
+                snum = self.sprite_resource.subimage_info["count"] - 1
+            image = self.sprite_resource.subimages[snum].copy()
+            mask = self.sprite_resource.subimage_info["masks"][snum]
+            bounding_box = self.sprite_resource.subimage_info["bbox_rects"][snum]
+            radius = self.sprite_resource.subimage_info["radii"][snum]
             return image, mask, bounding_box, radius
         else:
             return None, None, None, None
@@ -934,7 +959,9 @@ class CollideableObjectType(ManagerObjectType):
         :return: A list of all instances
         :rtype: list
         """
+        #pylint: disable=no-member
         return self.group.sprites()
+        #pylint: enable=no-member
 
     def collision_check(self, other_obj_types):
         """
@@ -956,16 +983,13 @@ class CollideableObjectType(ManagerObjectType):
             if (len(self.group) == 1) and self.name == other_obj.name:
                 # skip self collision detection if there's only one sprite
                 continue
-            collision_map = pygame.sprite.groupcollide(self.group,
-                                                       other_obj.group, False, False,
-                                                       collided=sprite_collision_test)
+            collision_map = pygame.sprite.groupcollide(
+                self.group, other_obj.group, False, False, collided=sprite_collision_test)
             for collider in collision_map.keys():
                 collision_normal = None
                 for other_inst in collision_map[collider]:
                     overlap = get_mask_overlap(collider, other_inst)
-                    # print("Solid collision overlap: {}".format(overlap))
                     collision_normal = get_collision_normal(collider, other_inst)
-                    # print("Collision normal: {}".format(collision_normal))
                     # in the event of a collision with a solid object (i.e.
                     #  stationary), kick the sprite outside of the other
                     #  object's collision mask
@@ -974,18 +998,15 @@ class CollideableObjectType(ManagerObjectType):
                         distance = 0
                         if divisor != 0:
                             distance = (float(overlap) / divisor + 0.5)
-                        # print("Distance: {}, divisor {}".format(distance, divisor))
                         adj_x = math.floor(distance * collision_normal[0] + 0.5)
                         adj_y = math.floor(distance * collision_normal[1] + 0.5)
-                        # print("Moving obj {}, {}".format(adj_x, adj_y))
                         collider.position.x += adj_x
                         collider.position.y += adj_y
                 collision_name = "collision_{}".format(other_obj.name)
                 if collision_name not in collision_types_queued:
                     collision_types_queued.add(collision_name)
-                self.debug("{} inst {}: Queue collision {}".format(self.name,
-                                                                   collider.inst_id,
-                                                                   collision_name))
+                self.debug("{} inst {}: Queue collision {}".
+                           format(self.name, collider.inst_id, collision_name))
                 collision_event_info = {
                     "type": self, "instance": collider,
                     "others": collision_map[collider]
@@ -1031,7 +1052,9 @@ class CollideableObjectType(ManagerObjectType):
         """
         self.debug("update():")
         if len(self.group) > 0:
+            #pylint: disable=no-member
             self.group.update()
+            #pylint: enable=no-member
         # after all instances update(), check the delete list to see which
         #  ones should be removed and remove them
         if len(self.instance_delete_list) > 0:
@@ -1047,19 +1070,24 @@ class CollideableObjectType(ManagerObjectType):
         """
         self.debug("draw():")
         if (len(self.group) > 0) and self.visible:
-            for action in self.event_action_sequences["draw"].get_next_action():
-                if action.name == "draw_self":
-                    # The normal, default action: each object instance draws its sprite
+            for an_action in self.event_action_sequences["draw"].get_next_action():
+                if an_action.name == "draw_self":
+                    # The normal, default action: each object instance draws
+                    #  its sprite
+                    #pylint: disable=no-member
                     self.group.draw(self.game_engine.draw_surface)
+                    #pylint: enable=no-member
 
     def make_new_instance(self, screen, settings=None, **kwargs):
         screen_dims = (screen.get_width(), screen.get_height())
-        new_instance = object_instance.ObjectInstance(self, screen_dims,
-            self._id, settings, **kwargs)
+        new_instance = object_instance.ObjectInstance(
+            self, screen_dims, self._id, settings, **kwargs)
+        #pylint: disable=no-member
         self.group.add(new_instance)
+        #pylint: enable=no-member
         return new_instance
 
-    def get_applied_instance_list(self, action, in_event):
+    def get_applied_instance_list(self, an_action, in_event):
         """
         For actions with "apply_to" parameters, return a list of the
         object instances affected.
@@ -1072,34 +1100,38 @@ class CollideableObjectType(ManagerObjectType):
         "create" type actions, "self" instead refers to the object type to be
         created.
 
-        :param action: The action with an "apply_to" field
-        :type action: :py:class:`~pygame_maker.actions.action.Action`
+        :param an_action: The action with an "apply_to" field
+        :type an_action: :py:class:`~pygame_maker.actions.action.Action`
         :param in_event: The received event
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         :return: A list of instances affected by the event that the action
             will apply to
         :rtype: list
         """
-        self.debug("get_applied_instance_list(action={}, in_event={}):".format(action, in_event))
+        self.debug("get_applied_instance_list(an_action={}, in_event={}):".
+                   format(an_action, in_event))
         apply_to_instances = []
-        if (('instance' in in_event.event_params) and 
+        if (('instance' in in_event.event_params) and
                 (in_event.event_params['instance'] in self.group)):
             apply_to_instances = [in_event['instance']]
-        if 'apply_to' not in action.action_data:
+        if 'apply_to' not in an_action.action_data:
             return apply_to_instances
-        if action["apply_to"] == "other":
+        if an_action["apply_to"] == "other":
             if 'others' in in_event:
                 # "others" are part of a collision event
                 apply_to_instances = in_event['others']
-        elif action["apply_to"] != "self":
+        elif an_action["apply_to"] != "self":
             # applies to an object type; this means apply it to all instances
             #  of that object
-            if action["apply_to"] in self.game_engine.resources['objects'].keys():
-                apply_to_instances = list(self.game_engine.resources['objects'][action["apply_to"]].group)
+            if an_action["apply_to"] in self.game_engine.resources['objects'].keys():
+                apply_to_instances = list(
+                    self.game_engine.resources['objects'][an_action["apply_to"]].group)
         elif isinstance(in_event, event.KeyEvent) or isinstance(in_event, event.StepEvent):
             # certain events don't carry instance handles; just select all of
             # them (user code can decide which instance is "active")
+            #pylint: disable=no-member
             apply_to_instances = self.group.sprites()
+            #pylint: enable=no-member
         return apply_to_instances
 
     def handle_instance_event(self, in_event):
@@ -1131,7 +1163,9 @@ class CollideableObjectType(ManagerObjectType):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         super(CollideableObjectType, self).handle_mouse_event(in_event)
+        #pylint: disable=no-member
         clicked = self.group.get_sprites_at(in_event['position'])
+        #pylint: enable=no-member
         if len(clicked) > 0:
             self.execute_action_sequence(in_event, clicked)
 

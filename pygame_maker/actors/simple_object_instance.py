@@ -1,14 +1,15 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# pygame maker simple object instances
+Pygame maker simple object instances
+"""
 
 import re
 import math
 import pygame
+import pygame_maker.events.event as event
 from pygame_maker.support import coordinate
 from pygame_maker.support import logging_object
 from pygame_maker.logic.language_engine import SymbolTable
@@ -26,7 +27,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
     # Regex for searching for symbol interpolations in debug strings
     INTERPOLATION_REGEX = re.compile("{([^}]*)}")
 
-    def __init__(self, kind, screen_dims, id_, settings=None, **kwargs):
+    def __init__(self, kind, screen_dims, new_id, settings=None, **kwargs):
         """
         Initialize a SimpleObjectInstance.
 
@@ -35,8 +36,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         :param screen_dims: Width, height of the surface this instance will be
             drawn to.  Allows boundary collisions to be detected.
         :type screen_dims: [int, int]
-        :param id\_: A unique integer ID for this instance
-        :type id\_: int
+        :param new_id: A unique integer ID for this instance
+        :type new_id: int
         :param settings: Used along with kwargs for settings attributes
             (allows attributes to be set that have a '.' character, which
             cannot be set in kwargs).  Known attributes are the same as for
@@ -53,7 +54,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # call base class init
         super(SimpleObjectInstance, self).__init__(type(self).__name__)
         #: Name the instance based on the ObjectType's name and the ID
-        self.name = "{}{}".format(kind.name, id_)
+        self.name = "{}{}".format(kind.name, new_id)
         #: The ObjectType this SimpleObjectInstance belongs to
         self.kind = kind
         #: Keep a handle to the game engine for handling certain actions
@@ -61,7 +62,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         #: Keep track of the screen boundaries for collision detection
         self.screen_dims = list(screen_dims[0:2])
         #: Unique ID for this SimpleObjectInstance
-        self.inst_id = id_
+        self.inst_id = new_id
         # rect for storing the instance's position
         self.rect = pygame.Rect(0, 0, 0, 0)
         # Symbols tracked by ObjectInstances
@@ -69,8 +70,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             "parent": None,
             "children": [],
             "position": coordinate.Coordinate(0, 0,
-                                   self._update_position_x,
-                                   self._update_position_y)
+                                              self._update_position_x,
+                                              self._update_position_y)
         }
         #: Subclasses override this class variable to add their known symbols
         self._symbols.update(self.INSTANCE_SYMBOLS)
@@ -101,20 +102,26 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # Automatically called when the X coordinate of the position changes
         self.debug("_update_position_x():")
         self._round_position_x_to_rect_x()
+        #pylint: disable=no-member
         self.symbols['position.x'] = self.position.x
+        #pylint: enable=no-member
 
     def _update_position_y(self):
         # Automatically called when the Y coordinate of the position changes
         self.debug("_update_position_y():")
         self._round_position_y_to_rect_y()
+        #pylint: disable=no-member
         self.symbols['position.y'] = self.position.y
+        #pylint: enable=no-member
 
     def _round_position_x_to_rect_x(self):
         # Called when the x coordinate of the position changes, to round
         # the floating-point value to the nearest integer and place it
         # in rect.x for the draw() method.
         self.debug("_round_position_x_to_rect_x():")
+        #pylint: disable=no-member
         self.rect.x = math.floor(self.position.x + 0.5)
+        #pylint: enable=no-member
 
     def _round_position_y_to_rect_y(self):
         # _round_position_y_to_rect_y():
@@ -122,26 +129,27 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         #  the floating-point value to the nearest integer and place it
         #  in rect.y for the draw() method.
         self.debug("_round_position_y_to_rect_y():")
+        #pylint: disable=no-member
         self.rect.y = math.floor(self.position.y + 0.5)
+        #pylint: enable=no-member
 
     @property
     def code_block_id(self):
-        # Return a unique code block id
+        """Return a unique code block id."""
         self._code_block_id += 1
         return self._code_block_id
 
     @property
     def position(self):
-        """Position of this instance.  Set a new position using an x, y list"""
+        """Position of this instance.  Set a new position using an x, y list."""
         return self.symbols['position']
 
     @position.setter
-    def position(self, value):
-        if len(value) >= 2:
-            self.debug("Set {}'s position to {}".format(self.name, value))
-            my_pos = self.position
-            my_pos.x = value[0]
-            my_pos.y = value[1]
+    def position(self, new_coord):
+        if len(new_coord) >= 2:
+            self.debug("Set {}'s position to {}".format(self.name, new_coord))
+            self.symbols['position'].x = new_coord[0]
+            self.symbols['position'].y = new_coord[1]
 
     def _apply_kwargs(self, kwargs):
         # Apply the kwargs dict mappings to the instance's properties.
@@ -232,8 +240,10 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                 self.game_engine.language_engine.register_code_block(
                     instance_handle_name, action.action_data['code']
                 )
-            local_symbols = SymbolTable(self.symbols, lambda s, v: self._symbol_change_callback(s, v))
-            # future: allow references to this instance in user code (E.G. set as parent, add as child instance)
+            local_symbols = SymbolTable(self.symbols,
+                                        lambda s, v: self._symbol_change_callback(s, v))
+            # future: allow references to this instance in user code (E.G. set
+            #  as parent, add as child instance).
             local_symbols.set_constant("self", self)
             self.debug("{} inst {} syms before code block: {}".format(self.kind.name,
                                                                       self.inst_id,
@@ -247,7 +257,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                 self.game_engine.language_engine.unregister_code_block(
                     action['language_engine_handle']
                 )
-                del(action.runtime_data['language_engine_handle'])
+                del action.runtime_data['language_engine_handle']
 
     def print_debug(self, action):
         """
@@ -284,9 +294,9 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             for gsym in self.game_engine.language_engine.global_symbol_table.keys():
                 if gsym in ["pi", "e"]:
                     continue
-                message_parts.append("\t{:30s} = {:30s}\n".format(gsym,
-                                     str(self.game_engine.language_engine.global_symbol_table[gsym])))
-        print("".join(message_parts))
+                symname = str(self.game_engine.language_engine.global_symbol_table[gsym])
+                message_parts.append("\t{:30s} = {:30s}\n".format(gsym, symname))
+        print "".join(message_parts)
 
     def if_variable_value(self, action):
         """
@@ -325,10 +335,10 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             test_result = (var_val >= test_val)
         if action['test'] == "greater_than":
             test_result = (var_val > test_val)
-        self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name,
-                                                            self.inst_id, action['variable'], action['test'],
-                                                            test_val,
-                                                            test_result))
+        self.debug("  {} inst {}: if {} {} {} is {}".format(self.kind.name, self.inst_id,
+                                                            action['variable'],
+                                                            action['test'],
+                                                            test_val, test_result))
         # update the action's action_result attribute, so that the
         # action sequence can choose the right conditional path
         action.action_result = test_result
@@ -341,9 +351,10 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         self.debug("set_variable_value(action={}):".format(action))
+        gsymtable = self.game_engine.language_engine.global_symbol_table
         if action['is_global']:
             value_result = action.get_parameter_expression_result('value',
-                                                                  self.game_engine.language_engine.global_symbol_table,
+                                                                  gsymtable,
                                                                   self.game_engine.language_engine)
             self.debug("  {} inst {}: set global var {} to {}".format(self.kind.name,
                                                                       self.inst_id,
@@ -351,8 +362,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                                                                       value_result))
             self.game_engine.language_engine.global_symbol_table[action['variable']] = value_result
         else:
-            value_result = action.get_parameter_expression_result('value',
-                                                                  self.symbols, self.game_engine.language_engine)
+            value_result = action.get_parameter_expression_result('value', self.symbols,
+                                                                  self.game_engine.language_engine)
             self.debug("  {} inst {}: set local var '{}' to {}".format(self.kind.name,
                                                                        self.inst_id,
                                                                        action['variable'],
@@ -361,15 +372,16 @@ class SimpleObjectInstance(logging_object.LoggingObject):
 
     def set_parent_instance(self, parent):
         """
-            Set or replace this instance's parent, for forwarding 'child'
-            events
+        Set or replace this instance's parent, for forwarding 'child' events.
         """
         if not isinstance(parent, SimpleObjectInstance):
             self.warn("set_parent_instance() passed non-instance '{}'".format(parent))
             return
         # if this instance already has a parent, remove it from the parent's child instances
         if self.symbols["parent"] is not None:
+            #pylint: disable=no-member
             self.symbols["parent"].remove_child_instance(self)
+            #pylint: enable=no-member
         # add this instance as a child of the new parent
         parent.add_child_instance(self)
         self.symbols["parent"] = parent
@@ -385,8 +397,12 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             self.warn("add_child_instance() passed non-instance '{}'".format(child))
             return
         self.debug("add_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
+        #pylint: disable=unsupported-membership-test
         if child not in self.symbols["children"]:
+            #pylint: enable=unsupported-membership-test
+            #pylint: disable=no-member
             self.symbols["children"].append(child)
+            #pylint: enable=no-member
         else:
             self.info("add_child_instance() called with already existing child instance")
 
@@ -398,9 +414,14 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         if not isinstance(child, SimpleObjectInstance):
             self.warn("add_child_instance() passed non-instance '{}'".format(child))
             return
-        self.debug("remove_child_instance(child={} inst {}):".format(child.kind.name, child.inst_id))
+        self.debug("remove_child_instance(child={} inst {}):".
+                   format(child.kind.name, child.inst_id))
+        #pylint: disable=unsupported-membership-test
         if child in self.symbols["children"]:
+            #pylint: enable=unsupported-membership-test
+            #pylint: disable=no-member
             self.symbols["children"].remove(child)
+            #pylint: enable=no-member
         else:
             self.info("remove_child_instance() called with non-existent child instance")
 
@@ -415,11 +436,13 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         """
         self.debug("destroy_object(action={}):".format(action))
         self.game_engine.event_engine.queue_event(
-            self.kind.EVENT_NAME_OBJECT_HASH["destroy"]("destroy", {"type": self.kind, "instance": self})
+            event.ObjectStateEvent("destroy", {"type": self.kind, "instance": self})
         )
         if len(self.symbols["children"]) > 0:
             # destroy all child instances
+            #pylint: disable=not-an-iterable
             for child_instance in self.symbols["children"]:
+                #pylint: enable=not-an-iterable
                 # no need to queue destroy_child events for ourself..
                 child_instance.remove_parent_instance()
                 child_instance.destroy_object(action, True)
@@ -427,26 +450,29 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         if self.symbols["parent"] is not None:
             parent = self.symbols["parent"]
             # queue destroy_child event to parent instance
-            self.game_engine.event_engine.queue_event(
-                self.kind.EVENT_NAME_OBJECT_HASH["destroy_child"](
-                    "destroy_child", {"type": parent.kind, "instance": parent, "child_type": self.kind}
-                )
-            )
+            #pylint: disable=no-member
+            new_ev = event.ObjectStateEvent("destroy_child", {"type": parent.kind,
+                                                              "instance": parent,
+                                                              "child_type": self.kind})
+            #pylint: enable=no-member
+            self.game_engine.event_engine.queue_event(new_ev)
+            #pylint: disable=no-member
             parent.remove_child_instance(self)
+            #pylint: enable=no-member
             self.game_engine.event_engine.transmit_event("destroy_child")
         if not no_destroy_event:
             # only transmit the event once; child instances can skip this
             self.game_engine.event_engine.transmit_event("destroy")
         self.kind.add_instance_to_delete_list(self)
 
-    def execute_action(self, action, event):
+    def execute_action(self, action, an_event):
         """
         Perform an action in an action sequence, in response to an event.
 
         :param action: The Action instance that triggered this method
         :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param event: The Event instance that triggered this method
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param an_event: The Event instance that triggered this method
+        :type an_event: :py:class:`~pygame_maker.events.event.Event`
         :return: A tuple containing the action parameters (``apply_to`` will
             be filtered out), and True/False based on whether the action was
             handled here in the base class or not.
@@ -457,7 +483,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # common exceptions:
         #  apply_to: assumed to have directed the action to this instance
         #  relative: add to instead of replace property settings
-        self.debug("execute_action(action={}, event={}):".format(action, event))
+        self.debug("execute_action(action={}, an_event={}):".format(action, an_event))
         action_params = {}
         handled_action = False
         # check for expressions that need to be executed

@@ -1,16 +1,16 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# implement pygame_maker sprite resource (not the same as a pygame Sprite;
-#  this is closer to a pygame.image)
+implement pygame_maker sprite resource (not the same as a pygame Sprite;
+ this is closer to a pygame.image)
+"""
 
 import re
-import pygame
 import os.path
 import math
+import pygame
 import yaml
 
 
@@ -36,19 +36,116 @@ def mask_from_surface(surface, threshold=127):
     mask = pygame.mask.Mask(surface.get_size())
     key = surface.get_colorkey()
     if key:
-        for y in range(surface.get_height()):
-            for x in range(surface.get_width()):
-                if surface.get_at((x, y)) != key:
-                    mask.set_at((x, y), 1)
+        for row in range(surface.get_height()):
+            for col in range(surface.get_width()):
+                if surface.get_at((col, row)) != key:
+                    mask.set_at((col, row), 1)
     else:
-        for y in range(surface.get_height()):
-            for x in range(surface.get_width()):
-                if surface.get_at((x, y))[3] > threshold:
-                    mask.set_at((x, y), 1)
+        for row in range(surface.get_height()):
+            for col in range(surface.get_width()):
+                if surface.get_at((col, row))[3] > threshold:
+                    mask.set_at((col, row), 1)
     return mask
+
+def create_rectangle_mask(orig_rect):
+    """
+    Create a rectangular mask that covers the opaque pixels of an object.
+
+    Normally, collisions between objects with collision_type "rectangle"
+    will use the rectangle collision test, which only needs the rect
+    attribute.  The mask is created in the event this object collides with
+    an object that has a different collision_type, in which case the
+    objects fall back to using a mask collision test.  The assumption is
+    that the user wants a simple collision model, so the mask is made from
+    the rect attribute, instead of creating an exact mask from the opaque
+    pixels in the image.
+
+    :param orig_rect: The Rect from the image
+    :type orig_rect: :py:class:`pygame.Rect`
+    :return: A new mask
+    :rtype: :py:class:`pygame.mask.Mask`
+    """
+    mask = pygame.mask.Mask((orig_rect.width, orig_rect.height))
+    mask.fill()
+    return mask
+
+def create_disk_mask(orig_rect, radius):
+    """
+    Create a circular mask that covers the opaque pixels of an object.
+
+    Normally, collisions between objects with collision_type "disk" will
+    use the circle collision test, which only needs the radius attribute.
+    The mask is created in the event this object collides with an object
+    that has a different collision_type, in which case the objects fall
+    back to using a mask collision test.  The assumption is that the user
+    wants a simple collision model, so the mask is made from a circle of
+    the right radius, instead of creating an exact mask from the opaque
+    pixels in the image.
+
+    :param orig_rect: The Rect from the image
+    :type orig_rect: :py:class:`pygame.Rect`
+    :param radius: The radius of the disk mask
+    :type radius: int
+    """
+    # create a disk mask with a radius sufficient to cover the
+    #  opaque pixels
+    # NOTE: collisions with objects that have a different collision type
+    #  will use this mask; the mask generated here won't fill the sprite's
+    #  radius, but will be a circle with the correct radius that is clipped
+    #  at the sprite's rect dimensions
+    disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
+    #pylint: disable=too-many-function-args
+    #pylint: disable=unexpected-keyword-arg
+    disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height), depth=8)
+    #pylint: enable=unexpected-keyword-arg
+    #pylint: enable=too-many-function-args
+    disk_mask_surface.set_colorkey(pygame.Color("#000000"))
+    disk_mask_surface.fill(pygame.Color("#000000"))
+    pygame.draw.circle(disk_mask_surface, pygame.Color("#ffffff"), disk_mask_center, radius)
+    mask = mask_from_surface(disk_mask_surface)
+    return mask
+
+def get_disk_radius(precise_mask, orig_rect, bound_rect):
+    """
+    Calculate the radius of a circle that covers the opaque pixels in
+    precise_mask.
+
+    :param precise_mask: The precise mask for every opaque pixel in the
+        image.  If the original image was circular, this can aid in
+        creating in a more accurate circular mask
+    :type precise_mask: :py:class:`pygame.mask.Mask`
+    :param orig_rect: The Rect from the image
+    :type orig_rect: :py:class:`pygame.Rect`
+    :param bound_rect: The bounding Rect for the image
+    :type bound_rect: :py:class:`pygame.Rect`
+    """
+    # find the radius of a circle that contains bound_rect for the worst
+    #  case
+    disk_mask_center = (orig_rect.width/2, orig_rect.height/2)
+    left_center_distance = abs(disk_mask_center[0]-bound_rect.x)
+    right_center_distance = abs(disk_mask_center[0]-bound_rect.right)
+    top_center_distance = abs(disk_mask_center[1]-bound_rect.y)
+    bottom_center_distance = abs(disk_mask_center[1]-bound_rect.bottom)
+    max_bound_radius = math.sqrt(max(left_center_distance, right_center_distance)**2 +
+                                 max(top_center_distance, bottom_center_distance)**2)
+    # determine whether a smaller radius could be used (i.e.
+    #  no corner pixels within the bounding rect are set)
+    max_r = 0
+    for row in range(bound_rect.y, bound_rect.height):
+        for col in range(bound_rect.x, bound_rect.width):
+            if precise_mask.get_at((col, row)) > 0:
+                rad = math.sqrt((disk_mask_center[0]-col)**2 + (disk_mask_center[1]-row)**2)
+                if rad > max_r:
+                    max_r = rad
+    bound_radius = max_bound_radius
+    if (max_r > 0) and (max_r < max_bound_radius):
+        bound_radius = max_r
+    radius = int(math.ceil(bound_radius))
+    return radius
 
 
 class ObjectSpriteException(Exception):
+    """Raised when an ObjectSprite discovers an invalid attribute."""
     pass
 
 
@@ -69,7 +166,7 @@ class ObjectSprite(object):
         "manual"
     ]
 
-    IMAGE_STRIP_FILE_RE = re.compile(".*_strip(\d+)\.\w+")
+    IMAGE_STRIP_FILE_RE = re.compile(r".*_strip(\d+)\.\w+")
     DEFAULT_SPRITE_PREFIX = "spr_"
 
     @staticmethod
@@ -95,8 +192,6 @@ class ObjectSprite(object):
         :param sprite_yaml_stream: File or stream object containing YAML-
             formatted data
         :type sprite_yaml_stream: File-like object
-        :param unused: This is a placeholder, since other load_from_yaml()
-            resource methods take an additional argument.
         :return: An empty list, if the YAML-defined sprite(s) is (are) invalid,
             or a list of new sprites, for those with YAML fields that pass
             basic checks
@@ -124,19 +219,23 @@ class ObjectSprite(object):
                 if 'bounding_box_type' in yaml_info_hash:
                     sprite_args['bounding_box_type'] = yaml_info_hash['bounding_box_type']
                 if 'manual_bounding_box_rect' in yaml_info_hash:
-                    sprite_args['manual_bounding_box_rect'] = yaml_info_hash['manual_bounding_box_rect']
+                    sprite_args['manual_bounding_box_rect'] = \
+                        yaml_info_hash['manual_bounding_box_rect']
                 if 'custom_subimage_columns' in yaml_info_hash:
-                    sprite_args['custom_subimage_columns'] = yaml_info_hash['custom_subimage_columns']
+                    sprite_args['custom_subimage_columns'] = \
+                        yaml_info_hash['custom_subimage_columns']
                 new_sprite = None
                 try:
                     new_sprite = ObjectSprite(sprite_name, **sprite_args)
                 except (ValueError, ObjectSpriteException) as exc:
-                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".format(sprite_name, exc))
+                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".
+                                     format(sprite_name, exc))
                     continue
                 try:
                     new_sprite.check()
                 except ObjectSpriteException as exc:
-                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".format(sprite_name, exc))
+                    game_engine.warn("Skipping YAML ObjectSprite '{}' due to error: {}".
+                                     format(sprite_name, exc))
                     continue
                 new_sprite_list.append(new_sprite)
         return new_sprite_list
@@ -204,19 +303,21 @@ class ObjectSprite(object):
         #: Which subimage number to use from an image strip
         self.subimage_number = 0
         #: How many subimages this sprite contains, derived from the file name
-        self.subimage_count = 1
-        #: Starting pixel columns for each subimage
-        self.subimage_columns = [0]
-        #: The individual bounding rects for each subimage
-        self.subimage_bounding_box_rects = []
-        #: The sizes of each subsurface
-        self.subimage_sizes = []
+        self.subimage_info = {
+            "count": 1,
+            # Starting pixel columns for each subimage
+            "columns": [0],
+            # The individual bounding rects for each subimage
+            "bbox_rects": [],
+            # The sizes of each subsurface
+            "sizes": [],
+            # The subsurface masks
+            "masks": [],
+            # The subsurface radii for the disk collision type
+            "radii": []
+        }
         #: The subsurfaces for each image in an image strip
         self.subimages = []
-        #: The subsurface masks
-        self.subimage_masks = []
-        #: The subsurface radii for the disk collision type
-        self.subimage_radii = []
         #: Mask type for collision detection, see :py:attr:`COLLISION_TYPES`
         self._collision_type = "rectangle"
         #: How to produce the rect containing drawable pixels, see
@@ -227,31 +328,29 @@ class ObjectSprite(object):
         if "filename" in kwargs:
             self.filename = kwargs["filename"]
         if "smooth_edges" in kwargs:
-            self.smooth_edges = (kwargs["smooth_edges"] == True)
+            self.smooth_edges = (kwargs["smooth_edges"] is True)
         if "preload_texture" in kwargs:
-            self.preload_texture = (kwargs["preload_texture"] == True)
+            self.preload_texture = (kwargs["preload_texture"] is True)
         if "transparency_pixel" in kwargs:
-            self.transparency_pixel = (kwargs["transparency_pixel"] == True)
+            self.transparency_pixel = (kwargs["transparency_pixel"] is True)
         if "origin" in kwargs:
-            if isinstance(kwargs["origin"], dict):
-                raise(ValueError, "ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"]))
             orig_item = kwargs["origin"]
             orig_x = 0
             orig_y = 0
             if not isinstance(orig_item, str) and hasattr(orig_item, '__iter__'):
-                # try to grab up to 2 values from a list
+                xylist = list(orig_item)
+                if len(orig_item) == 0:
+                    raise ValueError, "ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"])
+                if len(orig_item) >= 2:
+                    try:
+                        orig_y = int(xylist[1])
+                    except ValueError:
+                        raise(ValueError, "ObjectSprite(): Invalid Y origin '{}'".
+                              format(orig_item[1]))
                 try:
-                    orig_x = int(orig_item[0])
-                except IndexError:
-                    pass
+                    orig_x = int(xylist[0])
                 except ValueError:
                     raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
-                try:
-                    orig_y = int(orig_item[1])
-                except IndexError:
-                    pass
-                except ValueError:
-                    raise(ValueError, "ObjectSprite(): Invalid Y origin '{}'".format(orig_item[1]))
             else:
                 try:
                     orig_x = int(orig_item)
@@ -262,12 +361,14 @@ class ObjectSprite(object):
             if kwargs["collision_type"] in self.COLLISION_TYPES:
                 self.collision_type = kwargs["collision_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid collision_type '{}'".format(kwargs["collision_type"]))
+                raise(ValueError, "ObjectSprite(): Invalid collision_type '{}'".
+                      format(kwargs["collision_type"]))
         if "bounding_box_type" in kwargs:
             if kwargs["bounding_box_type"] in self.BOUNDING_BOX_TYPES:
                 self.bounding_box_type = kwargs["bounding_box_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid bounding_box_type '{}'".format(kwargs["bounding_box_type"]))
+                raise(ValueError, "ObjectSprite(): Invalid bounding_box_type '{}'".
+                      format(kwargs["bounding_box_type"]))
         if ("manual_bounding_box_rect" in kwargs and
                 isinstance(kwargs["manual_bounding_box_rect"], dict)):
             dim = kwargs["manual_bounding_box_rect"]
@@ -304,9 +405,10 @@ class ObjectSprite(object):
         if 'custom_subimage_columns' in kwargs:
             im_cols = kwargs["custom_subimage_columns"]
             if isinstance(im_cols, dict) or not hasattr(im_cols, '__iter__'):
-                raise(ValueError, "ObjectSprite: Invalid 'custom_subimage_columns' value '{}'".format(im_cols))
+                raise(ValueError, "ObjectSprite: Invalid 'custom_subimage_columns' value '{}'".
+                      format(im_cols))
             else:
-                self.subimage_columns = list(im_cols)
+                self.subimage_info["columns"] = list(im_cols)
 
         #: The pygame.Surface returned when loading the image from the file
         self.image = None
@@ -318,6 +420,7 @@ class ObjectSprite(object):
 
     @property
     def collision_type(self):
+        """Get and set the sprite's collision type."""
         return self._collision_type
 
     @collision_type.setter
@@ -336,41 +439,44 @@ class ObjectSprite(object):
             self.load_graphic()
 
     def _collect_subimage_data(self):
-        if len(self.subimage_columns) <= 1:
+        sub_cols = self.subimage_info["columns"]
+        if len(sub_cols) <= 1:
             # subimage columns weren't passed in, so calculate them
-            max_si_width = self.image_size[0] / self.subimage_count
-            for idx in range(len(self.subimage_columns), self.subimage_count):
-                self.subimage_columns.append(max_si_width * idx)
-        elif len(self.subimage_columns) > self.subimage_count:
+            max_si_width = self.image_size[0] / self.subimage_info["count"]
+            for idx in range(len(sub_cols), self.subimage_info["count"]):
+                sub_cols.append(max_si_width * idx)
+        elif len(sub_cols) > self.subimage_info["count"]:
             # too many custom subimage columns. last one specifies the right
             # edge of the last subimage. trim off any excess
-            self.subimage_columns = self.subimage_columns[0:self.subimage_count+1]
-        elif len(self.subimage_columns) < self.subimage_count:
+            sub_cols = sub_cols[0:self.subimage_info["count"]+1]
+            self.subimage_info["columns"] = sub_cols
+        elif len(sub_cols) < self.subimage_info["count"]:
             # too few custom subimage columns; split remaining image columns
             # (if any) between the missing X values
-            missing_count = self.subimage_count - len(self.subimage_columns)
-            last_custom_column = self.subimage_columns[-1]
+            missing_count = self.subimage_info["count"] - len(sub_cols)
+            last_custom_column = sub_cols[-1]
             if (last_custom_column + missing_count + 1) < self.image_size[0]:
                 # remember to leave room between the last custom column
                 # and the first missing X value
                 split_col_width = (self.image_size[0] - last_custom_column) / (missing_count + 1)
                 for ccol in range(missing_count):
-                    self.subimage_columns.append(last_custom_column + (ccol + 1) * split_col_width)
+                    sub_cols.append(last_custom_column + (ccol + 1) * split_col_width)
             else:
                 # overlap the extra columns if there's no room
                 for ccol in range(missing_count):
-                    self.subimage_columns.append(last_custom_column)
+                    sub_cols.append(last_custom_column)
         # now that the subimage columns are known, create subsurfaces for each
-        # of them
-        for subim_idx in range(self.subimage_count):
-            subim_col = self.subimage_columns[subim_idx]
+        #  of them
+        for subim_idx in range(self.subimage_info["count"]):
+            subim_col = sub_cols[subim_idx]
             subim_rect = pygame.Rect(0, 0, 0, 0)
             subim_rect.left = subim_col
             subim_rect.height = self.image_size[1]
-            if subim_idx < (self.subimage_count - 1) or len(self.subimage_columns) > self.subimage_count:
+            if (subim_idx < (self.subimage_info["count"] - 1) or
+                    len(sub_cols) > self.subimage_info["count"]):
                 # this subimage's width is the next subimage's left column
                 # minus this subimage's left column
-                subim_rect.width = self.subimage_columns[subim_idx+1] - subim_col
+                subim_rect.width = sub_cols[subim_idx+1] - subim_col
             else:
                 # the last subimage's width is the image width minus this
                 # subimage's left column, unless an extra custom column was
@@ -386,121 +492,24 @@ class ObjectSprite(object):
             else:
                 bound_rect = pygame.Rect(self.manual_bounding_box_rect)
                 # make the bounding rect fit in the subimage
-                if (bound_rect.left > subim_rect.right):
+                if bound_rect.left > subim_rect.right:
                     bound_rect.left = subim_rect.right - 1
                 if (bound_rect.left + bound_rect.width) > subim_rect.right:
                     bound_rect.width = subim_rect.right - subim_rect.left
-                if (bound_rect.top > subim_rect.bottom):
+                if bound_rect.top > subim_rect.bottom:
                     bound_rect.top = subim_rect.bottom - 1
                 if (bound_rect.top + bound_rect.height) > subim_rect.bottom:
                     bound_rect.height = subim_rect.bottom - subim_rect.top
-            self.subimage_sizes.append(new_subimage.get_size())
-            self.subimage_bounding_box_rects.append(bound_rect)
-
-    def create_rectangle_mask(self, orig_rect):
-        """
-        Create a rectangular mask that covers the opaque pixels of an object.
-
-        Normally, collisions between objects with collision_type "rectangle"
-        will use the rectangle collision test, which only needs the rect
-        attribute.  The mask is created in the event this object collides with
-        an object that has a different collision_type, in which case the
-        objects fall back to using a mask collision test.  The assumption is
-        that the user wants a simple collision model, so the mask is made from
-        the rect attribute, instead of creating an exact mask from the opaque
-        pixels in the image.
-
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        :return: A new mask
-        :rtype: :py:class:`pygame.mask.Mask`
-        """
-        mask = pygame.mask.Mask((orig_rect.width, orig_rect.height))
-        mask.fill()
-        return mask
-
-    def get_disk_radius(self, precise_mask, orig_rect, bound_rect):
-        """
-        Calculate the radius of a circle that covers the opaque pixels in
-        precise_mask.
-
-        :param precise_mask: The precise mask for every opaque pixel in the
-            image.  If the original image was circular, this can aid in
-            creating in a more accurate circular mask
-        :type precise_mask: :py:class:`pygame.mask.Mask`
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        :param bound_rect: The bounding Rect for the image
-        :type bound_rect: :py:class:`pygame.Rect`
-        """
-        # find the radius of a circle that contains bound_rect for the worst
-        #  case
-        disk_mask_center = (orig_rect.width/2, orig_rect.height/2)
-        left_center_distance = abs(disk_mask_center[0]-bound_rect.x)
-        right_center_distance = abs(disk_mask_center[0]-bound_rect.right)
-        top_center_distance = abs(disk_mask_center[1]-bound_rect.y)
-        bottom_center_distance = abs(disk_mask_center[1]-bound_rect.bottom)
-        largest_x_distance = max(left_center_distance, right_center_distance)
-        largest_y_distance = max(top_center_distance, bottom_center_distance)
-        max_bound_radius = math.sqrt(largest_x_distance * largest_x_distance +
-                                     largest_y_distance * largest_y_distance)
-        # determine whether a smaller radius could be used (i.e.
-        #  no corner pixels within the bounding rect are set)
-        max_r = 0
-        for y in range(bound_rect.y, bound_rect.height):
-            for x in range(bound_rect.x, bound_rect.width):
-                circ_x = disk_mask_center[0]-x
-                circ_y = disk_mask_center[1]-y
-                if precise_mask.get_at((x, y)) > 0:
-                    r = math.sqrt(circ_x * circ_x + circ_y * circ_y)
-                    if r > max_r:
-                        max_r = r
-        bound_radius = max_bound_radius
-        if (max_r > 0) and (max_r < max_bound_radius):
-            bound_radius = max_r
-        radius = int(math.ceil(bound_radius))
-        return radius
-
-    def create_disk_mask(self, orig_rect, radius):
-        """
-        Create a circular mask that covers the opaque pixels of an object.
-
-        Normally, collisions between objects with collision_type "disk" will
-        use the circle collision test, which only needs the radius attribute.
-        The mask is created in the event this object collides with an object
-        that has a different collision_type, in which case the objects fall
-        back to using a mask collision test.  The assumption is that the user
-        wants a simple collision model, so the mask is made from a circle of
-        the right radius, instead of creating an exact mask from the opaque
-        pixels in the image.
-
-        :param orig_rect: The Rect from the image
-        :type orig_rect: :py:class:`pygame.Rect`
-        :param radius: The radius of the disk mask
-        :type radius: int
-        """
-        # create a disk mask with a radius sufficient to cover the
-        #  opaque pixels
-        # NOTE: collisions with objects that have a different collision type
-        #  will use this mask; the mask generated here won't fill the sprite's
-        #  radius, but will be a circle with the correct radius that is clipped
-        #  at the sprite's rect dimensions
-        disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
-        disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height),
-                                           depth=8)
-        disk_mask_surface.set_colorkey(pygame.Color("#000000"))
-        disk_mask_surface.fill(pygame.Color("#000000"))
-        pygame.draw.circle(disk_mask_surface, pygame.Color("#ffffff"), disk_mask_center, radius)
-        mask = mask_from_surface(disk_mask_surface)
-        return mask
+            self.subimage_info["sizes"].append(new_subimage.get_size())
+            self.subimage_info["bbox_rects"].append(bound_rect)
 
     def _create_subimage_masks(self):
         for subimg_idx, subimg in enumerate(self.subimages):
             precise_mask = mask_from_surface(subimg)
-            bound_rect = pygame.Rect(self.subimage_bounding_box_rects[subimg_idx])
+            bound_rect = pygame.Rect(self.subimage_info["bbox_rects"][subimg_idx])
             orig_rect = subimg.get_rect()
             if (orig_rect.width == 0) or (orig_rect.height == 0):
-                raise(ObjectSpriteException("Found broken sprite resource when creating mask"))
+                raise ObjectSpriteException("Found broken sprite resource when creating mask")
             if (bound_rect.width == 0) or (bound_rect.height == 0):
                 # use the dimensions of the loaded graphic for the bounding
                 #  rect in case there's a problem with the sprite resources'
@@ -510,17 +519,17 @@ class ObjectSprite(object):
             #  collision checks between objects that have different
             #  types
             if self.collision_type == "precise":
-                self.subimage_masks.append(precise_mask)
-                self.subimage_radii.append(None)
+                self.subimage_info["masks"].append(precise_mask)
+                self.subimage_info["radii"].append(None)
             elif self.collision_type == "disk":
-                radius = self.get_disk_radius(precise_mask, orig_rect, bound_rect)
-                self.subimage_masks.append(self.create_disk_mask(orig_rect, radius))
-                self.subimage_radii.append(radius)
+                radius = get_disk_radius(precise_mask, orig_rect, bound_rect)
+                self.subimage_info["masks"].append(create_disk_mask(orig_rect, radius))
+                self.subimage_info["radii"].append(radius)
             else:
                 # other collision types are not supported, fall back to
                 #  rectangle
-                self.subimage_masks.append(self.create_rectangle_mask(orig_rect))
-                self.subimage_radii.append(None)
+                self.subimage_info["masks"].append(create_rectangle_mask(orig_rect))
+                self.subimage_info["radii"].append(None)
 
     def load_graphic(self):
         """
@@ -532,11 +541,12 @@ class ObjectSprite(object):
         """
         if len(self.filename) <= 0:
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): Attempt to load image from empty filename".format(str(self)))
+                "ObjectSprite error ({}): Attempt to load image from empty filename".
+                format(str(self)))
         if self.check_filename():
             name_minfo = self.IMAGE_STRIP_FILE_RE.search(self.filename)
             if name_minfo:
-                self.subimage_count = int(name_minfo.group(1))
+                self.subimage_info["count"] = int(name_minfo.group(1))
             self.image = pygame.image.load(self.filename).convert_alpha()
             self.image_size = self.image.get_size()
             if self.bounding_box_type == "automatic":
@@ -547,22 +557,22 @@ class ObjectSprite(object):
                 image_rect = self.image.get_rect()
                 bound_rect = pygame.Rect(self.manual_bounding_box_rect)
                 # make the bounding rect fit in the subimage
-                if (bound_rect.left > image_rect.right):
+                if bound_rect.left >= image_rect.right:
                     bound_rect.left = image_rect.right - 1
                 if (bound_rect.left + bound_rect.width) > image_rect.right:
                     bound_rect.width = image_rect.right - image_rect.left
-                if (bound_rect.top > image_rect.bottom):
+                if bound_rect.top >= image_rect.bottom:
                     bound_rect.top = image_rect.bottom - 1
                 if (bound_rect.top + bound_rect.height) > image_rect.bottom:
                     bound_rect.height = image_rect.bottom - image_rect.top
                 self.bounding_box_rect = bound_rect
-            if self.subimage_count > 1:
+            if self.subimage_info["count"] > 1:
                 self._collect_subimage_data()
             else:
                 # subimages[0] is the original image, if not an image strip
                 self.subimages.append(self.image)
-                self.subimage_bounding_box_rects.append(self.bounding_box_rect)
-                self.subimage_sizes.append(self.image_size)
+                self.subimage_info["bbox_rects"].append(self.bounding_box_rect)
+                self.subimage_info["sizes"].append(self.image_size)
         self._create_subimage_masks()
 
     def check_filename(self):
@@ -574,14 +584,16 @@ class ObjectSprite(object):
         """
         if not isinstance(self.filename, str):
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): filename '{}' is not a string".format(str(self), self.filename))
+                "ObjectSprite error ({}): filename '{}' is not a string".
+                format(str(self), self.filename))
         elif len(self.filename) == 0:
-            raise ObjectSpriteException("ObjectSprite error ({}): filename is empty".format(str(self),
-                                                                                            self.filename))
+            raise ObjectSpriteException("ObjectSprite error ({}): filename is empty".
+                                        format(str(self)))
         if len(self.filename) > 0:
             if not os.path.exists(self.filename):
                 raise ObjectSpriteException(
-                    "ObjectSprite error ({}): filename '{}' not found".format(str(self), self.filename))
+                    "ObjectSprite error ({}): filename '{}' not found".
+                    format(str(self), self.filename))
         return True
 
     def check_origin(self):
@@ -592,10 +604,12 @@ class ObjectSprite(object):
         :rtype: bool
         """
         if isinstance(self.origin, str):
-            raise ObjectSpriteException("ObjectSprite error ({}): Origin is a string".format(str(self)))
+            raise ObjectSpriteException("ObjectSprite error ({}): Origin is a string".
+                                        format(str(self)))
         the_origin = list(self.origin)
         if len(the_origin) < 2:
-            raise ObjectSpriteException("ObjectSprite error ({}): Origin does not have at least x, y".format(str(self)))
+            raise ObjectSpriteException(
+                "ObjectSprite error ({}): Origin does not have at least x, y".format(str(self)))
         return True
 
     def check_collision_type(self):
@@ -607,8 +621,8 @@ class ObjectSprite(object):
         """
         if self.collision_type not in self.COLLISION_TYPES:
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): Collision type \"{}\" is unknown".format(str(self),
-                                                                                   self.collision_type))
+                "ObjectSprite error ({}): Collision type \"{}\" is unknown".
+                format(str(self), self.collision_type))
         return True
 
     def check_bounding_box(self):
@@ -620,8 +634,8 @@ class ObjectSprite(object):
         """
         if self.bounding_box_type not in self.BOUNDING_BOX_TYPES:
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): Bounding box type \"{}\" is unknown".format(str(self),
-                                                                                      self.bounding_box_type))
+                "ObjectSprite error ({}): Bounding box type \"{}\" is unknown".
+                format(str(self), self.bounding_box_type))
         if self.bounding_box_type == "manual":
             self.check_manual_bounding_box_rect()
         return True
@@ -635,16 +649,19 @@ class ObjectSprite(object):
         """
         bound_rect = self.manual_bounding_box_rect
         if not isinstance(bound_rect, pygame.Rect):
-            raise(ObjectSpriteException("ObjectSprite error ({}):\
-                  Bounding box dimensions {} is not a Rect".format(str(self),
-                  self.manual_bounding_box_rect)))
+            raise(ObjectSpriteException(
+                "ObjectSprite error ({}): Bounding box dimensions {} is not a Rect".
+                format(str(self), self.manual_bounding_box_rect)))
         dim = (bound_rect.left, bound_rect.right, bound_rect.top, bound_rect.bottom)
         if (bound_rect.left > bound_rect.right) or (bound_rect.top > bound_rect.bottom):
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): Bounding box dimensions {} are not sane".format(str(self), dim))
-        if (bound_rect.left < 0) or (bound_rect.right < 0) or (bound_rect.top < 0) or (bound_rect.bottom < 0):
+                "ObjectSprite error ({}): Bounding box dimensions {} are not sane".
+                format(str(self), dim))
+        if ((bound_rect.left < 0) or (bound_rect.right < 0) or
+                (bound_rect.top < 0) or (bound_rect.bottom < 0)):
             raise ObjectSpriteException(
-                "ObjectSprite error ({}): Bounding box dimensions {} are not sane".format(str(self), dim))
+                "ObjectSprite error ({}): Bounding box dimensions {} are not sane".
+                format(str(self), dim))
         return True
 
     def check(self):
@@ -680,7 +697,7 @@ class ObjectSprite(object):
                          "right": self.manual_bounding_box_rect.right,
                          "top": self.manual_bounding_box_rect.top,
                          "bottom": self.manual_bounding_box_rect.bottom
-                         }
+                        }
         ystr += "    manual_bounding_box_rect: {}".format(str(bounding_dict))
         return ystr
 
