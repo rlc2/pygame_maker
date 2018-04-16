@@ -9,6 +9,7 @@ import os
 from pygame_maker.events import event
 from pygame_maker.events import event_engine
 from pygame_maker.logic import language_engine
+from pygame_maker.sounds.sound import Sound
 
 otlogger = logging.getLogger("CollideableObjectType")
 othandler = logging.StreamHandler()
@@ -259,8 +260,8 @@ class TestGameManager(object):
         self.game_engine.resources['sprites']['spr_test'] = object_sprite.ObjectSprite("spr_test", filename="unittest_files/ball2.png", collision_type="precise")
         self.game_engine.resources['sprites']['spr_solid'] = object_sprite.ObjectSprite("spr_solid", filename="unittest_files/solid.png", collision_type="precise")
         self.game_engine.resources['sprites']['spr_spaceship'] = object_sprite.ObjectSprite("spr_spaceship", filename="unittest_files/spaceship_strip07.png", collision_type="precise")
-        self.game_engine.resources['sounds']['snd_test'] = sound.Sound("snd_test", sound_file="unittest_files/Pop.wav")
-        self.game_engine.resources['sounds']['snd_explosion'] = sound.Sound("snd_explosion", sound_file="unittest_files/explosion.wav")
+        self.game_engine.resources['sounds']['snd_test'] = Sound("snd_test", sound_file="unittest_files/Pop.wav")
+        self.game_engine.resources['sounds']['snd_explosion'] = Sound("snd_explosion", sound_file="unittest_files/explosion.wav")
         with open(OBJ_TEST_FILE, "r") as yaml_f:
             self.game_engine.resources['objects']['obj_test'] = ObjectType.load_from_yaml(yaml_f, self.game_engine)[0]
         self.game_engine.resources['objects']['obj_solid'] = CollideableObjectType("obj_solid", self.game_engine, solid=True, sprite='spr_solid')
