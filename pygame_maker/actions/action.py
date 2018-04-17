@@ -1,29 +1,26 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Represent an action that executes following an event.
+"""
 
-# represent an action that executes following an event
-
-import pygame
-import yaml
 import re
-import sys
+import yaml
 from pygame_maker.logic.language_engine import SymbolTable
 
 __all__ = ["Action", "AccountingAction", "CodeAction", "DrawAction",
            "GameAction", "InfoAction", "MotionAction", "ObjectAction",
            "OtherAction", "ParticleAction", "QuestionAction", "ResourceAction",
            "RoomAction", "SoundAction", "TimingAction", "VariableAction",
-           "ActionException", "ActionParameterException"]
+           "ActionException"]
 
 
 class ActionException(Exception):
-    pass
-
-
-class ActionParameterException(Exception):
+    """
+    Raised by Action and its subclasses when an unknown action name is requested.
+    """
     pass
 
 
@@ -219,7 +216,7 @@ common_parameters:
             - greater_than_or_equals
 """
     IF_STATEMENT_RE = re.compile("^if_")
-    TUPLE_RE = re.compile("\(([^)]+)\)")
+    TUPLE_RE = re.compile(r"\(([^)]+)\)")
     COMMON_RE = re.compile("^common_")
 
     # Class variable to be filled in with Action subclasses
@@ -239,8 +236,17 @@ common_parameters:
         cls.action_type_registry.append(actiontype)
 
     @classmethod
-    def get_action_instance_by_action_name(cls, action_name, settings_dict=None,
-                                           **kwargs):
+    def get_action_instance_by_name(cls, action_name, settings_dict=None, **kwargs):
+        """
+        Search for an action name in all registered actions and return an
+        instance of the correct Action subclass if found.
+
+        :param action_name: An action's name
+        :type action_name: str
+        :param settings_dict: dict mapping values to the action's parameters
+        :type settings_dict: dict
+        :param kwargs: Parameter values specified as named arguments
+        """
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -275,7 +281,8 @@ common_parameters:
         if settings_dict is not None:
             args.update(settings_dict)
         args.update(kwargs)
-        data_map, data_constraints = self.collect_parameter_yaml_info(action_yaml + self.COMMON_DATA_YAML)
+        data_map, data_constraints = self._collect_parameter_yaml_info(
+            action_yaml + self.COMMON_DATA_YAML)
         if action_name in data_map:
             self.action_data.update(data_map[action_name])
         if action_name in data_constraints:
@@ -293,7 +300,7 @@ common_parameters:
             if param in self.action_data:
                 self.action_data[param] = args[param]
 
-    def collect_parameter_yaml_info(self, yaml_str):
+    def _collect_parameter_yaml_info(self, yaml_str):
         # Parse the YAML parameter information for the action.
 
         # :param yaml_str: YAML string with common params and actions
@@ -318,9 +325,10 @@ common_parameters:
                         action_constraints[action] = common_params[par_val]
                 elif len(par_val.keys()) > 0:
                     if par_val['type'] == "from_list":
-                        if not par_val['default'] in par_val['accepted_list']:
-                            print("WARNING: default value '{}' is not in the list of accepted values '{}'".format(
-                                    par_val['default'], par_val['accepted_list']))
+                        if par_val['default'] not in par_val['accepted_list']:
+                            print("WARNING: default value " +
+                                  "'{}' is not in the list of accepted values '{}'".
+                                  format(par_val['default'], par_val['accepted_list']))
                     action_map[action][par] = par_val['default']
                     action_constraints[action] = par_val
         # print("Got action_map:\n{}".format(action_map))
@@ -350,7 +358,8 @@ common_parameters:
         # print("{}: get expression for field {}: {}".format(self, field_name,
         #    self.action_data[field_name]))
         if (not isinstance(self.action_data[field_name], str) or
-                (len(self.action_data[field_name]) == 0) or (self.action_data[field_name][0] != '=')):
+                (len(self.action_data[field_name]) == 0) or
+                (self.action_data[field_name][0] != '=')):
             # not an expression, so just return the contents of the field
             return self.action_data[field_name]
         exp_name = "{}_block".format(field_name)
@@ -363,7 +372,7 @@ common_parameters:
             #  hopefully unique name that will be registered with the language
             #  engine
             exp_id = "{}_{}_{}".format(self.name,
-                                       re.sub("\.", "_", field_name), id(self))
+                                       re.sub(r"\.", "_", field_name), id(self))
             expression_code = "{} = {}".format(sym_name,
                                                self.action_data[field_name][1:])
             # print("register new code block {}: {}".format(exp_id, expression_code))

@@ -1,15 +1,13 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Container type for sequences of actions.
+"""
 
-# container type for sequences of actions
-
-import pygame
 import re
-import yaml
-from pygame_maker.actions.action import *
+from pygame_maker.actions.action import Action, ActionException
 
 __all__ = ["ActionSequence", "ActionSequenceStatement",
            "ActionSequenceConditional", "ActionSequenceConditionalIf",
@@ -18,6 +16,12 @@ __all__ = ["ActionSequence", "ActionSequenceStatement",
 
 
 class ActionSequenceStatementException(Exception):
+    """
+    Raised when unknown action names or something other than an action is found
+    in a sequence, when sequence statements are placed incorrectly, or when an
+    attempt is made to add something other than an ActionSequenceStatement to a
+    sequence.
+    """
     pass
 
 
@@ -52,7 +56,7 @@ class ActionSequenceStatement(object):
         new_action = None
         if isinstance(action, str):
             try:
-                new_action = Action.get_action_instance_by_action_name(action, **kwargs)
+                new_action = Action.get_action_instance_by_name(action, **kwargs)
             except ActionException:
                 raise ActionSequenceStatementException("'{}' is not a known action".format(action))
         else:
@@ -96,7 +100,7 @@ class ActionSequenceStatement(object):
         :type indent: int
         """
         indent_string = "\t" * indent
-        print("{}{}".format(indent_string, self.action.name))
+        print "{}{}".format(indent_string, self.action.name)
 
     def __repr__(self):
         return "<{}: {}>".format(type(self).__name__, self.action)
@@ -130,16 +134,17 @@ class ActionSequenceConditional(ActionSequenceStatement):
         found_place = True
         # basic type check
         if not isinstance(statement, ActionSequenceStatement):
-            raise(ActionSequenceStatementException("{} is not a ActionSequenceStatement".format(str(statement))))
+            raise(ActionSequenceStatementException("{} is not a ActionSequenceStatement".
+                                                   format(str(statement))))
         if not self.contained_statement:
             # the statement is now the conditional clause
             self.contained_statement = statement
         elif (self.contained_statement.is_block and
-                not self.contained_statement.is_block_closed):
+              not self.contained_statement.is_block_closed):
             # the statement fits within the conditional clause's block
             self.contained_statement.add_statement(statement)
         elif (self.contained_statement.is_conditional and
-                self.contained_statement.add_statement(statement)):
+              self.contained_statement.add_statement(statement)):
             # the contained conditional found a place for the statement
             pass
         else:
@@ -219,11 +224,11 @@ class ActionSequenceConditionalIf(ActionSequenceConditional):
                     isinstance(statement, ActionSequenceConditionalElse)):
                 self.else_condition = statement
             elif (self.else_condition and self.else_condition.is_conditional and
-                    self.else_condition.add_statement(statement)):
+                  self.else_condition.add_statement(statement)):
                 # else clause had a place for the new statement
                 pass
             elif (self.else_condition and self.else_condition.is_block and
-                    not self.else_condition.is_block_closed):
+                  not self.else_condition.is_block_closed):
                 self.else_condition.add_statement(statement)
             else:
                 found_place = False
@@ -341,9 +346,10 @@ class ActionSequenceBlock(ActionSequenceStatement):
                 self.is_block_closed = True
                 self.contained_statements.append(statement)
             else:
-                raise(ActionSequenceStatementException("block_end cannot be added to a main block"))
+                raise ActionSequenceStatementException("block_end cannot be added to a main block")
         elif isinstance(statement, ActionSequenceConditionalElse):
-            raise(ActionSequenceStatementException("Cannot add an 'else' statement without an 'if' statement."))
+            raise(ActionSequenceStatementException(
+                "Cannot add an 'else' statement without an 'if' statement."))
         else:
             self.contained_statements.append(statement)
 
@@ -363,7 +369,7 @@ class ActionSequenceBlock(ActionSequenceStatement):
         """
         # print("Adding statement: {} .. ".format(statement))
         if not isinstance(statement, ActionSequenceStatement):
-            raise(TypeError("{} is not an ActionSequenceStatement".format(str(statement))))
+            raise TypeError("{} is not an ActionSequenceStatement".format(str(statement)))
         last_statement = None
         if len(self.contained_statements) > 0:
             last_statement = self.contained_statements[-1]
@@ -451,7 +457,7 @@ class ActionSequenceBlock(ActionSequenceStatement):
 
 class ActionSequence(object):
     """Store a sequence of actions, which runs when triggered by an event."""
-    FIRST_ITEM_RE = re.compile("^\s*([^ ])")
+    FIRST_ITEM_RE = re.compile(r"^\s*([^ ])")
 
     @staticmethod
     def load_sequence_from_yaml_obj(sequence_repr):
@@ -474,7 +480,7 @@ class ActionSequence(object):
                 action_params = {}
                 if action_hash[action_name] and len(action_hash[action_name]) > 0:
                     action_params.update(action_hash[action_name])
-                next_action = Action.get_action_instance_by_action_name(action_name, **action_params)
+                next_action = Action.get_action_instance_by_name(action_name, **action_params)
                 # print("New action: {}".format(next_action))
                 new_sequence.append_action(next_action)
         return new_sequence
@@ -535,6 +541,7 @@ class ActionSequence(object):
         return sequence_yaml
 
     def pretty_print(self):
+        """Print out properly-indented action sequence strings."""
         self.main_block.pretty_print()
 
     def __repr__(self):
