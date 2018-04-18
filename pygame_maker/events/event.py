@@ -1,13 +1,13 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Pygame maker events.
+"""
 
-# pygame maker events
-
-import pygame
 import re
+import pygame
 
 
 __all__ = ["Event", "AlarmEvent", "CollisionEvent", "DrawEvent", "KeyEvent",
@@ -16,6 +16,7 @@ __all__ = ["Event", "AlarmEvent", "CollisionEvent", "DrawEvent", "KeyEvent",
 
 
 class UnknownEventError(Exception):
+    """Raised when an Event type recieves an unknown event name."""
     pass
 
 
@@ -51,7 +52,7 @@ class Event(object):
         return False
 
     @classmethod
-    def get_event_instance_by_event_name(cls, event_name, event_params=None):
+    def get_event_instance_by_name(cls, event_name, event_params=None):
         """
         Return an event instance of the right type, by searching for the
         event type in the registry.  Event parameters may be applied to the
@@ -115,7 +116,7 @@ class Event(object):
         """
         self.event_params[item_name] = val
 
-    def repr_event_strings(self):
+    def _repr_event_strings(self):
         event_param_strs = []
         ev_str = ""
         ev_parms_sorted = self.event_params.keys()
@@ -129,7 +130,7 @@ class Event(object):
 
     def __repr__(self):
         return("<{} \"{}\"{}>".format(self.__class__.__name__,
-                                      self.name, self.repr_event_strings()))
+                                      self.name, self._repr_event_strings()))
 
 
 class ObjectStateEvent(Event):
@@ -521,6 +522,11 @@ class KeyEvent(Event):
 
     @classmethod
     def find_key_event(cls, event_name):
+        """
+        Given a full key event name (possibly including _keyup or _keydn),
+        search for the event's base name to make sure it exists.  Used by
+        find_event_by_name() and __init__().
+        """
         # check for a suffix
         base_event_name = str(event_name)
         up_minfo = cls.KEYBOARD_UP_SUFFIX_RE.search(event_name)
@@ -530,7 +536,7 @@ class KeyEvent(Event):
         elif dn_minfo:
             base_event_name = dn_minfo.group(1)
         if base_event_name not in cls.HANDLED_EVENTS:
-            raise (UnknownEventError("KeyEvent: key named '{}' unknown".format(base_event_name)))
+            raise UnknownEventError("KeyEvent: key named '{}' unknown".format(base_event_name))
         if len(base_event_name) == 0:
             raise UnknownEventError("KeyEvent: '{}' is invalid".format(event_name))
         return event_name
@@ -548,7 +554,7 @@ class KeyEvent(Event):
         :rtype: bool
         """
         try:
-            ev_name = cls.find_key_event(event_name)
+            cls.find_key_event(event_name)
         except UnknownEventError:
             return False
         return True
@@ -563,10 +569,10 @@ class KeyEvent(Event):
         :type event_params: dict|None
         """
         Event.__init__(self, event_name, event_params)
-        found_name = self.find_key_event(event_name)
+        self.find_key_event(event_name)
 
     def __repr__(self):
-        return("<{} '{}' {}>".format(self.__class__.__name__, self.name, self.repr_event_strings()))
+        return "<{} '{}' {}>".format(self.__class__.__name__, self.name, self._repr_event_strings())
 
 
 class CollisionEvent(Event):
@@ -578,6 +584,11 @@ class CollisionEvent(Event):
 
     @classmethod
     def find_collision_event(cls, event_name):
+        """
+        Given a full collision event name (which may include the other object
+        type's name), search for the event's base name to make sure it's
+        correct.  Used by find_event_by_name() and __init__().
+        """
         ev_name = "collision"
         obj_name = ""
         minfo = cls.COLLISION_RE.search(event_name)
@@ -599,7 +610,7 @@ class CollisionEvent(Event):
         :return: True if the event name
         """
         try:
-            ev_info = cls.find_collision_event(event_name)
+            cls.find_collision_event(event_name)
         except UnknownEventError:
             return False
         return True
@@ -625,7 +636,7 @@ class CollisionEvent(Event):
     def __repr__(self):
         return("<{} vs \"{}\"{}>".format(self.__class__.__name__,
                                          self.collision_object_name,
-                                         self.repr_event_strings()))
+                                         self._repr_event_strings()))
 
 Event.register_new_event_type(ObjectStateEvent)
 Event.register_new_event_type(AlarmEvent)

@@ -1,14 +1,12 @@
-#!/usr/bin/python -W all
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# define the class that allows other classes to subscribe to and receive events
+Define the class that allows other classes to subscribe to and receive events.
+"""
 
 from pygame_maker.support import logging_object
-import re
-import event
 
 
 class EventEngine(logging_object.LoggingObject):
@@ -63,7 +61,7 @@ class EventEngine(logging_object.LoggingObject):
                 self.event_handlers[event_name].remove(event_handler)
                 if len(self.event_handlers[event_name]) == 0:
                     self.info("  delete last event handler for {}".format(event_name))
-                    del(self.event_handlers[event_name])
+                    del self.event_handlers[event_name]
 
     def queue_event(self, an_event):
         """
@@ -108,7 +106,7 @@ class EventEngine(logging_object.LoggingObject):
                     handler(queued)
             # clear the queue
             self.debug("  delete queued {} events".format(event_name))
-            del(self.event_queues[event_name])
+            del self.event_queues[event_name]
 
     def transmit_event_type(self, event_type):
         """
