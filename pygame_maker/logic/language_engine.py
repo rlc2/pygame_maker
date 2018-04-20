@@ -1,72 +1,78 @@
-#!/usr/bin/python -W all
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Adapted from the fourFn.py example that ships with PyParser
+original code copyright 2003-2009 by Paul McGuire
 
-# Adapted from the fourFn.py example that ships with PyParser
-# original code copyright 2003-2009 by Paul McGuire
+handles math operations, predefined functions, keywords, boolean comparisons,
+ function definitions, setting and using any supplied global variables,
+ if/elseif/else conditionals, comments
+represent toy language source code with python classes
 
-# handles math operations, predefined functions, keywords, boolean comparisons,
-#  function definitions, setting and using any supplied global variables,
-#  if/elseif/else conditionals, comments
-# represent toy language source code with python classes
+toy language description:
+expressions contain:
+ atoms:
+  numbers (int, float)
+  bare identifiers (symbols)
+  identifier( <empty> | <comma-delimited args> ) (function call)
+  parenthesized expression
+ operators:
+  unary -, +, -, *, /, %, ^, <, <=, >, >=, ==, !=, and, or, not
+ operations are all in infix format
+high-level language constructs are one of three types:
+ assignments:
+  <symbol> = <expression>
+  '=' must be delimited by spaces
+ conditionals:
+  if (expression) { <zero or more> ( assignment | conditional ) }
+  optional elseif (expression) { <zero or more> ( assignment | conditional ) }
+   (any number of elseif)
+  optional else { <zero or more> ( assignment | conditional ) }
+   only one, and it must come after if [elseif..]
+ function definition:
+  function <name>( void | (comma-delimited <type> <argname> ) ) {
+   <zero or more> ( assignment | conditional | return <expression> )
+   }
+"""
 
-# toy language description:
-# expressions contain:
-#  atoms:
-#   numbers (int, float)
-#   bare identifiers (symbols)
-#   identifier( <empty> | <comma-delimited args> ) (function call)
-#   parenthesized expression
-#  operators:
-#   unary -, +, -, *, /, %, ^, <, <=, >, >=, ==, !=, and, or, not
-#  operations are all in infix format
-# high-level language constructs are one of three types:
-#  assignments:
-#   <symbol> = <expression>
-#   '=' must be delimited by spaces
-#  conditionals:
-#   if (expression) { <zero or more> ( assignment | conditional ) }
-#   optional elseif (expression) { <zero or more> ( assignment | conditional ) }
-#    (any number of elseif)
-#   optional else { <zero or more> ( assignment | conditional ) }
-#    only one, and it must come after if [elseif..]
-#  function definition:
-#   function <name>( void | (comma-delimited <type> <argname> ) ) {
-#    <zero or more> ( assignment | conditional | return <expression> )
-#    }
-
-from pyparsing import Literal, CaselessLiteral, Word, Group, Optional, \
-    ZeroOrMore, OneOrMore, Forward, nums, alphas, Regex, ParseException, Keyword, \
-    Dict, stringEnd, ParseFatalException
+import imp
 import numbers
 import math
-import random
-import time
 import operator
-import infix_to_postfix
 import os
 import re
-import imp
 import sys
-from ..support import logging_object
-import run_time_support
+from pyparsing import Literal, Word, Group, Optional, ZeroOrMore, OneOrMore, Forward, \
+    nums, alphas, Regex, Keyword, stringEnd, ParseFatalException
+import pygame_maker.support.logging_object as logging_object
+import pygame_maker.logic.infix_to_postfix as infix_to_postfix
 
 
 class DuplicateCodeBlockError(logging_object.LoggingException):
+    """Raised when a duplicate code block name is found."""
     pass
 
 
 class UnknownCodeBlockError(logging_object.LoggingException):
+    """Raised when an unknown code block name is executed."""
     pass
 
 
 class OpStackOverflowError(logging_object.LoggingException):
+    """
+    Raised when the number of symbols and operators in a code block are not
+    compatible (too many symbols).
+    """
     pass
 
 
 class OpStackUnderflowError(logging_object.LoggingException):
+    """
+    Raised when the number of symbols and operators in a code block are not
+    compatible (too few symbols).
+    """
     pass
 
 
@@ -109,14 +115,14 @@ class SymbolTable(object):
         """
         constlist = list(self.consts.keys())
         constlist.sort()
-        print("constants:")
+        print "constants:"
         for const in constlist:
-            print("{} = {}".format(const, self.consts[const]))
+            print "{} = {}".format(const, self.consts[const])
         varlist = list(self.vars.keys())
         varlist.sort()
-        print("variables:")
+        print "variables:"
         for var in varlist:
-            print("{} = {}".format(var, self.vars[var]))
+            print "{} = {}".format(var, self.vars[var])
 
     def keys(self):
         """
@@ -310,7 +316,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_assignment(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_assignment(<code str>, parsestr={}, loc={}, toks={}):".format(
+            loc, parsestr, toks))
         assign_list = []
         global_prefix = ""
         for assign_tok in toks.asList():
@@ -346,7 +353,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_conditional_block(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_conditional_block(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         if self.inner_block_count > 1:
             # print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
             self.inner_block_count -= 1
@@ -355,13 +363,13 @@ class CodeBlock(logging_object.LoggingObject):
             self.debug("  stack now points to inner block #{:d}".format(self.inner_block_count - 1))
             self.stack = self.inner_blocks[self.inner_block_count - 1]
             self.debug("  delete inner_blocks[{:d}]".format(self.inner_block_count))
-            del(self.inner_blocks[self.inner_block_count])
+            del self.inner_blocks[self.inner_block_count]
         else:
             # print("inner block #0\n{}".format(self.stack))
             self.frame.append(list(self.stack))
             self.debug("  clear inner_blocks[0]")
             self.inner_block_count = 0
-            del(self.inner_blocks[0])
+            del self.inner_blocks[0]
             self.stack = self.frame
             self.debug("  stack now points to outer block")
 
@@ -384,7 +392,8 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # print("push {}".format(toks.asList()))
-        self.debug("push_if_cond(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_if_cond(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         if_statement = ""
         for tok in toks:
             if_statement = "_{}".format(tok)
@@ -396,7 +405,6 @@ class CodeBlock(logging_object.LoggingObject):
             self.debug("  container: inner block #{:d}".format(self.inner_block_count - 1))
         else:
             self.debug("  container: outer block")
-            pass
         container_block.append(if_statement)
         # print("outer block is now:\n{}".format(self.outer_block))
         self.inner_block_count += 1
@@ -414,7 +422,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_comparison(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_comparison(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         self.debug("  append comparison {} to stack".format(str(self.scratch)))
         self.stack.append(list(self.scratch))
         self.scratch = []
@@ -450,7 +459,8 @@ class CodeBlock(logging_object.LoggingObject):
         # print("function w/ args: {}".format(toks))
         # assume embedded function calls have been validated, just skip
         #  them to count the args in the outer function call
-        self.debug("count_function_args(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("count_function_args(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         func_call = False
         func_name = ""
         skip_count = 0
@@ -467,7 +477,8 @@ class CodeBlock(logging_object.LoggingObject):
                 else:
                     # unknown function encountered
                     self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
-                    raise ParseFatalException(parsestr, loc=loc, msg="Unknown function call '{}'".format(tok))
+                    raise(ParseFatalException(parsestr, loc=loc,
+                                              msg="Unknown function call '{}'".format(tok)))
             if tok == "\"":
                 # keep track of strings, to ignore functions named inside a string
                 in_string = not in_string
@@ -477,9 +488,11 @@ class CodeBlock(logging_object.LoggingObject):
                 # if this function takes no arguments, we shouldn't be here..
                 self.debug("  check {} call vs function map".format(tok))
                 if len(self.functionmap[func_name]["arglist"]) == 0:
-                    self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
-                    raise ParseFatalException(parsestr, loc=loc,
-                                              msg="Too many arguments to function \"{}\"".format(func_name))
+                    self.error("{} at {}: Too many arguments to function \"{}\"".
+                               format(parsestr, loc, func_name))
+                    raise(ParseFatalException(
+                        parsestr, loc=loc,
+                        msg="Too many arguments to function \"{}\"".format(func_name)))
                 # check whether an embedded function call should be skipped
                 # print("checking {}..".format(tok))
                 if tok in self.functionmap and not in_string:
@@ -487,7 +500,8 @@ class CodeBlock(logging_object.LoggingObject):
                     if skips > 0:
                         skips -= 1  # future commas imply > 1 arg to skip
                     skip_count += skips
-                    self.debug("  skip call to {} with {} args".format(tok, len(self.functionmap[tok])))
+                    self.debug("  skip call to {} with {} args".
+                               format(tok, len(self.functionmap[tok])))
                     # print("skip count now is: {}".format(skip_count))
                 if tok == ',':
                     if skip_count > 0:
@@ -500,13 +514,17 @@ class CodeBlock(logging_object.LoggingObject):
 
         if func_call:
             if arg_count < len(self.functionmap[func_name]["arglist"]):
-                self.error("{} at {}: Too few arguments to function \"{}\"".format(parsestr, loc, func_name))
-                raise ParseFatalException(parsestr, loc=loc,
-                                          msg="Too few arguments to function \"{}\"".format(func_name))
+                self.error("{} at {}: Too few arguments to function \"{}\"".
+                           format(parsestr, loc, func_name))
+                raise ParseFatalException(
+                    parsestr, loc=loc,
+                    msg="Too few arguments to function \"{}\"".format(func_name))
             elif arg_count > len(self.functionmap[func_name]["arglist"]):
-                self.error("{} at {}: Too many arguments to function \"{}\"".format(parsestr, loc, func_name))
-                raise ParseFatalException(parsestr, loc=loc,
-                                          msg="Too many arguments to function \"{}\"".format(func_name))
+                self.error("{} at {}: Too many arguments to function \"{}\"".
+                           format(parsestr, loc, func_name))
+                raise(ParseFatalException(
+                    parsestr, loc=loc,
+                    msg="Too many arguments to function \"{}\"".format(func_name)))
 
     def push_func_args(self, parsestr, loc, toks):
         """
@@ -524,7 +542,8 @@ class CodeBlock(logging_object.LoggingObject):
         :raise: ParseFatalException if the function already exists, has
             invalid argument types, or has anything following ``void``
         """
-        self.debug("pushFunctionArgs(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("pushFunctionArgs(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         func_name = None
         arg_with_type = None
         arg_list = []
@@ -536,31 +555,35 @@ class CodeBlock(logging_object.LoggingObject):
                     func_name = str(item)
                     self.debug("  New function: {}".format(func_name))
                     if func_name in self.functionmap:
-                        self.error("{} at {}: Redefinition of existing function '{}'".format(parsestr, loc, func_name))
-                        raise ParseFatalException(parsestr, loc=loc,
-                                                  msg="Redefinition of existing function '{}'".format(func_name))
+                        self.error("{} at {}: Redefinition of existing function '{}'".
+                                   format(parsestr, loc, func_name))
+                        raise(ParseFatalException(
+                            parsestr, loc=loc,
+                            msg="Redefinition of existing function '{}'".format(func_name)))
                     continue
                 if func_name:
                     if not arg_with_type:
                         typename = str(item)
                         if typename not in ["void", "number", "string"]:
                             self.error(
-                                "{} at {}: Missing type name in declaration of function '{}'".format(parsestr, loc,
-                                                                                                     func_name))
-                            raise ParseFatalException(parsestr, loc=loc,
-                                                      msg="Missing type name in declaration of function '{}'".format(
-                                                           func_name))
+                                "{} at {}: Missing type name in declaration of function '{}'".
+                                format(parsestr, loc, func_name))
+                            raise(ParseFatalException(
+                                parsestr, loc=loc,
+                                msg="Missing type name in declaration of function '{}'".
+                                format(func_name)))
                         arg_with_type = {"type": typename}
                         if typename == "void":
                             arg_list.append(dict(arg_with_type))
                     else:
                         if arg_with_type["type"] == "void":
                             self.error(
-                                "{} at {}: Extraneous token following void in declaration of function '{}'".format(
-                                    parsestr, loc, func_name))
-                            raise ParseFatalException(parsestr, loc=loc,
-                                                      msg="Extraneous token following void in declaration of function '{}'".format(
-                                                           func_name))
+                                "{} at {}: Unexpected token '{}' in declaration of function '{}'".
+                                format(parsestr, loc, str(item), func_name))
+                            raise(ParseFatalException(
+                                parsestr, loc=loc,
+                                msg="Unexpected token '{}' in declaration of function '{}'".
+                                format(str(item), func_name)))
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
                         arg_with_type = None
@@ -587,16 +610,19 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # reduce the function source
-        self.debug("push_func_block(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_func_block(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         self.reduce_block(self.frame)
         func_loc = [0, 0]
         param_list = [fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
         function_body = self.to_python_block(self.frame, func_loc, self.function_name)
         param_list.append("count=0")
-        func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name, ",".join(param_list))]
+        func_lines = ["def userfunc_{}(_symbols, {}):".format(self.function_name,
+                                                              ",".join(param_list))]
         func_lines += [
             "  if (count > 100):",
-            "    raise CodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\")".format(self.function_name)
+            "    raise CodeBlockRuntimeError(\"{}: Call stack depth limit exceeded\")".
+            format(self.function_name)
         ]
         func_lines += function_body
         ret_minfo = self.RETURN_RE.match(func_lines[-1])
@@ -606,8 +632,8 @@ class CodeBlock(logging_object.LoggingObject):
             func_lines.append("  return {:d}".format(-sys.maxint - 1))
         function_code = "\n".join(func_lines)
         self.info("  Function code:\n{}".format(function_code))
-        self.functionmap[self.function_name]['compiled'] = compile(function_code,
-                                                                   "<c_{}>".format(self.function_name), 'exec')
+        self.functionmap[self.function_name]['compiled'] = \
+            compile(function_code, "<c_{}>".format(self.function_name), 'exec')
         self.function_name = "None"
         # reset the stack and frame
         self.stack = self.outer_block
@@ -627,7 +653,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_atom(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_atom(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         tok_n = 0
         add_not = False
         add_tok = None
@@ -659,10 +686,10 @@ class CodeBlock(logging_object.LoggingObject):
                 self.scratch.append("operator.not_")
         else:
             if add_not:
-                self.debug("  not tokens:".format(toks.asList()))
+                self.debug("  not tokens: {}".format(toks.asList()))
             if not is_string:
-                self.scratch += infix_to_postfix.convert_infix_to_postfix(toks.asList(),
-                                                                          self.OPERATOR_REPLACEMENTS)
+                self.scratch += infix_to_postfix.convert_infix_to_postfix(
+                    toks.asList(), self.OPERATOR_REPLACEMENTS)
             else:
                 self.scratch += ["str({})".format("".join(toks.asList()))]
             # print("scratch is now: {}".format(self.scratch))
@@ -681,7 +708,8 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # print("pre-op: {}".format(toks.asList()))
-        self.debug("push_first(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_first(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
                                                                   self.OPERATOR_REPLACEMENTS)
         self.debug("  op + scratch is now: {}".format(str(self.scratch)))
@@ -697,9 +725,10 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_u_inus(<code str>, loc={}, toks={}):".format(loc, toks))
-        for t in toks:
-            if t == '-':
+        self.debug("push_u_minus(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
+        for tok in toks:
+            if tok == '-':
                 self.scratch.append('unary -')
             else:
                 break
@@ -715,7 +744,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_return(<code str>, loc={}, toks={}):".format(loc, toks))
+        self.debug("push_return(<code str>, parsestr={}, loc={}, toks={}):".
+                   format(parsestr, loc, toks))
         self.stack.append(list(self.scratch) + ["_return"])
         self.scratch = []
 
@@ -748,11 +778,11 @@ class CodeBlock(logging_object.LoggingObject):
                                 all_numbers = False
                                 break
                         if all_numbers:
-                            op_result = self.execute_operation(check_op,
-                                                               code_line[line_idx - op_len:line_idx])
+                            op_result = self.execute_operation(
+                                check_op, code_line[line_idx - op_len:line_idx])
                             code_line[line_idx - op_len] = op_result
-                            for dead_idx in range(op_len):
-                                del(code_line[line_idx - op_len + 1])
+                            for unused in range(op_len):
+                                del code_line[line_idx - op_len + 1]
                             changed_line = True
                             break
                 elif check_op == "unary -":
@@ -760,7 +790,7 @@ class CodeBlock(logging_object.LoggingObject):
                     if line_idx > 0:
                         if isinstance(code_line[line_idx - 1], numbers.Number):
                             code_line[line_idx - 1] *= -1
-                            del(code_line[line_idx])
+                            del code_line[line_idx]
                             changed_line = True
                             break
                 line_idx += 1
@@ -830,17 +860,17 @@ class CodeBlock(logging_object.LoggingObject):
             symbol = code_line[0][1:]
             start_pos = 1
         for op_idx in range(start_pos, len(code_line)):
-            op = code_line[op_idx]
-            if isinstance(op, int):
-                op_stack.append({"type": "int", "val": str(op)})
-            elif isinstance(op, float):
-                op_stack.append({"type": "float", "val": str(op)})
+            an_op = code_line[op_idx]
+            if isinstance(an_op, int):
+                op_stack.append({"type": "int", "val": str(an_op)})
+            elif isinstance(an_op, float):
+                op_stack.append({"type": "float", "val": str(an_op)})
             else:
-                sym_minfo = self.SYMBOL_RE.match(op)
+                sym_minfo = self.SYMBOL_RE.match(an_op)
                 if sym_minfo:
-                    opname = op[1:]
+                    opname = an_op[1:]
                 else:
-                    opname = op
+                    opname = an_op
                 if opname in self.OPERATOR_FUNCTIONS or opname in self.functionmap:
                     # perform a calculation, and place the result in the
                     #  op stack
@@ -856,9 +886,9 @@ class CodeBlock(logging_object.LoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise OpStackUnderflowError(
-                              "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
-                              self.error)
+                        raise(OpStackUnderflowError(
+                            "Stack underflow at line {} when assembling the line:\n{}".
+                            format(loc[0], code_line), self.error))
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -878,15 +908,16 @@ class CodeBlock(logging_object.LoggingObject):
                         res_type = "bool"
                     # replace args and function call/operator with python
                     #  code string, keeping track of the result type
-                    for dead_idx in range(arg_count):
-                        del(op_stack[-1])
+                    for unused in range(arg_count):
+                        del op_stack[-1]
                     param_list = func_params + [param['val'] for param in params]
-                    if func_name and not (opcall in self.OPERATOR_FUNCTIONS):
+                    if func_name and (opcall not in self.OPERATOR_FUNCTIONS):
                         # if calling a function within a function block, append
                         #  a count+1 arg to limit recursion depth (this is to
                         #  prevent user code from crashing the game engine)
                         param_list.append("count+1")
-                    op_stack.append({"type": res_type, "val": "{}({})".format(opcall, ",".join(param_list))})
+                    op_stack.append({"type": res_type,
+                                     "val": "{}({})".format(opcall, ",".join(param_list))})
                     if type_upgrade:
                         prev_val = op_stack[-1]["val"]
                         prev_val = "{}({})".format(res_type, prev_val)
@@ -897,20 +928,23 @@ class CodeBlock(logging_object.LoggingObject):
                         last_op_type = op_stack[-1]["type"]
                         if last_op_type in ["int", "float"]:
                             op_stack.insert(-1,
-                                            {"type": last_op_type, "val": "operator.mul(-1, {})".format(last_op_val)})
-                            del(op_stack[-1])
+                                            {"type": last_op_type,
+                                             "val": "operator.mul(-1, {})".format(last_op_val)})
+                            del op_stack[-1]
                 elif opname in ["and", "or"]:
                     id_start = len(op_stack) - 2
                     id_end = len(op_stack)
                     if id_start < 0:
                         raise OpStackUnderflowError(
-                              "Stack underflow at line {} when assembling the line:\n{}".format(loc[0], code_line),
-                              self.error)
+                            "Stack underflow at line {} when assembling the line:\n{}".
+                            format(loc[0], code_line), self.error)
                     params = list(op_stack[id_start:id_end])
-                    for dead_idx in range(2):
-                        del(op_stack[-1])
+                    for unused in range(2):
+                        del op_stack[-1]
                     op_stack.append(
-                        {"type": "bool", "val": "(({}) {} ({}))".format(params[0]['val'], opname, params[1]['val'])})
+                        {"type": "bool",
+                         "val": "(({}) {} ({}))".format(params[0]['val'],
+                                                        opname, params[1]['val'])})
                 elif opname == '=':
                     # '=' must always be the last token for an assignment.
                     #  Time to store the value in the symbol table
@@ -928,19 +962,20 @@ class CodeBlock(logging_object.LoggingObject):
                 else:
                     func_arg = False
                     if func_name:
-                        func_arg_names = [narg["name"] for narg in self.functionmap[func_name]["arglist"]]
+                        func_arg_names = [narg["name"] \
+                            for narg in self.functionmap[func_name]["arglist"]]
                         if opname in func_arg_names:
                             func_arg = True
                     if not func_arg:
                         op_stack.append({"type": "int",
-                                        "val": "get_symbol(_symbols, '{}')".format(opname)})
+                                         "val": "get_symbol(_symbols, '{}')".format(opname)})
                     else:
                         op_stack.append({"type": "int",
                                          "val": "{}".format(opname)})
                         # print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            raise OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".format(
-                  loc[0], code_line), self.error)
+            raise(OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".
+                                       format(loc[0], code_line), self.error))
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(str(code_line), op_stack))
         python_code_line = "{}{}".format(' ' * loc[1], op_stack[-1]['val'])
@@ -973,8 +1008,8 @@ class CodeBlock(logging_object.LoggingObject):
             code_line = block[block_idx]
             if code_line in ["_if", "_elseif", "_else"]:
                 cond_name = code_line[1:]
-                python_code_lines += self.to_python_conditional(cond_name,
-                                                                block[block_idx + 1], loc, func_name)
+                python_code_lines += self.to_python_conditional(
+                    cond_name, block[block_idx + 1], loc, func_name)
                 block_idx += 2
                 continue
             else:
@@ -1005,10 +1040,9 @@ class CodeBlock(logging_object.LoggingObject):
         :return: The list of lines of Python source code
         :rtype: list
         """
-        self.debug("  to_python_conditional(conditional_name={}, loc={}, func_name={}):".format(conditional_name, loc,
-                                                                                                func_name))
+        self.debug("  to_python_conditional(conditional_name={}, loc={}, func_name={}):".
+                   format(conditional_name, loc, func_name))
         python_code_lines = []
-        # print("{} {{{}}} to python".format(conditional_name, block))
         conditional_code = self.to_python_line(block[0], [loc[0], 0], func_name)
         py_cond_name = str(conditional_name)
         block_start_idx = 1
@@ -1038,10 +1072,9 @@ class CodeBlock(logging_object.LoggingObject):
         # the code block has to have SOMETHING in it, but if it only contains
         #  function definitions, don't construct the run() method
         if len(self.outer_block) > 0:
-            python_lines = ["def run(_symbols):".format(self.name)]
+            python_lines = ["def run(_symbols):"]
             python_lines += self.to_python_block(self.outer_block, code_loc)
             python_code = "\n".join(python_lines)
-            # print("Python code:\n{}".format("\n".join(python_lines)))
         return python_code
 
     def execute_operation(self, op_name, args):
@@ -1058,9 +1091,9 @@ class CodeBlock(logging_object.LoggingObject):
         res = None
         stargs = [str(a) for a in args]
         result_type = int
-        for a in args:
-            if not isinstance(a, int):
-                result_type = type(a)
+        for arg in args:
+            if not isinstance(arg, int):
+                result_type = type(arg)
         if op_name in self.OPERATOR_FUNCTIONS:
             # print("eval {} {}".format(op_name, stargs))
             eval_str = "{}({})".format(op_name, ",".join(stargs))
@@ -1175,7 +1208,7 @@ class CodeBlockGenerator(object):
             cls.code_block.module_context = module_context
         if funcmap is not None:
             cls.code_block.add_to_func_map(funcmap)
-        cls.bnf = BNF(cls.code_block)
+        cls.bnf = bnf_interpret(cls.code_block)
         try:
             astree = cls.bnf.parseString(source_code_str)
             cls.code_block.reduce()
@@ -1208,18 +1241,18 @@ class LanguageEngine(logging_object.LoggingObject):
             'distance': {"arglist":
                          [{"type": "number", "name": "start"}, {"type": "number", "name": "end"}],
                          'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
-                         },
+                        },
             'randint': {"arglist":
                         [{"type": "number", "name": "max"}],
                         'block': [0, "_max", "random.randint", "_return"]
-                        },
+                       },
             'time': {"arglist": [],
                      'block': ["time.time", "_return"]
-                     },
+                    },
             'debug': {"argslist":
                       [{"type": "string", "name": "debug_str"}],
                       'block': []
-                      }
+                     }
         }
         #: Code blocks registered in the language engine
         self.code_blocks = {}
@@ -1242,8 +1275,8 @@ class LanguageEngine(logging_object.LoggingObject):
         self.info("Register handle '{}'".format(block_name))
         self.debug("  code block:\n{}".format(code_string))
         if block_name in self.code_blocks.keys():
-            raise DuplicateCodeBlockError("Attempt to register another code block named '{}'".format(block_name),
-                                          self.error)
+            raise(DuplicateCodeBlockError("Attempt to register another code block named '{}'".
+                                          format(block_name), self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
@@ -1267,8 +1300,8 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.debug("Execute code with handle '{}'".format(block_name))
         if block_name not in self.code_blocks:
-            raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".format(block_name),
-                                        self.error)
+            raise(UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".
+                                        format(block_name), self.error))
         if local_symbol_table:
             if block_name not in self.local_tables:
                 self.local_tables[block_name] = {}
@@ -1286,13 +1319,13 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.info("Unregister code block handle '{}'".format(block_name))
         if block_name in self.code_blocks.keys():
-            del(self.code_blocks[block_name])
+            del self.code_blocks[block_name]
 
 
-bnf = None
+BNF = None
 
 
-def BNF(code_block_obj):
+def bnf_interpret(code_block_obj):
     """
     See https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form
 
@@ -1312,7 +1345,8 @@ def BNF(code_block_obj):
     * integer :: ['+' | '-'] '0'..'9'+
     * float   :: ['+' | '-'] '0'..'9'+ [ '.' '0' .. '9'+ ] [ 'e' | 'E' ['+' | '-'] '0' .. '9'+ ]
     * string  :: '"' [ alpha | decimal_digit | [`~!@#$%^&*()_=+;:',<.>/? -]* ] '"'
-    * atom    :: identifier | PI | E | real | fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
+    * atom    :: identifier | PI | E | real |
+                 fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
     * factor  :: atom [ expop factor ]*
     * term    :: factor [ multop factor ]*
     * expr    :: term [ addop term ]*
@@ -1326,8 +1360,8 @@ def BNF(code_block_obj):
     :param code_block_obj: A code block object supplying parse methods
     :type code_block_obj: :py:class:`CodeBlock`
     """
-    global bnf
-    if not bnf:
+    global BNF
+    if not BNF:
         # point = Literal( "." )
         # ~ fnumber = Combine( Word( "+-"+nums, nums ) +
         # ~ Optional( point + Optional( Word( nums ) ) ) +
@@ -1379,8 +1413,9 @@ def BNF(code_block_obj):
         expr = Forward()
         atom = ((0, None) * minus + (((ident + lpar + Optional(
             combinatorial + ZeroOrMore("," + combinatorial)) + rpar).setParseAction(
-            code_block_obj.count_function_args) | fnumber | ident | string).setParseAction(code_block_obj.push_atom) |
-                                     Group(lpar + combinatorial + rpar))).setParseAction(code_block_obj.push_u_minus)
+                code_block_obj.count_function_args) | fnumber | ident | string).setParseAction(
+                    code_block_obj.push_atom) | Group(
+                        lpar + combinatorial + rpar))).setParseAction(code_block_obj.push_u_minus)
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of
         # "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-right
@@ -1390,30 +1425,40 @@ def BNF(code_block_obj):
         term = (factor + ZeroOrMore((multop + factor).setParseAction(code_block_obj.push_first)))
         expr <<= (term + ZeroOrMore((addop + term).setParseAction(code_block_obj.push_first)))
         combinatorial <<= (Optional(boolnot) + expr + ZeroOrMore(
-            ((boolop | compareop) + Optional(boolnot) + expr).setParseAction(code_block_obj.push_first)))
+            ((boolop | compareop) + Optional(boolnot) + expr).setParseAction(
+                code_block_obj.push_first)))
         returnline = Group(ret + combinatorial).setParseAction(code_block_obj.push_return)
-        assignment = Group(Optional(glbl) + ident + assignop + combinatorial | string).setParseAction(
-            code_block_obj.push_assignment)
-        #        comparison = Forward()
-        #        comparison <<= Group( combinatorial + ZeroOrMore( compareop + comparison ).setParseAction(
-        # code_block_obj.push_first) ).setParseAction(code_block_obj.push_comparison)
+        assignment = Group(
+            Optional(glbl) + ident + assignop + combinatorial | string).setParseAction(
+                code_block_obj.push_assignment)
+        # comparison = Forward()
+        # comparison <<= Group(combinatorial + ZeroOrMore(compareop + comparison).setParseAction(
+        #     code_block_obj.push_first) ).setParseAction(code_block_obj.push_comparison)
         block = Forward()
         conditional_start = (
-            ifcond.setParseAction(code_block_obj.push_if_cond) + Group(lpar + combinatorial + rpar).setParseAction(
-                code_block_obj.push_comparison) + block.setParseAction(code_block_obj.push_conditional_block))
+            ifcond.setParseAction(code_block_obj.push_if_cond) + Group(
+                lpar + combinatorial + rpar).setParseAction(
+                    code_block_obj.push_comparison) + block.setParseAction(
+                        code_block_obj.push_conditional_block))
         conditional_continue = (
-            elseifcond.setParseAction(code_block_obj.push_if_cond) + Group(lpar + combinatorial + rpar).setParseAction(
-                code_block_obj.push_comparison) + block.setParseAction(code_block_obj.push_conditional_block))
-        conditional_else = (elsecond.setParseAction(code_block_obj.push_if_cond) + block.setParseAction(
-            code_block_obj.push_conditional_block))
-        conditional_set = Group(conditional_start + ZeroOrMore(conditional_continue) + Optional(conditional_else))
-        block <<= Group(lbrack + ZeroOrMore(comments.suppress() | assignment | conditional_set) + rbrack)
+            elseifcond.setParseAction(code_block_obj.push_if_cond) + Group(
+                lpar + combinatorial + rpar).setParseAction(
+                    code_block_obj.push_comparison) + block.setParseAction(
+                        code_block_obj.push_conditional_block))
+        conditional_else = (elsecond.setParseAction(
+            code_block_obj.push_if_cond) + block.setParseAction(
+                code_block_obj.push_conditional_block))
+        conditional_set = Group(conditional_start + ZeroOrMore(
+            conditional_continue) + Optional(conditional_else))
+        block <<= Group(lbrack + ZeroOrMore(
+            comments.suppress() | assignment | conditional_set) + rbrack)
         func_def_args = Group(
-            ident + lpar + ((typestring + ident + ZeroOrMore("," + typestring + ident)) | void) + rpar).setParseAction(
-            code_block_obj.push_func_args)
+            ident + lpar + ((typestring + ident + ZeroOrMore(
+                "," + typestring + ident)) | void) + rpar).setParseAction(
+                    code_block_obj.push_func_args)
         function_block = Group(lbrack + ZeroOrMore(
-            comments.suppress() | assignment | conditional_set | returnline) + rbrack).setParseAction(
-            code_block_obj.push_func_block)
+            comments.suppress() | assignment | conditional_set |
+            returnline) + rbrack).setParseAction(code_block_obj.push_func_block)
         func_def = Group(func + func_def_args + function_block)
-        bnf = OneOrMore(comments.suppress() | func_def | assignment | conditional_set) + stringEnd
-    return bnf
+        BNF = OneOrMore(comments.suppress() | func_def | assignment | conditional_set) + stringEnd
+    return BNF

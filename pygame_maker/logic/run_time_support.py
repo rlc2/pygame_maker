@@ -1,8 +1,10 @@
-#!/usr/bin/python -W all
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Support module for code block generation.
+"""
 
 import random
 import time
@@ -13,6 +15,7 @@ DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
 
 
 class CodeBlockRuntimeError(RuntimeError):
+    """Raised when errors are encountered in code blocks at run time."""
     pass
 
 
