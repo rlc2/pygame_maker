@@ -1,25 +1,23 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Pygame maker room backgrounds.
+"""
 
-# pygame maker room backgrounds
-
-import pygame
 import os.path
+import pygame
 import yaml
-import re
 
 
 class BackgroundException(Exception):
+    """Raised when a background's filename is invalid or not found."""
     pass
 
 
 class TileProperties(object):
-    """
-    Wrap tiling properties.
-    """
+    """Wrap background tiling properties."""
     DEFAULT_TILE_WIDTH = 16
     DEFAULT_TILE_HEIGHT = 16
 
@@ -69,9 +67,7 @@ class TileProperties(object):
 
 
 class Background(object):
-    """
-    The Background resource used by Rooms.
-    """
+    """Background resource type, used by Rooms."""
     DEFAULT_NAME = "bkg_"
 
     @staticmethod
@@ -110,7 +106,7 @@ class Background(object):
                 if 'filename' in bkg_yaml.keys():
                     kwargs['filename'] = bkg_yaml['filename']
                 if 'smooth_edges' in bkg_yaml.keys():
-                    kwargs['smooth_edges'] = (bkg_yaml['smooth_edges'] == True)
+                    kwargs['smooth_edges'] = (bkg_yaml['smooth_edges'] is True)
                 if 'preload_texture' in bkg_yaml.keys():
                     kwargs['preload_texture'] = (bkg_yaml['preload_texture'] is True)
                 if 'transparent' in bkg_yaml.keys():
@@ -195,13 +191,13 @@ class Background(object):
             if 'filename' in kwargs:
                 self.filename = kwargs['filename']
             if 'smooth_edges' in kwargs:
-                self.smooth_edges = (kwargs['smooth_edges'] == True)
+                self.smooth_edges = (kwargs['smooth_edges'] is True)
             if 'preload_texture' in kwargs:
-                self.preload_texture = (kwargs['preload_texture'] == True)
+                self.preload_texture = (kwargs['preload_texture'] is True)
             if 'transparent' in kwargs:
-                self.transparent = (kwargs['transparent'] == True)
+                self.transparent = (kwargs['transparent'] is True)
             if 'tileset' in kwargs:
-                self.tileset = (kwargs['tileset'] == True)
+                self.tileset = (kwargs['tileset'] is True)
 
     def setup(self):
         """
@@ -261,7 +257,7 @@ class Background(object):
                     # print("row spacing: {}".format(self.tile_row_spacing))
                 if self.max_tile_rows < 0:
                     self.max_tile_rows = ((screen.get_height() - xy_offset[1] -
-                                          self.tile_properties.vertical_offset) /
+                                           self.tile_properties.vertical_offset) /
                                           self.tile_row_spacing)
                     # print("max rows: {}".format(self.max_tile_rows))
                 if self.tile_col_spacing < 0:
@@ -270,7 +266,7 @@ class Background(object):
                     # print("col spacing: {}".format(self.tile_col_spacing))
                 if self.max_tile_cols < 0:
                     self.max_tile_cols = ((screen.get_width() -
-                                          self.tile_properties.horizontal_offset) /
+                                           self.tile_properties.horizontal_offset) /
                                           self.tile_col_spacing)
                     # print("max cols: {}".format(self.max_tile_cols))
                 for col in range(self.max_tile_cols):
@@ -296,15 +292,15 @@ class Background(object):
         :rtype: bool
         """
         if not isinstance(self.filename, str):
-            raise BackgroundException("Background error ({}): filename '{}' is not a string".format(str(self),
-                                                                                                    self.filename))
+            raise(BackgroundException("Background error ({}): filename '{}' is not a string".
+                                      format(str(self), self.filename)))
         elif len(self.filename) == 0:
-            raise BackgroundException("Background error ({}): filename is empty".format(str(self),
-                                                                                        self.filename))
+            raise(BackgroundException("Background error ({}): filename is empty".
+                                      format(str(self))))
         if len(self.filename) > 0:
             if not os.path.exists(self.filename):
-                raise BackgroundException("Background error ({}): filename '{}' not found".format(str(self),
-                                                                                                  self.filename))
+                raise(BackgroundException("Background error ({}): filename '{}' not found".
+                                          format(str(self), self.filename)))
         return True
 
     def __eq__(self, other):

@@ -1,10 +1,10 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# pygame maker rooms
+Pygame maker room resource type.
+"""
 
 import pygame
 import yaml
@@ -14,6 +14,10 @@ from pygame_maker.support import color
 
 
 class RoomException(Exception):
+    """
+    Raised when a room is unable to load its objects or object code, or when
+    the screen dimensions change unexpectedly.
+    """
     pass
 
 
@@ -118,7 +122,7 @@ class Room(logging_object.LoggingObject):
             * width (int): The room's width [640]
             * height (int): The room's height [480]
             * speed (float): The speed the room's image will move in pixels per
-              frome [0.0]
+              frame [0.0]
             * persistent (bool): True if the room's state will be saved when
               the game engine switches to a new room [False]
             * init_code (str): Game language code to run when the room is
@@ -215,7 +219,7 @@ class Room(logging_object.LoggingObject):
                     if attr_type != bool:
                         setattr(self, attr, attr_type(kwargs[attr]))
                     else:
-                        setattr(self, attr, (kwargs[attr] == True))
+                        setattr(self, attr, (kwargs[attr] is True))
             if 'object_instances' in kwargs:
                 # This is a list of hashes inside hashes containing info
                 #  about objects to be placed when the room is loaded.
@@ -232,25 +236,26 @@ class Room(logging_object.LoggingObject):
                     pos_list = list(obj_check[obj_name]['position'])
                     if len(pos_list) < 2:
                         obj_ok = False
-                        err_msg = "Invalid position '{}' for object '{}'".format(obj_check[obj_name]['position'],
-                                                                                 obj_name)
+                        err_msg = "Invalid position '{}' for object '{}'".format(
+                            obj_check[obj_name]['position'], obj_name)
                     if 'init_code' in obj_check[obj_name].keys():
                         if not isinstance(obj_check[obj_name]['init_code'], str):
                             obj_ok = False
-                            err_msg = "Invalid code block '{}' for object '{}'".format(obj_check[obj_name]['init_code'],
-                                                                                       obj_name)
+                            err_msg = "Invalid code block '{}' for object '{}'".format(
+                                obj_check[obj_name]['init_code'], obj_name)
                         init_code = obj_check[obj_name]['init_code']
                     if not obj_ok:
-                        self.error("{}: Failed to create room: {}".format(type(self).__name__,
-                                                                          err_msg))
-                        raise RoomException("{}: Failed to create room: {}".format(type(self).__name__,
-                                                                                   err_msg))
+                        self.error("{}: Failed to create room: {}".format(
+                            type(self).__name__, err_msg))
+                        raise(RoomException("{}: Failed to create room: {}".
+                                            format(type(self).__name__, err_msg)))
                     self.add_init_object_instance_at(obj_name,
                                                      obj_check[obj_name]['position'],
                                                      init_code)
 
     @property
     def init_code(self):
+        """Get and set the code block to execute when the room is loaded."""
         return self._init_code
 
     @init_code.setter
@@ -260,6 +265,7 @@ class Room(logging_object.LoggingObject):
 
     @property
     def background_horizontal_offset(self):
+        """Get and set the background resource's horizontal offset."""
         return self._background_horizontal_offset
 
     @background_horizontal_offset.setter
@@ -269,6 +275,7 @@ class Room(logging_object.LoggingObject):
 
     @property
     def background_vertical_offset(self):
+        """Get and set the background resource's vertical offset."""
         return self._background_vertical_offset
 
     @background_vertical_offset.setter
@@ -290,9 +297,8 @@ class Room(logging_object.LoggingObject):
             created
         :type init_code: None | str
         """
-        self.debug("add_init_object_instance_at({}, {}, {}):".format(object_type_name,
-                                                                     locationxy,
-                                                                     init_code))
+        self.debug("add_init_object_instance_at({}, {}, {}):".format(
+            object_type_name, locationxy, init_code))
         loc = [int(locationxy[0]), int(locationxy[1])]
         self.init_object_instances.append((object_type_name, loc, init_code))
 
@@ -311,17 +317,15 @@ class Room(logging_object.LoggingObject):
             creating the instance
         :type init_code: None | str
         """
-        self.debug("add_object_instance_at({}, {}, {}, {}):".format(surface,
-                                                                    object_type_name,
-                                                                    locationxy,
-                                                                    init_code))
+        self.debug("add_object_instance_at({}, {}, {}, {}):".format(
+            surface, object_type_name, locationxy, init_code))
         if object_type_name in self.game_engine.resources['objects'].keys():
-            self.object_instances.append(self.game_engine.resources['objects'][object_type_name].create_instance(
-                surface, position=locationxy))
+            self.object_instances.append(
+                self.game_engine.resources['objects'][object_type_name].create_instance(
+                    surface, position=locationxy))
             new_obj = self.object_instances[-1]
-            self.info("  Room {}: Created obj {} id {:d}".format(self.name,
-                                                                 object_type_name,
-                                                                 new_obj.inst_id))
+            self.info("  Room {}: Created obj {} id {:d}".format(
+                self.name, object_type_name, new_obj.inst_id))
             if init_code is not None:
                 # Create a throw-away code action, and send it to the new
                 #  instance's execute_code method.
@@ -391,9 +395,11 @@ class Room(logging_object.LoggingObject):
                         (self.disp_height != surface.get_height())):
                     if self._cached_background is not None:
                         # What happened here?!
-                        self.error("room {} draw_room_background(): display surface changed dimensions!".format(name))
+                        self.error("room {} draw_room_background():".format(self.name) + \
+                                   " display surface changed dimensions!")
                         raise RoomException(
-                              "room {} draw_room_background(): display surface changed dimensions!".format(name))
+                            "room {} draw_room_background():".format(self.name) + \
+                            "display surface changed dimensions!")
                     self.disp_width = surface.get_width()
                     self.disp_height = surface.get_height()
                 if self._cached_background:
@@ -418,8 +424,7 @@ class Room(logging_object.LoggingObject):
                         # print("Cache tiled background..")
                         self._cached_rect.width = self.disp_width - self.background_offsets[0]
                         self._cached_rect.height = self.disp_height - self.background_offsets[1]
-                        bkg.draw_background(self._cached_background,
-                                            self.background_offsets)
+                        bkg.draw_background(self._cached_background, self.background_offsets)
                     else:
                         # A simple background image can be tiled
                         #  horizontally and/or vertically using room
