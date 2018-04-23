@@ -204,6 +204,10 @@ class GameEngine(logging_object.LoggingObject):
 
         self.info("Loading game resources..")
         self.global_style_settings = None
+        if "stylesheet" in self.game_settings and len(self.game_settings["stylesheet"]) > 0:
+            with open(self.game_settings["stylesheet"], "r") as style_f:
+                self.global_style_settings = css_to_style.CSSStyleGenerator.get_css_style(
+                    style_f.read())
 
         with logging_object.Indented(self):
             self.load_game_resources()
