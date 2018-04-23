@@ -1,28 +1,36 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# implement pygame_maker font resource
+Implement pygame maker font resource.
+"""
 
 import re
 import pygame
+import yaml
 
 
 class FontRenderer(object):
+    """
+    Render text onto a surface using selected font properties.
+    """
     FILE_URI_RE = re.compile("^file://(.*)")
-    NON_WHITESPACE_RE = re.compile("\S")
+    NON_WHITESPACE_RE = re.compile(r"\S")
 
     @staticmethod
     def get_render_hash_key(text, color, background):
+        """
+        Produce a hash string composed of text, color and background strings
+        for quick storage and retrieval of rendered text from the cache.
+        """
         return "{}|{}|{}".format(text, color, background)
 
     def __init__(self, font_resource):
         self.font_resource = font_resource
         self.fontfile = False
         self.fontpath = None
-        minfo = False
+        minfo = None
         if font_resource.fontname is not None:
             minfo = self.FILE_URI_RE.match(font_resource.fontname)
         if minfo:
@@ -39,9 +47,9 @@ class FontRenderer(object):
             self._renderer.set_italic(font_resource.italic)
         else:
             self._renderer = pygame.font.SysFont(font_resource.fontname,
-                             font_resource.fontsize,
-                             font_resource.bold,
-                             font_resource.italic)
+                                                 font_resource.fontsize,
+                                                 font_resource.bold,
+                                                 font_resource.italic)
         if font_resource.underline:
             self._renderer.set_underline(True)
         self.cached_renders = {}
@@ -49,18 +57,23 @@ class FontRenderer(object):
         self._cache_enabled = True
 
     def cache_enabled(self):
+        """Get the cache enabled status."""
         return self._cache_enabled
 
     def disable_text_cache(self):
+        """Disable text caching."""
         self._cache_enabled = False
 
     def enable_text_cache(self):
+        """Enable text caching."""
         self._cache_enabled = True
 
     def get_linesize(self):
+        """Get the height of text drawn in the renderer's selected font."""
         return self._renderer.get_linesize()
 
     def cache_render(self, text_line, color, background, surface):
+        """Store the surface containing rendered text for re-use."""
         if not self.cache_enabled():
             return
         line_hash_key = FontRenderer.get_render_hash_key(text_line, color, background)
@@ -84,7 +97,7 @@ class FontRenderer(object):
         lines = text.splitlines()
         # remove trailing empty lines
         while (len(lines)) > 0 and (len(lines[-1]) == 0):
-            del(lines[-1])
+            del lines[-1]
         width = 0
         height = 0
         has_text = False
@@ -118,7 +131,7 @@ class FontRenderer(object):
         """
         Draw the text contained in the text string to the screen at the given
         position, using the given color and background (if any).
-        
+
         Use pygame.font.render() to produce the text, which is then blitted
         to the given surface.  Rendered text is cached so it can be redrawn
         quickly later.
@@ -139,7 +152,7 @@ class FontRenderer(object):
         lines = text.splitlines()
         # remove trailing empty lines
         while (len(lines)) > 0 and (len(lines[-1]) == 0):
-            del(lines[-1])
+            del lines[-1]
         x_posn = position.x
         y_posn = position.y
         # print("starting text @ ({},{})".format(x_posn, y_posn))
@@ -157,9 +170,11 @@ class FontRenderer(object):
                 font_surf = self.cached_renders[line_hash_key]
             else:
                 if background is None:
-                    font_surf = self._renderer.render(line, self.font_resource.antialias, color.color)
+                    font_surf = self._renderer.render(line, self.font_resource.antialias,
+                                                      color.color)
                 else:
-                    font_surf = self._renderer.render(line, self.font_resource.antialias, color.color, background.color)
+                    font_surf = self._renderer.render(line, self.font_resource.antialias,
+                                                      color.color, background.color)
                 # cache this render to make drawing the same line again faster
                 self.cache_render(line, color, background, font_surf)
             screen.blit(font_surf, (x_posn, y_posn))
@@ -168,6 +183,7 @@ class FontRenderer(object):
 
 
 class Font(object):
+    """Pygame maker font resource class."""
     DEFAULT_FONT_PREFIX = "fnt_"
 
     FONT_CACHE = {}
@@ -215,36 +231,43 @@ class Font(object):
                 if 'line_spacing' in yaml_info_hash:
                     font_args['line_spacing'] = yaml_info_hash['line_spacing']
                 if 'bold' in yaml_info_hash:
-                    font_args['bold'] = (yaml_info_hash['bold'] == True)
+                    font_args['bold'] = (yaml_info_hash['bold'] is True)
                 if 'italic' in yaml_info_hash:
-                    font_args['italic'] = (yaml_info_hash['italic'] == True)
+                    font_args['italic'] = (yaml_info_hash['italic'] is True)
                 if 'underline' in yaml_info_hash:
-                    font_args['underline'] = (yaml_info_hash['underline'] == True)
+                    font_args['underline'] = (yaml_info_hash['underline'] is True)
                 if 'antialias' in yaml_info_hash:
-                    font_args['antialias'] = (yaml_info_hash['antialias'] == True)
+                    font_args['antialias'] = (yaml_info_hash['antialias'] is True)
                 new_font = Font(font_name, **font_args)
                 new_font_list.append(new_font)
         return new_font_list
 
     @staticmethod
     def hash_font(font_resource):
+        """Produce a hash key string from font resource properties."""
         return "|".join([str(font_resource.fontname), str(font_resource.fontsize),
-            str(font_resource.bold), str(font_resource.italic),
-            str(font_resource.underline), str(font_resource.antialias)])
+                         str(font_resource.bold), str(font_resource.italic),
+                         str(font_resource.underline), str(font_resource.antialias)])
 
     @classmethod
     def is_cached_font(cls, font_resource):
+        """
+        Returns True if the given font resource is found in the cache, False
+        otherwise.
+        """
         fhash = cls.hash_font(font_resource)
         return fhash in cls.FONT_CACHE.keys()
 
     @classmethod
     def get_cached_font(cls, font_resource):
+        """Retrieve a font resource from the cache."""
         fhash = cls.hash_font(font_resource)
         # print("Get {} from font cache".format(fhash))
         return cls.FONT_CACHE[fhash]
 
     @classmethod
     def add_font_to_cache(cls, font_resource, renderer):
+        """Add a font resource to the cache."""
         fhash = cls.hash_font(font_resource)
         if fhash not in cls.FONT_CACHE.keys():
             # print("Add {} to font cache".format(fhash))
@@ -288,6 +311,7 @@ class Font(object):
 
     @property
     def fontname(self):
+        """Get and set the font's name."""
         return self._fontname
 
     @fontname.setter
@@ -298,6 +322,7 @@ class Font(object):
 
     @property
     def fontsize(self):
+        """Get and set the font size."""
         return self._fontsize
 
     @fontsize.setter
@@ -308,6 +333,7 @@ class Font(object):
 
     @property
     def line_spacing(self):
+        """Get and set the line spacing."""
         return self._line_spacing
 
     @line_spacing.setter
@@ -317,48 +343,53 @@ class Font(object):
 
     @property
     def bold(self):
+        """Get and set bold font weight flag."""
         return self._bold
 
     @bold.setter
     def bold(self, new_bold):
-        bold_truth = (new_bold == True)
+        bold_truth = (new_bold is True)
         if bold_truth != self._bold:
             self._property_changed = True
             self._bold = bold_truth
 
     @property
     def italic(self):
+        """Get and set italicization flag."""
         return self._italic
 
     @italic.setter
     def italic(self, new_italic):
-        italic_truth = (new_italic == True)
+        italic_truth = (new_italic is True)
         if italic_truth != self._italic:
             self._property_changed = True
             self._italic = italic_truth
 
     @property
     def underline(self):
+        """Get and set text underline flag."""
         return self._underline
 
     @underline.setter
     def underline(self, new_underline):
-        underline_truth = (new_underline == True)
+        underline_truth = (new_underline is True)
         if underline_truth != self._underline:
             self._property_changed = True
             self._underline = underline_truth
 
     @property
     def antialias(self):
+        """Get and set text antialias flag."""
         return self._antialias
 
     @antialias.setter
     def antialias(self, new_antialias):
-        antialias_truth = (new_antialias == True)
+        antialias_truth = (new_antialias is True)
         if antialias_truth != self._antialias:
             self._antialias = antialias_truth
 
     def get_font_renderer(self):
+        """Get a renderer instance for the font resource."""
         if self._property_changed:
             renderer = None
             if not Font.is_cached_font(self):
@@ -371,17 +402,23 @@ class Font(object):
         return self._cached_renderer
 
     def font_settings_match(self, other):
+        """
+        Return True if this font's properties match another font, False
+        otherwise.
+        """
         return (self.fontname == other.fontname and
-            self.fontsize == other.fontsize and
-            self.bold == other.bold and
-            self.italic == other.italic and
-            self.underline == other.underline and
-            self.antialias == other.antialias)
+                self.fontsize == other.fontsize and
+                self.bold == other.bold and
+                self.italic == other.italic and
+                self.underline == other.underline and
+                self.antialias == other.antialias)
 
     def copy(self):
+        """Duplicate a font instance."""
         new_font = Font("{}_copy{}".format(self.name, self._copy_count), fontname=self.fontname,
-            fontsize=self.fontsize, bold=self.bold, italic=self.italic, underline=self.underline,
-            antialias=self.antialias, line_spacing=self.line_spacing)
+                        fontsize=self.fontsize, bold=self.bold, italic=self.italic,
+                        underline=self.underline, antialias=self.antialias,
+                        line_spacing=self.line_spacing)
         self._copy_count += 1
         if self._cached_renderer is not None:
             new_font._cached_renderer = self._cached_renderer

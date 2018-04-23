@@ -1,24 +1,26 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Unit test pygame_maker.support.font resource module.
+"""
 
-# test font resource
-
+import sys
+import pygame
+import pg_template
 import pygame_maker.support.font as font
 import pygame_maker.support.color as color
 import pygame_maker.support.coordinate as coord
-import pg_template
-import pygame
-import sys
 
 
 SCREEN_WIDTH = 1024
 SCREEN_HEIGHT = 768
 
 
-class MyGameManager:
+class MyGameManager(object):
+    """Custom game manager for font module unit test."""
     HEADER_LINE_TOP = 5
     FONT_TABLE_COLUMNS = 5
     FONT_TABLE_ROWS = 4
@@ -73,18 +75,20 @@ class MyGameManager:
         self.done = False
 
     def setup(self, screen):
+        """Handle setup callback from PygameTemplate."""
         self.screen = screen
         with open(sys.argv[0], "r") as source_f:
             self.textlines = source_f.readlines()
         self.system_font = font.Font("fnt_sys", fontname=None, fontsize=self.FONT_SIZE)
-        self.file_font = font.Font("fnt_file",
+        self.file_font = font.Font(
+            "fnt_file",
             fontname="file://pygame_maker/tests/unittest_files/DroidSansFallbackFull.ttf",
             fontsize=14)
         known_fonts = pygame.font.get_fonts()
         for idx, a_font in enumerate(known_fonts):
             self.fonts.append(font.Font("fnt_{}".format(idx),
-                fontname=a_font,
-                fontsize=self.FONT_SIZE))
+                                        fontname=a_font,
+                                        fontsize=self.FONT_SIZE))
         self.font_pages = (len(known_fonts) / self.fonts_per_page)
         if (len(known_fonts) % self.fonts_per_page) != 0:
             self.font_pages += 1
@@ -93,30 +97,33 @@ class MyGameManager:
             self.text_pages += 1
 
     def collect_event(self, event):
+        """Handle collect_event callback from PygameTemplate."""
         self.current_events.append(event)
 
     def update(self):
-        for ev in self.current_events:
-            if ev.type == pygame.KEYDOWN:
-                if ev.key == pygame.K_ESCAPE or ev.key == pygame.K_q:
+        """Handle PygameTemplate update callback."""
+        for cev in self.current_events:
+            if cev.type == pygame.KEYDOWN:
+                if cev.key == pygame.K_ESCAPE or cev.key == pygame.K_q:
                     self.done = True
                     break
-                elif ev.key == pygame.K_PAGEUP:
+                elif cev.key == pygame.K_PAGEUP:
                     # select a different page of text
                     if self.current_page > 0:
                         self.current_page -= 1
                         self.changed_setting = True
-                elif ev.key == pygame.K_PAGEDOWN:
+                elif cev.key == pygame.K_PAGEDOWN:
                     # select a different page of text
                     if self.current_page < (self.text_pages-1):
                         self.current_page += 1
                         self.changed_setting = True
-                elif ev.key == pygame.K_LEFT:
+                elif cev.key == pygame.K_LEFT:
                     # select a different font
                     old_font = self.current_font
                     if (self.current_font % self.fonts_per_page) < self.FONT_TABLE_ROWS:
                         # move to rightmost column from leftmost
-                        next_entry = self.current_font + (self.FONT_TABLE_ROWS) * (self.FONT_TABLE_COLUMNS-1)
+                        next_entry = (self.current_font + (self.FONT_TABLE_ROWS) *
+                                      (self.FONT_TABLE_COLUMNS-1))
                         if next_entry >= len(self.fonts):
                             while next_entry > self.current_font:
                                 # locate the last column of a partial page
@@ -131,12 +138,13 @@ class MyGameManager:
                             # move one column to the left
                             self.current_font -= self.FONT_TABLE_ROWS
                     self.changed_setting = True
-                    print("Moving to entry {} from {}".format(self.current_font, old_font))
-                elif ev.key == pygame.K_RIGHT:
+                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                elif cev.key == pygame.K_RIGHT:
                     # select a different font
                     old_font = self.current_font
                     right_col = self.FONT_TABLE_ROWS * (self.FONT_TABLE_COLUMNS-1)
-                    while (right_col + self.current_font_page*self.fonts_per_page) >= len(self.fonts):
+                    while ((right_col + self.current_font_page*self.fonts_per_page) >=
+                           len(self.fonts)):
                         right_col -= self.FONT_TABLE_ROWS
                     if (self.current_font % self.fonts_per_page) >= right_col:
                         # move to leftmost column from rightmost
@@ -146,23 +154,24 @@ class MyGameManager:
                             # move one columnt to the right
                             self.current_font += self.FONT_TABLE_ROWS
                     self.changed_setting = True
-                    print("Moving to entry {} from {}".format(self.current_font, old_font))
-                elif ev.key == pygame.K_UP:
+                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                elif cev.key == pygame.K_UP:
                     # select a different font
                     old_font = self.current_font
                     if (self.current_font % self.FONT_TABLE_ROWS) == 0:
                         # switch to the previous font page when moving up from top row
                         if self.current_font_page > 0:
                             self.current_font_page -= 1
-                            self.current_font -= ((self.FONT_TABLE_ROWS * (self.FONT_TABLE_COLUMNS-1)) + 1)
-                            print("Moving to font page {}".format(self.current_font_page))
+                            self.current_font -= ((self.FONT_TABLE_ROWS *
+                                                   (self.FONT_TABLE_COLUMNS-1)) + 1)
+                            print "Moving to font page {}".format(self.current_font_page)
                     else:
                         if self.current_font > 0:
                             # move up one row
                             self.current_font -= 1
                     self.changed_setting = True
-                    print("Moving to entry {} from {}".format(self.current_font, old_font))
-                elif ev.key == pygame.K_DOWN:
+                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                elif cev.key == pygame.K_DOWN:
                     # select a different font
                     old_font = self.current_font
                     if (self.current_font % self.FONT_TABLE_ROWS) == (self.FONT_TABLE_ROWS-1):
@@ -170,50 +179,51 @@ class MyGameManager:
                         if self.current_font_page < (self.font_pages-1):
                             self.current_font_page += 1
                             next_font_idx = (self.current_font +
-                                ((self.FONT_TABLE_ROWS * (self.FONT_TABLE_COLUMNS-1)) + 1))
+                                             ((self.FONT_TABLE_ROWS *
+                                               (self.FONT_TABLE_COLUMNS-1)) + 1))
                             if next_font_idx > (len(self.fonts) - 1):
                                 self.current_font = len(self.fonts) - 1
                             else:
                                 self.current_font = next_font_idx
-                            print("Moving to font page {}".format(self.current_font_page))
+                            print "Moving to font page {}".format(self.current_font_page)
                     else:
                         if self.current_font < (len(self.fonts) - 1):
                             # move down one row
                             self.current_font += 1
                     self.changed_setting = True
-                    print("Moving to entry {} from {}".format(self.current_font, old_font))
-                elif ev.key == pygame.K_MINUS:
+                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                elif cev.key == pygame.K_MINUS:
                     # select the next smallest font size, down to minimum size
                     if self.current_size > self.MIN_FONT_SIZE:
                         self.current_size -= 1
                         self.changed_setting = True
-                elif ev.key == pygame.K_EQUALS:
+                elif cev.key == pygame.K_EQUALS:
                     # select the next largest font size, up to maximum size
                     if self.current_size < self.MAX_FONT_SIZE:
                         self.current_size += 1
                         self.changed_setting = True
-                elif ev.key == pygame.K_b:
+                elif cev.key == pygame.K_b:
                     # toggle bold
                     self.bold = not self.bold
                     self.changed_setting = True
-                elif ev.key == pygame.K_i:
+                elif cev.key == pygame.K_i:
                     # toggle italic
                     self.italic = not self.italic
                     self.changed_setting = True
-                elif ev.key == pygame.K_u:
+                elif cev.key == pygame.K_u:
                     # toggle underline
                     self.underline = not self.underline
                     self.changed_setting = True
-                elif ev.key == pygame.K_a:
+                elif cev.key == pygame.K_a:
                     # toggle antialiasing
                     self.antialias = not self.antialias
-                elif ev.key == pygame.K_COMMA:
+                elif cev.key == pygame.K_COMMA:
                     # cycle through colors in reverse order
                     if self.current_color > 0:
                         self.current_color -= 1
                     else:
                         self.current_color = len(self.COLOR_LIST) - 1
-                elif ev.key == pygame.K_PERIOD:
+                elif cev.key == pygame.K_PERIOD:
                     # cycle through colors in order
                     if self.current_color < (len(self.COLOR_LIST) - 1):
                         self.current_color += 1
@@ -223,6 +233,7 @@ class MyGameManager:
         self.current_events = []
 
     def draw_text(self):
+        """Render file contents to the screen."""
         line_index = self.LINES_PER_PAGE * self.current_page
         current_font = self.fonts[self.current_font]
         page_text = "".join(self.textlines[line_index:line_index+self.LINES_PER_PAGE])
@@ -235,20 +246,19 @@ class MyGameManager:
         fnt_renderer = current_font.get_font_renderer()
         if self.changed_setting:
             self.text_dims = fnt_renderer.calc_render_size(page_text)
-            print("Text page dims: {}x{}".format(self.text_dims[0], self.text_dims[1]))
+            print "Text page dims: {}x{}".format(self.text_dims[0], self.text_dims[1])
             self.changed_setting = False
         fnt_renderer.render_text(self.screen, coord.Coordinate(self.TEXT_INDENT, self.TEXT_TOP),
-            page_text, self.COLOR_LIST[self.current_color])
-        text_rect = pygame.Rect(self.TEXT_INDENT, self.TEXT_TOP, self.text_dims[0], self.text_dims[1])
+                                 page_text, self.COLOR_LIST[self.current_color])
+        text_rect = pygame.Rect(self.TEXT_INDENT, self.TEXT_TOP, self.text_dims[0],
+                                self.text_dims[1])
         pygame.draw.rect(self.screen, self.SYSTEM_FONT_COLOR.color, text_rect, 1)
 
     def draw_font_table(self):
+        """Render a page's worth of font names into the font table area."""
         current_font = self.fonts[self.current_font]
         font_table_idx = self.fonts_per_page * self.current_font_page
         font_table_entries = self.fonts[font_table_idx:font_table_idx+self.fonts_per_page]
-        table_width = 0
-        table_height = 0
-        widest_entry = 0
         table_x = self.FONT_TABLE_LEFT
         table_y = self.FONT_TABLE_TOP
         sys_renderer = self.system_font.get_font_renderer()
@@ -256,11 +266,11 @@ class MyGameManager:
         for col in range(self.FONT_TABLE_COLUMNS):
             for row in range(self.FONT_TABLE_ROWS):
                 entry_idx = col*self.FONT_TABLE_ROWS + row
-                if (entry_idx > (len(font_table_entries) - 1)):
+                if entry_idx > (len(font_table_entries) - 1):
                     break
                 font_text = font_table_entries[entry_idx].fontname
                 text_coord = coord.Coordinate(table_x + col*self.FONT_TABLE_COLUMN_WIDTH,
-                    table_y + row*line_height)
+                                              table_y + row*line_height)
                 font_color = self.FONT_TABLE_FG_COLOR
                 if font_text == current_font.fontname:
                     font_color = self.FONT_TABLE_ACTIVE_FG_COLOR
@@ -271,16 +281,17 @@ class MyGameManager:
         page_indicator_text = "(page {} of {})".format(self.current_font_page+1, self.font_pages)
         indicator_width, indicator_height = file_font_renderer.calc_render_size(page_indicator_text)
         indic_left = (SCREEN_WIDTH / 2) - (indicator_width / 2)
-        file_font_renderer.render_text(self.screen, coord.Coordinate(indic_left, self.FONT_PAGE_TOP),
-            page_indicator_text, self.FONT_TABLE_ACTIVE_FG_COLOR)
+        file_font_renderer.render_text(self.screen,
+                                       coord.Coordinate(indic_left, self.FONT_PAGE_TOP),
+                                       page_indicator_text, self.FONT_TABLE_ACTIVE_FG_COLOR)
 
     def draw_objects(self):
+        """Handle draw_objects callback from PygameTemplate."""
         current_font = self.fonts[self.current_font]
         # draw the font name at the top center, using the system font
         sys_renderer = self.system_font.get_font_renderer()
-        fontname_text = current_font.fontname
         font_info_text = "{} size {} spacing {}".format(current_font.fontname,
-            self.current_size, self.line_spacing)
+                                                        self.current_size, self.line_spacing)
         if self.bold:
             font_info_text += " bold"
         if self.italic:
@@ -292,23 +303,25 @@ class MyGameManager:
         header_width, header_height = sys_renderer.calc_render_size(font_info_text)
         header_x = SCREEN_WIDTH / 2 - header_width / 2
         sys_renderer.render_text(self.screen, coord.Coordinate(header_x, self.HEADER_LINE_TOP),
-            font_info_text, self.SYSTEM_FONT_COLOR, color.Color("black"))
+                                 font_info_text, self.SYSTEM_FONT_COLOR, color.Color("black"))
         self.draw_font_table()
         # draw the current page of text using the current settings
         self.draw_text()
 
     def draw_background(self):
-        self.screen.fill( (0,0,0) ) # grey background color
+        """Handle draw_background callback from PygameTemplate."""
+        self.screen.fill((0, 0, 0)) # grey background color
 
     def final_pass(self):
+        """Handle final_pass callback from PygameTemplate."""
         pass
 
     def is_done(self):
+        """Handle is_done callback from PygameTemplate."""
         return self.done
 
 
-mymanager = MyGameManager()
-mygame = pg_template.PygameTemplate( (SCREEN_WIDTH,SCREEN_HEIGHT), "Font Tests",
-    mymanager, 5)
-mygame.run()
+MYMANAGER = MyGameManager()
+MYGAME = pg_template.PygameTemplate((SCREEN_WIDTH, SCREEN_HEIGHT), "Font Tests", MYMANAGER, 5)
+MYGAME.run()
 

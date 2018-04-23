@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.events.event_engine module.
+"""
 
 import unittest
 import logging
@@ -11,6 +18,7 @@ EEFORMATTER = logging.Formatter("%(levelname)s: %(message)s")
 EEHANDLER.setFormatter(EEFORMATTER)
 EELOGGER.addHandler(EEHANDLER)
 EELOGGER.setLevel(logging.INFO)
+
 
 class TestEventEngine(unittest.TestCase):
     """Unit tests for the event_engine module."""

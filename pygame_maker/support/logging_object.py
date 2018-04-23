@@ -1,6 +1,10 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# base class for objects that need logging
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Base class for objects that need logging
+"""
 
 import logging
 
@@ -21,10 +25,11 @@ class Indented(object):
 
 
 class LoggingException(Exception):
+    """Exception base class that can log the exception message."""
     def __init__(self, msg, logger=None):
+        super(LoggingException, self).__init__(msg)
         if logger:
             logger(msg)
-        self.msg = msg
 
 
 class LoggingObject(object):

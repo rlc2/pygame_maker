@@ -1,10 +1,10 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# pygame maker coordinate class
+Pygame maker coordinate class.
+"""
 
 from numbers import Number
 
@@ -30,32 +30,37 @@ class Coordinate(object):
             changes
         :type y_change_callback: callable
         """
-        self._x = x
-        self._y = y
+        self._xcoord = x
+        self._ycoord = y
         self.x_callback = x_change_callback
         self.y_callback = y_change_callback
 
+    #pylint: disable=invalid-name
     @property
     def x(self):
-        return self._x
+        """Get and set the X coordinate."""
+        return self._xcoord
 
     @x.setter
     def x(self, value):
-        self._x = value
+        self._xcoord = value
         if self.x_callback:
             self.x_callback()
 
     @property
     def y(self):
-        return self._y
+        """Get and set the Y coordinate."""
+        return self._ycoord
 
     @y.setter
     def y(self, value):
-        self._y = value
+        self._ycoord = value
         if self.y_callback:
             self.y_callback()
+    #pylint: enable=invalid-name
 
     def copy(self):
+        """Return a copy of the coordinate, complete with callbacks."""
         return Coordinate(self.x, self.y, self.x_callback, self.y_callback)
 
     def __getitem__(self, itemkey):
@@ -88,19 +93,21 @@ class Coordinate(object):
         """
         if not isinstance(value, Number):
             raise ValueError("Coordinates can only hold numbers")
+        #pylint: disable=invalid-name
         if itemkey == 0:
             self.x = value
         elif itemkey == 1:
             self.y = value
         else:
             raise IndexError("Coordinates only have indices 0 or 1")
+        #pylint: enable=invalid-name
 
     def __len__(self):
         """A coordinate always has 2 items: x and y."""
         return 2
 
     def __eq__(self, other):
-        return ((self.x == other.x) and (self.y == other.y))
+        return (self.x == other.x) and (self.y == other.y)
 
     def __repr__(self):
         return "({:d}, {:d})".format(int(self.x), int(self.y))

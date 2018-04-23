@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.actors.object_type module.
+"""
 
 import logging
 import os
@@ -45,6 +52,7 @@ EELOGGER.setLevel(logging.INFO)
 
 OBJ_TEST_FILE = "unittest_files/obj_test.yaml"
 OBJ_TEST_FILE2 = "unittest_files/obj_spaceship.yaml"
+
 
 class GameEngine(logging_object.LoggingObject):
     """A game engine class specifically for testing ObjectType."""

@@ -1,11 +1,18 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
 
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.actions.action module.
+"""
 
 import unittest
 import yaml
 from pygame_maker.actions.action import Action, MotionAction, ObjectAction, SoundAction, \
     CodeAction, AccountingAction, RoomAction, TimingAction, InfoAction, GameAction, \
     VariableAction
+
 
 class TestAction(unittest.TestCase):
     """Unit tests for the action module."""

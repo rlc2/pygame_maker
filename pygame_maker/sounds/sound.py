@@ -1,17 +1,18 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+implement sound resources
+"""
 
-# implement sound resources
-
-import pygame
 import os.path
+import pygame
 import yaml
 
 
 class SoundException(Exception):
+    """Raised for invalid sound file names or unknown sound types."""
     pass
 
 
@@ -112,7 +113,7 @@ class Sound(object):
                 (kwargs["sound_type"] in self.SOUND_TYPES)):
             self.sound_type = kwargs["sound_type"]
         if "preload" in kwargs:
-            self.preload = (kwargs["preload"] == True)  # convert to boolean
+            self.preload = (kwargs["preload"] is True)  # convert to boolean
 
     def setup(self):
         """
@@ -129,7 +130,8 @@ class Sound(object):
         :raise: SoundException if the file is not found
         """
         if not os.path.exists(self.sound_file):
-            raise SoundException("SoundException: Sound file '{}' not found.".format(self.sound_file))
+            raise(SoundException("SoundException: Sound file '{}' not found.".format(
+                self.sound_file)))
         if not self.loaded:
             self.audio = pygame.mixer.Sound(self.sound_file)
             self.loaded = True

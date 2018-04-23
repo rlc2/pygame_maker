@@ -1,21 +1,20 @@
-#!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
+Pygame maker color module.
+"""
 
-# pygame maker color
-
-import re
 import math
 import pygame
 
 
 def normalize_alpha_byte_value(alpha):
     """Normalize 0-255 alpha byte value to a float between 0.0 and 1.0."""
-    return (alpha * (1.0 / 255.0))
+    return alpha * (1.0 / 255.0)
 
-def byte_value_from_normalized_alpha(normalized_alpha):
+def byte_value_from_norm_alpha(normalized_alpha):
     """Convert normalized alpha value to byte value."""
     return int(math.floor(normalized_alpha * 255.0 + 0.5))
 
@@ -37,7 +36,7 @@ class Color(object):
     * a 4-tuple containing R, G, B, A values
 
     Colors can be accessed in the following ways:
-    
+
     * as a 3-tuple containing R, G, B values
     * a 4-tuple containing R, G, B, A values
     * the red, green, blue, or alpha values individually
@@ -59,7 +58,8 @@ class Color(object):
 
     @classmethod
     def is_known_color(cls, color_name):
-        if len(all_known_colors) == 0:
+        """Determine whether a given color name is known."""
+        if len(cls.all_known_colors) == 0:
             cls.all_known_colors = pygame.colordict.THECOLORS.keys() + cls.ADDITIONAL_COLORS.keys()
         return color_name.lower() in cls.all_known_colors
 
@@ -102,6 +102,7 @@ class Color(object):
 
     @property
     def red(self):
+        """Get and set the red component of the color."""
         return self.color.r
 
     @red.setter
@@ -110,6 +111,7 @@ class Color(object):
 
     @property
     def green(self):
+        """Get and set the green component of the color."""
         return self.color.g
 
     @green.setter
@@ -118,6 +120,7 @@ class Color(object):
 
     @property
     def blue(self):
+        """Get and set the blue component of the color."""
         return self.color.b
 
     @blue.setter
@@ -126,6 +129,7 @@ class Color(object):
 
     @property
     def alpha(self):
+        """Get and set the alpha component of the color."""
         return self.color.a
 
     @alpha.setter
@@ -134,12 +138,12 @@ class Color(object):
 
     @property
     def rgb(self):
-        """The color as a 3-tuple of R, G, B values"""
+        """Get the color as a 3-tuple of R, G, B values"""
         return self.color.r, self.color.g, self.color.b
 
     @property
     def rgba(self):
-        """The color as a 3-tuple of R, G, B values"""
+        """Get the color as a 4-tuple of R, G, B, A values"""
         return self.color.r, self.color.g, self.color.b, self.color.a
 
     def __repr__(self):

@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.scenes.room module.
+"""
 
 import logging
 import sys
@@ -34,6 +41,7 @@ TEST_ROOM_LIST_YAML_FILE = "unittest_files/test_rooms.yaml"
 TEST_SPRITE_LIST_YAML_FILE = "unittest_files/test_sprites.yaml"
 TEST_OBJECT_LIST_YAML_FILE = "unittest_files/test_objects.yaml"
 TEST_SOUND_LIST_YAML_FILE = "unittest_files/test_sounds.yaml"
+
 
 class MyGameManager(logging_object.LoggingObject):
     """Custom game manager for room module tests."""

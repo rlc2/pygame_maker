@@ -1,7 +1,15 @@
 #!/usr/bin/python -W all
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.logic.infix_to_postfix module.
+"""
 
 import unittest
 from pygame_maker.logic.infix_to_postfix import convert_infix_to_postfix
+
 
 class InfixToPostfixTest(unittest.TestCase):
     """Unit tests for the infix_to_postfix module."""

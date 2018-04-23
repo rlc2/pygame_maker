@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.events.event module.
+"""
 
 import unittest
 from pygame_maker.events.event import Event, ObjectStateEvent, KeyEvent, CollisionEvent, \

@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.logic.language_engine module.
+"""
 
 import imp
 import logging

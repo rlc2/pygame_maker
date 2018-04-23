@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Author: Ron Lockwood-Childs
+
+Licensed under LGPL v2.1 (see file COPYING for details)
+
+Unit test the pygame_maker.scenes.background module.
+"""
 
 import sys
 import os
@@ -7,6 +14,7 @@ import pg_template
 from pygame_maker.scenes.background import Background
 
 TEST_BACKGROUND_LIST_YAML_FILE = "unittest_files/test_backgrounds.yaml"
+
 
 class MyGameManager(object):
     """Custom game manager for background module unit tests."""
