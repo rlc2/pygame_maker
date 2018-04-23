@@ -1,17 +1,19 @@
 #!/usr/bin/python -Wall
+"""
+Author: Ron Lockwood-Childs
 
-# Author: Ron Lockwood-Childs
+Licensed under LGPL v2.1 (see file COPYING for details)
 
-# Licensed under LGPL v2.1 (see file COPYING for details)
-
-# bring all the things together
+Pygame maker game engine module.
+"""
 
 import os
-import yaml
-import pygame
 import logging
 import logging.config
+import yaml
+import pygame
 from pygame_maker.support import logging_object
+from pygame_maker.support import css_to_style
 from pygame_maker.actors import object_sprite
 from pygame_maker.sounds import sound
 from pygame_maker.actors import object_type
@@ -23,6 +25,7 @@ from pygame_maker.logic import language_engine
 
 
 class GameEngineException(Exception):
+    """Raised when a game has no rooms."""
     pass
 
 
@@ -76,64 +79,68 @@ class GameEngine(logging_object.LoggingObject):
     ]
     DEFAULT_GAME_SETTINGS = {
         "game_name": "PyGameMaker Game",
-        "screen_dimensions": (640,480),
+        "screen_dimensions": (640, 480),
         "frames_per_second": 60,
         "stylesheet": "",
         "logging_config": {
-          "version": 1,
-          "formatters": {
-            "normal": {
-              "format": '%(name)s [%(levelname)s]:%(message)s'
+            "version": 1,
+            "formatters": {
+                "normal": {
+                    "format": '%(name)s [%(levelname)s]:%(message)s'
+                },
+                "timestamped": {
+                    "format": '%(asctime)s - %(name)s [%(levelname)s]:%(message)s'
+                }
             },
-            "timestamped": {
-              "format": '%(asctime)s - %(name)s [%(levelname)s]:%(message)s'
-            }
-          },
-          "handlers": {
-            "console": {
-              "class": 'logging.StreamHandler',
-              "level": 'WARNING',
-              "formatter": "normal",
-              "stream": "ext://sys.stdout",
+            "handlers": {
+                "console": {
+                    "class": 'logging.StreamHandler',
+                    "level": 'WARNING',
+                    "formatter": "normal",
+                    "stream": "ext://sys.stdout",
+                },
+                "file": {
+                    "class": 'logging.FileHandler',
+                    "level": 'DEBUG',
+                    "formatter": "timestamped",
+                    "filename": "pygame_maker_game_engine.log",
+                    "mode": "w"
+                }
             },
-            "file": {
-              "class": 'logging.FileHandler',
-              "level": 'DEBUG',
-              "formatter": "timestamped",
-              "filename": "pygame_maker_game_engine.log",
-              "mode": "w"
-            }
-          },
-          "loggers": {
-            "GameEngine": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
+            "loggers": {
+                "GameEngine": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "CodeBlock": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "LanguageEngine": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "EventEngine": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "ObjectType": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "ObjectInstance": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "Room": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
+                "CSSStyleParser": {
+                    "level": "INFO",
+                    "handlers": ["console", "file"]
+                },
             },
-            "CodeBlock": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-            "LanguageEngine": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-            "EventEngine": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-            "ObjectType": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-            "ObjectInstance": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-            "Room": {
-              "level": "INFO",
-              "handlers": ["console", "file"]
-            },
-          },
         },
     }
     GAME_SETTINGS_FILE = "game_settings.yaml"
@@ -177,7 +184,7 @@ class GameEngine(logging_object.LoggingObject):
         #: Set True to end the main game loop
         self.done = False
         #: The mouse coordinate saved each time a mouse motion event occurs
-        self.mouse_pos = [0,0]
+        self.mouse_pos = [0, 0]
         #: The list where pygame events get stored, so that the pygame event
         #: FIFO doesn't fill up
         self.current_events = []
@@ -196,7 +203,7 @@ class GameEngine(logging_object.LoggingObject):
         if 'logging_config' in self.game_settings.keys():
             logging.config.dictConfig(self.game_settings['logging_config'])
         else:
-            logging.setLevel(logging.WARNING)
+            logging.basicConfig(level=logging.WARNING)
 
         # Now that logging has been configured, initialize the LoggingObject
         # base class.
@@ -213,7 +220,7 @@ class GameEngine(logging_object.LoggingObject):
             self.load_game_resources()
 
         if len(self.resources['rooms']) == 0:
-            raise(GameEngineException("No game room resource found"))
+            raise GameEngineException("No game room resource found")
 
     def load_game_settings(self):
         """
@@ -300,9 +307,9 @@ class GameEngine(logging_object.LoggingObject):
             #  resource directories ending in .yaml or .yml will be processed.
             res_files = os.listdir(res_path)
             res_yaml_files = []
-            for rf in res_files:
-                if rf.endswith('.yaml') or rf.endswith('.yml'):
-                    res_yaml_files.append(rf)
+            for resf in res_files:
+                if resf.endswith('.yaml') or resf.endswith('.yml'):
+                    res_yaml_files.append(resf)
             # need to chdir, since the filenames found in YAML resource
             #  files are assumed to be relative to the YAML resource's path
             os.chdir(res_path)
@@ -323,7 +330,7 @@ class GameEngine(logging_object.LoggingObject):
                         self.resources[res_path] = new_resources
             os.chdir(topdir)
 
-    def execute_action(self, action, event, instance=None):
+    def execute_action(self, action, an_event, instance=None):
         """
         Perform an action that is not specific to existing objects.
 
@@ -332,8 +339,8 @@ class GameEngine(logging_object.LoggingObject):
 
         :param action: The action instance to be executed
         :type action: :py:class:`~pygame_maker.actions.action.Action`
-        :param event: The event that triggered the action
-        :type event: :py:class:`~pygame_maker.events.event.Event`
+        :param an_event: The event that triggered the action
+        :type an_event: :py:class:`~pygame_maker.events.event.Event`
         :param instance: If supplied, the object instance that initiated the
             action
         :type instance: :py:class:`~pygame_maker.actors.simple_object_instance.SimpleObjectInstance`
@@ -357,18 +364,17 @@ class GameEngine(logging_object.LoggingObject):
         self.bump_indent_level()
         if action.name == "play_sound":
             if ((len(action_params['sound']) > 0) and
-                (action_params['sound'] in self.resources['sounds'].keys())):
+                    (action_params['sound'] in self.resources['sounds'].keys())):
                 self.debug("Playing sound '{}'".format(action_params['sound']))
                 self.resources['sounds'][action_params['sound']].play_sound()
             else:
                 self.debug("Sound '{}' not played".format(action_params['sound']))
         elif action.name in ["create_object", "create_object_with_velocity"]:
             if (self.screen and (len(action_params['object']) > 0) and
-                (action_params['object'] in self.resources['objects'].keys())):
+                    (action_params['object'] in self.resources['objects'].keys())):
                 self.info("Creating object '{}'".format(action_params['object']))
                 self.new_object_queue.append(
-                    (self.resources['objects'][action_params['object']], action_params)
-                )
+                    (self.resources['objects'][action_params['object']], action_params))
             else:
                 self.debug("Object '{}' not created".format(action_params['object']))
         else:
@@ -400,9 +406,9 @@ class GameEngine(logging_object.LoggingObject):
                 key_event_init_name = "{}_keydn".format(pk_map[key_event.key])
             elif key_event.type == pygame.KEYUP:
                 key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
-        ev = event.KeyEvent(key_event_init_name)
-        # print("queue event: {}".format(ev))
-        self.event_engine.queue_event(ev)
+        kev = event.KeyEvent(key_event_init_name)
+        # print("queue event: {}".format(kev))
+        self.event_engine.queue_event(kev)
         # print("xmit event: {}".format(key_event_name))
         self.event_engine.transmit_event(key_event_name)
         self.debug("Event '{}' queued and transmitted".format(key_event_init_name))
@@ -423,10 +429,10 @@ class GameEngine(logging_object.LoggingObject):
         if mouse_event:
             self.mouse_pos[0] = mouse_event.pos[0]
             self.mouse_pos[1] = mouse_event.pos[1]
-            self.language_engine.global_symbol_table.set_constant('mouse.x',
-                self.mouse_pos[0])
-            self.language_engine.global_symbol_table.set_constant('mouse.y',
-                self.mouse_pos[1])
+            self.language_engine.global_symbol_table.set_constant(
+                'mouse.x', self.mouse_pos[0])
+            self.language_engine.global_symbol_table.set_constant(
+                'mouse.y', self.mouse_pos[1])
             if mouse_event.type == pygame.MOUSEMOTION:
                 return
         event_names = []
@@ -493,19 +499,15 @@ class GameEngine(logging_object.LoggingObject):
                         # print("queue {}".format(event_names[-1]))
         else:
             self.event_engine.queue_event(
-                event.MouseEvent("mouse_nobutton",
-                    {"position": self.mouse_pos})
-            )
+                event.MouseEvent("mouse_nobutton", {"position": self.mouse_pos}))
             event_names.append("mouse_nobutton")
             self.event_engine.queue_event(
-                event.MouseEvent("mouse_global_nobutton",
-                    {"position": self.mouse_pos})
-            )
+                event.MouseEvent("mouse_global_nobutton", {"position": self.mouse_pos}))
             event_names.append("mouse_global_nobutton")
         # transmit all queued event types
         for ev_name in event_names:
             self.event_engine.transmit_event(ev_name)
-            if not ev_name in ['mouse_nobutton', 'mouse_global_nobutton']:
+            if ev_name not in ['mouse_nobutton', 'mouse_global_nobutton']:
                 self.debug("Event '{}' queued and transmitted".format(ev_name))
 
     def setup(self, screen):
@@ -569,31 +571,33 @@ class GameEngine(logging_object.LoggingObject):
         :param room_n: The number of the room to load (starting from 0)
         :type room_n: int
         """
-        self.info("Loading room {:d} ('{}')..".format(room_n,
-            self.resources['rooms'][room_n].name))
+        self.info("Loading room {:d} ('{}')..".format(
+            room_n, self.resources['rooms'][room_n].name))
         self.room_index = room_n
         room_width = self.resources['rooms'][room_n].width
         room_height = self.resources['rooms'][room_n].height
         # Create a new surface the same size as the room. This can differ from
         #  the screen dimensions. Also, for HWSURFACE displays, this allows the
         #  draw surface to be subsurface()'d, according to pygame documentation.
-        self.draw_surface = pygame.Surface( (room_width, room_height) )
+        #pylint: disable=too-many-function-args
+        self.draw_surface = pygame.Surface((room_width, room_height))
+        #pylint: enable=too-many-function-args
         self.resources['rooms'][room_n].draw_room_background(self.draw_surface)
         self.resources['rooms'][room_n].load_room(self.draw_surface)
         self.symbols.set_constant('room_width', room_width)
         self.symbols.set_constant('room_height', room_height)
         self.info("Room {:d} loaded.".format(room_n))
 
-    def collect_event(self, event):
+    def collect_event(self, an_event):
         """
         The pygame event queue will lose events unless they are handled.  This
         method is called by :py:meth:`run` to move the events out of pygame and
         into a list.
 
-        :param event: The event received from pygame
-        :type event: :py:class:`pygame.event.EventType`
+        :param an_event: The event received from pygame
+        :type an_event: :py:class:`pygame.event.EventType`
         """
-        self.current_events.append(event)
+        self.current_events.append(an_event)
 
     def update(self):
         """
@@ -608,30 +612,31 @@ class GameEngine(logging_object.LoggingObject):
         mouse_button = False
         # create any new objects that were queued by create_object* events
         for new_obj, params in self.new_object_queue:
-            # This will transmit a 'create' event that will be received by the new instance
-            # I.E. all 'create' events happen here
+            # This will transmit a 'create' event that will be received by the
+            #  new instance; I.E., all 'create' events happen here
             new_obj.create_instance(self.draw_surface, params)
         # clear the queue for next frame
         self.new_object_queue = []
-        # begin_step happens before other events, but after create (new instances receive all events)
-        ev = event.StepEvent('begin_step')
-        self.event_engine.queue_event(ev)
-        self.event_engine.transmit_event(ev.name)
-        for ev in self.current_events:
-            if ev.type == pygame.QUIT:
+        # begin_step happens before other events, but after create (new
+        #  instances receive all events)
+        sev = event.StepEvent('begin_step')
+        self.event_engine.queue_event(sev)
+        self.event_engine.transmit_event(sev.name)
+        for cev in self.current_events:
+            if cev.type == pygame.QUIT:
                 self.done = True
                 break
-            elif ev.type in (pygame.KEYDOWN, pygame.KEYUP):
+            elif cev.type in (pygame.KEYDOWN, pygame.KEYUP):
                 key_pressed = True
-                if (ev.key == pygame.K_ESCAPE):
+                if cev.key == pygame.K_ESCAPE:
                     self.done = True
                     break
                 else:
-                    self.send_key_event(ev)
-            elif ev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
-                pygame.MOUSEMOTION]:
-                self.send_mouse_event(ev)
-                if ev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
+                    self.send_key_event(cev)
+            elif cev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                              pygame.MOUSEMOTION]:
+                self.send_mouse_event(cev)
+                if cev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
                     mouse_button = True
         if not key_pressed:
             # no key events, so send the kb_no_key event
@@ -642,9 +647,9 @@ class GameEngine(logging_object.LoggingObject):
         # done with event handling
         self.current_events = []
         # normal_step happens before updating object instance positions
-        ev = event.StepEvent('normal_step')
-        self.event_engine.queue_event(ev)
-        self.event_engine.transmit_event(ev.name)
+        sev = event.StepEvent('normal_step')
+        self.event_engine.queue_event(sev)
+        self.event_engine.transmit_event(sev.name)
         # perform position updates on all objects
         for obj_name in self.resources['objects'].keys():
             self.resources['objects'][obj_name].update()
@@ -660,23 +665,24 @@ class GameEngine(logging_object.LoggingObject):
     def draw_objects(self):
         """Called by :py:meth:`run` to draw the foreground items."""
         # end_step happens just before drawing object instances
-        ev = event.StepEvent('end_step')
-        self.event_engine.queue_event(ev)
-        self.event_engine.transmit_event(ev.name)
-        ev = event.DrawEvent('draw')
-        self.event_engine.queue_event(ev)
-        self.event_engine.transmit_event(ev.name)
+        sev = event.StepEvent('end_step')
+        self.event_engine.queue_event(sev)
+        self.event_engine.transmit_event(sev.name)
+        drev = event.DrawEvent('draw')
+        self.event_engine.queue_event(drev)
+        self.event_engine.transmit_event(drev.name)
 
     def draw_background(self):
         """Called by :py:meth:`run` to draw the room background."""
-        if (self.room_index < len(self.resources['rooms'])):
+        if self.room_index < len(self.resources['rooms']):
             self.resources['rooms'][self.room_index].draw_room_background(self.draw_surface)
 
     def final_pass(self):
-        # copy the room's pixels onto the display
-        self.screen.blit(self.draw_surface, (0,0))
+        """Copy the room's pixels onto the display."""
+        self.screen.blit(self.draw_surface, (0, 0))
 
     def is_done(self):
+        """Report game's 'done' state."""
         return self.done
 
     def run(self):
@@ -695,21 +701,21 @@ class GameEngine(logging_object.LoggingObject):
 
         # --- Main Loop ---
         while not self.done:
-            for event in pygame.event.get():
-                self.collect_event(event)
-        
+            for an_event in pygame.event.get():
+                self.collect_event(an_event)
+
             # --- Game Logic ---
             self.update()
-        
+
             #self.screen.fill(self.WHITE)
             # --- Drawing ---
             self.draw_background()
             self.draw_objects()
-        
+
             # update screen
             self.final_pass()
             pygame.display.flip()
-        
+
             # limit frame rate
             self.clock.tick(self.game_settings['frames_per_second'])
 
@@ -717,5 +723,5 @@ class GameEngine(logging_object.LoggingObject):
         pygame.quit()
 
 if __name__ == "__main__":
-    game_engine = GameEngine()
-    game_engine.run()
+    GAME_ENGINE = GameEngine()
+    GAME_ENGINE.run()
