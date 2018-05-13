@@ -319,7 +319,8 @@ circumference = 2.0 * pi * radius
         language_engine = LanguageEngine()
         language_engine.register_code_block("testA", "a = 1")
         language_engine.register_code_block("testB", "b = 2")
-        self.assertEqual(['testA', 'testB'], list(language_engine.code_blocks.keys()))
+        self.assertEqual(['testA', 'testB'], 
+                         list(sorted(language_engine.code_blocks.keys())))
         language_engine.unregister_code_block("testA")
         self.assertEqual(['testB'], list(language_engine.code_blocks.keys()))
         language_engine.unregister_code_block("testB")
