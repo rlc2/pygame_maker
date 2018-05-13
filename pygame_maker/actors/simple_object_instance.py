@@ -182,7 +182,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                     old_val = getattr(self, kwarg)
                     if relative:
                         new_val += getattr(self, kwarg)
-                    if new_val != old_val:
+                    if coordinate.Coordinate(new_val) != old_val:
                         setattr(self, kwarg, new_val)
                 elif len(attrs) == 2:
                     main_attr = getattr(self, attrs[0])

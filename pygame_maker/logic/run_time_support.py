@@ -97,10 +97,10 @@ def userfunc_randint(_symbols, max_int, count=0):
     :return: A new random integer
     """
     randrange = max_int
-    if max < 0:
+    if max_int < 0:
         randrange = abs(max_int)
     val = random.randint(0, randrange)
-    if max < 0:
+    if max_int < 0:
         val *= -1
     return val
 
