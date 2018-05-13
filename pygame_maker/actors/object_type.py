@@ -539,6 +539,10 @@ class ObjectType(logging_object.LoggingObject):
                 elif isinstance(in_event, event.KeyEvent):
                     # key events will be sent to all instances
                     affected_instances = self.get_instances()
+                elif isinstance(in_event, event.MouseEvent):
+                    gl_minfo = self.GLOBAL_MOUSE_RE.search(in_event.name)
+                    if gl_minfo is not None:
+                        affected_instances = self.get_instances()
                 for an_action in self.event_action_sequences[in_event.name].get_next_action():
                     self.debug("  Execute action {}".format(an_action))
                     # forward instance actions to instance(s)
