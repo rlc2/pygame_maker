@@ -215,6 +215,9 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         elif sym == 'position.y':
             self.position.y = new_value
             handled_change = True
+        elif sym in self.symbols.keys():
+            self.symbols[sym] = new_value
+            handled_change = True
         return handled_change
 
     def execute_code(self, action, keep_code_block=True):
