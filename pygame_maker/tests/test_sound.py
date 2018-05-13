@@ -21,10 +21,10 @@ class TestSound(unittest.TestCase):
 
     def setUp(self):
         self.sound_test_file = "unittest_files/Pop.wav"
-        self.valid_sound_yaml = "- yaml_sound:\n    sound_file: {}\n".format(
+        self.valid_sound_yaml = "- yaml_sound:\n    filename: {}\n".format(
             self.sound_test_file) + "    sound_type: music\n    preload: False\n"
         self.valid_sound_object = Sound("yaml_sound",
-                                        sound_file=self.sound_test_file, sound_type="music",
+                                        filename=self.sound_test_file, sound_type="music",
                                         preload=False)
 
     def test_005valid_sound(self):
@@ -37,21 +37,21 @@ class TestSound(unittest.TestCase):
         pygame.init()
         music1 = Sound("music1", sound_type="music")
         self.assertEqual(music1.sound_type, "music")
-        sound_with_file = Sound("dontpanic", sound_file=self.sound_test_file)
+        sound_with_file = Sound("dontpanic", filename=self.sound_test_file)
         sound_with_file.play_sound()
         self.assertTrue(sound_with_file.is_sound_playing())
         time.sleep(2)
         self.assertFalse(sound_with_file.is_sound_playing())
-        self.assertEqual(sound_with_file.sound_file, self.sound_test_file)
+        self.assertEqual(sound_with_file.filename, self.sound_test_file)
 
     def test_015missing_sound_file(self):
         """
         Test that the appropriate exception is raised for missing sound files.
         """
-        missing_music1 = Sound("missing1", sound_type="music", sound_file="unittest/missing1.wav")
+        missing_music1 = Sound("missing1", sound_type="music", filename="unittest/missing1.wav")
         with self.assertRaises(SoundException):
             missing_music1.setup()
-        missing_sound1 = Sound("missing2", preload=False, sound_file="unittest/missing2.wav")
+        missing_sound1 = Sound("missing2", preload=False, filename="unittest/missing2.wav")
         missing_sound1.setup()
         with self.assertRaises(SoundException):
             missing_sound1.play_sound()

@@ -34,7 +34,7 @@ class Sound(object):
         Create a new sound from a YAML-formatted file.  Expected YAML format::
 
             - sound_name1:
-                sound_file: <sound_file_path>
+                filename: <sound_file_path>
                 sound_type: <type>
                 preload: true|false
             - sound_name2:
@@ -59,8 +59,8 @@ class Sound(object):
                 sound_args = {}
                 sound_name = top_level.keys()[0]
                 yaml_info_hash = top_level[sound_name]
-                if 'sound_file' in yaml_info_hash.keys():
-                    sound_args['sound_file'] = yaml_info_hash['sound_file']
+                if 'filename' in yaml_info_hash.keys():
+                    sound_args['filename'] = yaml_info_hash['filename']
                 if 'sound_type' in yaml_info_hash.keys():
                     sound_args['sound_type'] = yaml_info_hash['sound_type']
                 if 'preload' in yaml_info_hash.keys():
@@ -79,7 +79,7 @@ class Sound(object):
         :param kwargs: Sound options passed in keyword args.  The following
             options are available:
 
-            * ``sound_file`` (str): The path to a file containing the audio
+            * ``filename`` (str): The path to a file containing the audio
               data
             * ``sound_type`` (str): The type of sound this is, see
               :py:attr:`SOUND_TYPES`
@@ -95,7 +95,7 @@ class Sound(object):
         else:
             self.name = self.DEFAULT_SOUND_PREFIX
         #: The file name containing the audio data
-        self.sound_file = None
+        self.filename = None
         #: A string selecting the kind of sound file this is (effect or music)
         self.sound_type = "effect"
         #: Flag whether to pre-load the audio data in setup() or wait until
@@ -107,8 +107,8 @@ class Sound(object):
         self.audio = None
         #: The `pygame.mixer.Channel` returned when the audio is played
         self.channel = None
-        if "sound_file" in kwargs:
-            self.sound_file = kwargs["sound_file"]
+        if "filename" in kwargs:
+            self.filename = kwargs["filename"]
         if (("sound_type" in kwargs) and
                 (kwargs["sound_type"] in self.SOUND_TYPES)):
             self.sound_type = kwargs["sound_type"]
@@ -120,7 +120,7 @@ class Sound(object):
         Preload the sound if preload is set.  Must be done after
         ``pygame.init().``
         """
-        if self.sound_file and self.preload:
+        if self.filename and self.preload:
             self.load_file()
 
     def load_file(self):
@@ -129,11 +129,11 @@ class Sound(object):
 
         :raise: SoundException if the file is not found
         """
-        if not os.path.exists(self.sound_file):
+        if not os.path.exists(self.filename):
             raise(SoundException("SoundException: Sound file '{}' not found.".format(
-                self.sound_file)))
+                self.filename)))
         if not self.loaded:
-            self.audio = pygame.mixer.Sound(self.sound_file)
+            self.audio = pygame.mixer.Sound(self.filename)
             self.loaded = True
 
     def play_sound(self, loop=False):
@@ -171,8 +171,8 @@ class Sound(object):
         :rtype: str
         """
         ystr = "- {}:\n".format(self.name)
-        if self.sound_file:
-            ystr += "    sound_file: {}\n".format(self.sound_file)
+        if self.filename:
+            ystr += "    filename: {}\n".format(self.filename)
         ystr += "    sound_type: {}\n".format(self.sound_type)
         ystr += "    preload: {}\n".format(str(self.preload))
         return ystr
@@ -200,6 +200,6 @@ class Sound(object):
     def __eq__(self, other):
         return(isinstance(other, Sound) and
                (self.name == other.name) and
-               (self.sound_file == other.sound_file) and
+               (self.filename == other.filename) and
                (self.sound_type == other.sound_type) and
                (self.preload == other.preload))

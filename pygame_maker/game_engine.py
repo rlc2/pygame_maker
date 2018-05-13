@@ -289,6 +289,12 @@ class GameEngine(logging_object.LoggingObject):
                         if yaml_key in self.game_settings:
                             self.game_settings[yaml_key] = yaml_info[yaml_key]
 
+    def _fix_file_path(self, subdir, resource):
+        if hasattr(resource, 'filename'):
+            # Append the subdirectory to resource filenames.
+            if isinstance(resource.filename, str) and "/" not in resource.filename:
+                resource.filename = "{}/{}".format(subdir, resource.filename)
+
     def load_game_resources(self):
         """
         Bring in resource YAML files from their expected directories:
@@ -324,6 +330,7 @@ class GameEngine(logging_object.LoggingObject):
                                 # if multiple resources have the same name, the
                                 # last one read in will override the others
                                 self.debug("{}".format(res))
+                                self._fix_file_path(res_path, res)
                                 self.resources[res_path][res.name] = res
                     else:
                         # rooms are meant to stay in order
@@ -538,7 +545,6 @@ class GameEngine(logging_object.LoggingObject):
         """
         topdir = os.getcwd()
         if os.path.exists('sprites'):
-            os.chdir('sprites')
             self.info("Preloading sprite images..")
             with logging_object.Indented(self):
                 for spr in self.resources['sprites'].keys():
@@ -546,20 +552,18 @@ class GameEngine(logging_object.LoggingObject):
                     self.resources['sprites'][spr].setup()
         sound_dir = os.path.join(topdir, 'sounds')
         if os.path.exists(sound_dir):
-            os.chdir(sound_dir)
             self.info("Preloading sound files..")
             with logging_object.Indented(self):
                 for snd in self.resources['sounds'].keys():
                     self.info("{}".format(snd))
                     self.resources['sounds'][snd].setup()
-        background_dir = os.path.join(topdir, 'background')
+        background_dir = os.path.join(topdir, 'backgrounds')
         if os.path.exists(background_dir):
-            os.chdir(background_dir)
             self.info("Preloading background images..")
             with logging_object.Indented(self):
                 for bkg in self.resources['backgrounds'].keys():
                     self.info("{}".format(bkg))
-                    self.resources['background'][bkg].setup()
+                    self.resources['backgrounds'][bkg].setup()
         os.chdir(topdir)
 
     def load_room(self, room_n):

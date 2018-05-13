@@ -215,19 +215,20 @@ class Background(object):
         Use a black background in case there are transparent pixels in the
         image, and the transparent attribute is False.
         """
-        if len(self.filename) > 0 and self.check_filename():
-            img = pygame.image.load(self.filename).convert_alpha()
-            if not self.transparent:
-                # in case the image had transparent pixels, place it on a
-                #  black background so there will no longer be transparent
-                #  pixels on the display
-                backfill = pygame.Surface.copy(img)
-                backfill.fill((0, 0, 0))
-                backfill.blit(img, (0, 0))
-                self.image = backfill
-            else:
-                self.image = img
-            self.image_size = self.image.get_size()
+        if self.image is None:
+            if len(self.filename) > 0 and self.check_filename():
+                img = pygame.image.load(self.filename).convert_alpha()
+                if not self.transparent:
+                    # in case the image had transparent pixels, place it on a
+                    #  black background so there will no longer be transparent
+                    #  pixels on the display
+                    backfill = pygame.Surface.copy(img)
+                    backfill.fill((0, 0, 0))
+                    backfill.blit(img, (0, 0))
+                    self.image = backfill
+                else:
+                    self.image = img
+                self.image_size = self.image.get_size()
 
     def draw_background(self, screen, xy_offset=(0, 0)):
         """
