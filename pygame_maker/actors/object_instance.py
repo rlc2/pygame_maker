@@ -181,7 +181,7 @@ class ObjectInstance(SimpleObjectInstance, pygame.sprite.DirtySprite):
         # Get a copy of the selected subimage and its collision mask (and a
         # radius, if the disk collision mask was selected)
         self.set_subimage()
-        self.blendmode = 0
+        self.blendmode = kind.blend_mode
         # use the instance type's 'depth' parameter as the layer for this
         #  instance
         self.layer = kind.depth

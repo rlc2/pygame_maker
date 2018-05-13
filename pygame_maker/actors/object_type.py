@@ -784,7 +784,24 @@ class CollideableObjectType(ManagerObjectType):
     * persistent flag (unknown purpose, not implemented)
     * solid flag (for solid stationary objects, e.g. platform)
     * physics flag
-
+    * blend modes
+       0. Normal
+       1. Add
+       2. Subtract
+       3. Multiply
+       4. Minimum
+       5. Maximum
+       6. RGBA Add
+       7. RGBA Subtract
+       8. RGBA Multiply
+       9. RGBA Minimum
+      10. RGBA Maximum
+      11. Blending RGB Add
+      12. Blending RGB Subtract
+      13. Blending RGB Multiply
+      14. Blending RGB Minimum
+      15. Blending RGB Maximum
+      
     Expected YAML format for CollideableObjectType::
 
         - obj_name1:
@@ -792,6 +809,7 @@ class CollideableObjectType(ManagerObjectType):
             solid: True | False
             depth: <int>
             sprite: <sprite resource name>
+            blend_mode: <int>
             events:
               <event1_name>:
                 <yaml representation for event action sequence>
@@ -812,6 +830,8 @@ class CollideableObjectType(ManagerObjectType):
     DEFAULT_DEPTH = 0
     #: By default, a new ObjectType doesn't refer to a sprite yet
     DEFAULT_SPRITE_RESOURCE = None
+    #: Default blend mode
+    DEFAULT_BLEND_MODE = 0
 
     @classmethod
     def gen_kwargs_from_yaml_obj(cls, obj_name, obj_yaml, game_engine):
@@ -822,6 +842,7 @@ class CollideableObjectType(ManagerObjectType):
             "solid": CollideableObjectType.DEFAULT_SOLID,
             "depth": CollideableObjectType.DEFAULT_DEPTH,
             "sprite": CollideableObjectType.DEFAULT_SPRITE_RESOURCE,
+            "blend_mode": CollideableObjectType.DEFAULT_BLEND_MODE,
         })
         if "visible" in obj_yaml.keys():
             kwargs["visible"] = (obj_yaml["visible"] is True)
@@ -831,6 +852,8 @@ class CollideableObjectType(ManagerObjectType):
             kwargs["depth"] = int(obj_yaml["depth"])
         if "sprite" in obj_yaml.keys():
             kwargs["sprite"] = str(obj_yaml["sprite"])
+        if "blend_mode" in obj_yaml.keys():
+            kwargs["blend_mode"] = str(obj_yaml["blend_mode"])
         return kwargs
 
     def __init__(self, object_name, game_engine, **kwargs):
@@ -862,6 +885,7 @@ class CollideableObjectType(ManagerObjectType):
         self.solid = self.DEFAULT_SOLID
         self.depth = self.DEFAULT_DEPTH
         self.group = pygame.sprite.LayeredDirty()
+        self.blend_mode = self.DEFAULT_BLEND_MODE
         # default draw action sequence draws the object's sprite
         self["draw"] = action_sequence.ActionSequence()
         self["draw"].append_action(action.DrawAction("draw_self"))
@@ -880,6 +904,8 @@ class CollideableObjectType(ManagerObjectType):
                             raise(ObjectTypeException("'{}' is not a recognized sprite resource".
                                                       format(kwargs["sprite"]), self.error))
                         self.sprite_resource = assigned_sprite
+                if kwarg == "blend_mode":
+                    self.blend_mode = int(kwargs["blend_mode"])
 
         # print("Finished setup of {}".format(self.name))
 
@@ -905,6 +931,7 @@ class CollideableObjectType(ManagerObjectType):
         yaml_str += "    solid: {}\n".format(self.solid)
         yaml_str += "    depth: {:d}\n".format(self.depth)
         yaml_str += "    sprite: {}\n".format(self.sprite_resource.name)
+        yaml_str += "    blend_mode: {:d}\n".format(self.blend_mode)
         yaml_str += "    events:\n"
         for event_name in self.event_action_sequences:
             yaml_str += "      {}:\n".format(event_name)
