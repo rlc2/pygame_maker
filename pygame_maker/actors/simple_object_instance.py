@@ -215,7 +215,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         elif sym == 'position.y':
             self.position.y = new_value
             handled_change = True
-        elif sym in self.symbols.keys():
+        else:
             self.symbols[sym] = new_value
             handled_change = True
         return handled_change

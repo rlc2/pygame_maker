@@ -659,7 +659,7 @@ class ObjectInstance(SimpleObjectInstance, pygame.sprite.DirtySprite):
             else:
                 self.debug("  {} inst {} execute_action {} fell through..".
                            format(self.kind.name, self.inst_id, action.name))
-        self._apply_kwargs(action_params)
+                self._apply_kwargs(action_params)
 
     def __repr__(self):
         return ("<{} {:03d} @ {} dir {} speed {}>".
