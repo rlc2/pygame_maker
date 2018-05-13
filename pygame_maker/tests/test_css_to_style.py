@@ -90,7 +90,7 @@ class TestCSSStyles(unittest.TestCase):
         valid_type3 = CSSStyleGenerator.get_css_style("n4096 { border-color: cyan; }")
         self.assertTrue(test_data_t3.is_equal(valid_type3.styles["n4096"]))
         # verify that previous get_css_style() data didn't get copied in
-        self.assertEqual(len(valid_type3.styles.keys()), 1)
+        self.assertEqual(len(list(valid_type3.styles.keys())), 1)
         valid_type3.pretty_print()
 
     def test_010valid_classes(self):

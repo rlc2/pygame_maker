@@ -36,7 +36,7 @@ class EventEngine(logging_object.LoggingObject):
         :type event_handler: callable
         """
         self.debug("register_event_handler({}, <hdlr>):".format(event_name))
-        if event_name not in self.event_handlers.keys():
+        if event_name not in list(self.event_handlers.keys()):
             self.info("  add event handler #1 for {}".format(event_name))
             self.event_handlers[event_name] = [event_handler]
         else:
@@ -55,7 +55,7 @@ class EventEngine(logging_object.LoggingObject):
         :type event_handler: callable
         """
         self.debug("unregister_event_handler({}, <hdlr>):".format(event_name))
-        if event_name in self.event_handlers.keys():
+        if event_name in list(self.event_handlers.keys()):
             if event_handler in self.event_handlers[event_name]:
                 self.info("  remove event handler for {}".format(event_name))
                 self.event_handlers[event_name].remove(event_handler)
@@ -72,7 +72,7 @@ class EventEngine(logging_object.LoggingObject):
         """
         self.debug("queue_event({}):".format(an_event))
         ename = an_event.name
-        if ename not in self.event_queues.keys():
+        if ename not in list(self.event_queues.keys()):
             self.debug("  queue event #1 named {}".format(ename))
             self.event_queues[ename] = [an_event]
         else:
@@ -93,7 +93,7 @@ class EventEngine(logging_object.LoggingObject):
         """
         # print("check for {} handlers..".format(event_name))
         self.debug("transmit_event({}):".format(event_name))
-        if event_name in self.event_handlers.keys():
+        if event_name in list(self.event_handlers.keys()):
             # print("found. check for event queues..")
             queue_len = len(self.event_queues[event_name])
             if queue_len > 0:

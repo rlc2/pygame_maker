@@ -202,7 +202,7 @@ class ObjectSprite(object):
         if yaml_info:
             for top_level in yaml_info:
                 sprite_args = {}
-                sprite_name = top_level.keys()[0]
+                sprite_name = list(top_level.keys())[0]
                 yaml_info_hash = top_level[sprite_name]
                 if 'filename' in yaml_info_hash:
                     sprite_args['filename'] = yaml_info_hash['filename']
@@ -340,35 +340,32 @@ class ObjectSprite(object):
             if not isinstance(orig_item, str) and hasattr(orig_item, '__iter__'):
                 xylist = list(orig_item)
                 if len(orig_item) == 0:
-                    raise ValueError, "ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"])
+                    raise ValueError("ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"]))
                 if len(orig_item) >= 2:
                     try:
                         orig_y = int(xylist[1])
                     except ValueError:
-                        raise(ValueError, "ObjectSprite(): Invalid Y origin '{}'".
-                              format(orig_item[1]))
+                        raise ValueError
                 try:
                     orig_x = int(xylist[0])
                 except ValueError:
-                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+                    raise ValueError
             else:
                 try:
                     orig_x = int(orig_item)
                 except ValueError:
-                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+                    raise ValueError
             self.origin = (orig_x, orig_y)
         if "collision_type" in kwargs:
             if kwargs["collision_type"] in self.COLLISION_TYPES:
                 self.collision_type = kwargs["collision_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid collision_type '{}'".
-                      format(kwargs["collision_type"]))
+                raise ValueError
         if "bounding_box_type" in kwargs:
             if kwargs["bounding_box_type"] in self.BOUNDING_BOX_TYPES:
                 self.bounding_box_type = kwargs["bounding_box_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid bounding_box_type '{}'".
-                      format(kwargs["bounding_box_type"]))
+                raise ValueError
         if ("manual_bounding_box_rect" in kwargs and
                 isinstance(kwargs["manual_bounding_box_rect"], dict)):
             dim = kwargs["manual_bounding_box_rect"]
@@ -405,8 +402,7 @@ class ObjectSprite(object):
         if 'custom_subimage_columns' in kwargs:
             im_cols = kwargs["custom_subimage_columns"]
             if isinstance(im_cols, dict) or not hasattr(im_cols, '__iter__'):
-                raise(ValueError, "ObjectSprite: Invalid 'custom_subimage_columns' value '{}'".
-                      format(im_cols))
+                raise ValueError
             else:
                 self.subimage_info["columns"] = list(im_cols)
 
@@ -649,9 +645,7 @@ class ObjectSprite(object):
         """
         bound_rect = self.manual_bounding_box_rect
         if not isinstance(bound_rect, pygame.Rect):
-            raise(ObjectSpriteException(
-                "ObjectSprite error ({}): Bounding box dimensions {} is not a Rect".
-                format(str(self), self.manual_bounding_box_rect)))
+            raise ObjectSpriteException
         dim = (bound_rect.left, bound_rect.right, bound_rect.top, bound_rect.bottom)
         if (bound_rect.left > bound_rect.right) or (bound_rect.top > bound_rect.bottom):
             raise ObjectSpriteException(

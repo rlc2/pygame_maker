@@ -50,7 +50,7 @@ def attribute_match(element, attribute_dict):
     :rtype: bool
     """
     matched = False
-    if element.attr_str in attribute_dict.keys():
+    if element.attr_str in list(attribute_dict.keys()):
         attr_val = attribute_dict[element.attr_str]
         if element.attr_type == "matches":
             matched = (element.attr_val == attr_val)
@@ -184,26 +184,26 @@ class CSSStyleEntry(object):
     def pretty_print(self, indent=0):
         """Print a nicely-formatted summary of the CSS entry."""
         indent_str = " " * indent
-        print "{}CSS Style Element {}:".format(indent_str, self.name)
+        print("{}CSS Style Element {}:".format(indent_str, self.name))
         if "type" in self.selector_types:
-            print "{}type name: {}".format(indent_str, self.type_str)
+            print("{}type name: {}".format(indent_str, self.type_str))
         if "id" in self.selector_types:
-            print "{}element ID: {}".format(indent_str, self.id_str)
+            print("{}element ID: {}".format(indent_str, self.id_str))
         if "class" in self.selector_types:
-            print "{}class name: {}".format(indent_str, self.class_str)
+            print("{}class name: {}".format(indent_str, self.class_str))
         if "pclass" in self.selector_types:
             pcls_arg = ""
             if len(self.pclass_arg) > 0:
                 pcls_arg = "({})".format(self.pclass_arg)
-            print "{}pclass name: {}{}".format(indent_str, self.pclass_str, pcls_arg)
+            print("{}pclass name: {}{}".format(indent_str, self.pclass_str, pcls_arg))
         if "attribute" in self.selector_types:
             attr_name = "any"
             if self.attr_type != "any":
                 attr_name = "{} {}".format(self.attr_type, self.attr_val)
-            print "{}attribute {} {}".format(indent_str, self.attr_str, attr_name)
-        print "{}parameters:".format(indent_str)
-        for param in self.parameters.keys():
-            print "{}  {}: {}".format(indent_str, param, self.parameters[param])
+            print("{}attribute {} {}".format(indent_str, self.attr_str, attr_name))
+        print("{}parameters:".format(indent_str))
+        for param in list(self.parameters.keys()):
+            print("{}  {}: {}".format(indent_str, param, self.parameters[param]))
 
     def __getitem__(self, itemname):
         return self.parameters[itemname]
@@ -419,11 +419,11 @@ class ElementPrioritizerTable(object):
             if "attribute" in prop_set:
                 for attr_type_name in self.ATTR_SELECTOR_PRECEDENCE:
                     for tel in self.element_table[prop_set][attr_type_name]:
-                        print "{}:".format(tel.name)
+                        print("{}:".format(tel.name))
                         tel.pretty_print(2)
             else:
                 for tel in self.element_table[prop_set]:
-                    print "{}:".format(tel.name)
+                    print("{}:".format(tel.name))
                     tel.pretty_print(2)
 
 

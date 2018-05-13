@@ -73,7 +73,7 @@ class ShorthandStyle(object):
         :rtype: dict
         """
         sub_prop_map = {}
-        if len(value_list) in self.sub_property_dict.keys():
+        if len(value_list) in list(self.sub_property_dict.keys()):
             for idx, val in enumerate(value_list):
                 for sub_prop in self.sub_property_dict[len(value_list)][idx]:
                     sub_prop_map[sub_prop] = val
@@ -91,8 +91,7 @@ class ShorthandStyle(object):
                     sub_prop_map[sub_prop_name] = value_list[value_idx]
                     value_idx += 1
             if value_idx < len(value_list):
-                raise(ShorthandStyleError("Unable to ID all values in shorthand property {}".
-                                          format(self.name)))
+                raise ShorthandStyleError
         return sub_prop_map
 
 
@@ -143,7 +142,7 @@ class WidgetStyle(object):
     DISPLAY_OPTIONS = ("none", "inline", "block") + COMMON_PROPERTIES
     VISIBILITY = ("visible", "hidden") + COMMON_PROPERTIES
     POSITIONS = ("static", "relative", "fixed", "absolute") + COMMON_PROPERTIES
-    COLOR_CONSTRAINTS = (color.Color.ADDITIONAL_COLORS.keys() + pygame.colordict.THECOLORS.keys() +
+    COLOR_CONSTRAINTS = (list(color.Color.ADDITIONAL_COLORS.keys()) + list(pygame.colordict.THECOLORS.keys()) +
                          [WEB_COLOR_RE])
     HORIZONTAL_ALIGNMENT = ("left", "right", "center", "justify") + COMMON_PROPERTIES
     VERTICAL_ALIGNMENT = ("top", "middle", "bottom") + COMMON_PROPERTIES
@@ -283,7 +282,7 @@ class WidgetStyle(object):
         :rtype: bool
         """
         compare_ok = False
-        if style_entry in cls.STYLE_CONSTRAINTS.keys():
+        if style_entry in list(cls.STYLE_CONSTRAINTS.keys()):
             # split the valid_settings list into a tuple containing a list of
             #  all regex's and a list of all strings (exact matches)
             regex_list, match_list = split_regex_and_str_list(
@@ -375,18 +374,18 @@ class WidgetStyle(object):
         :raises: NameError if style_entry_name is not found in
             STYLE_CONSTRAINTS
         """
-        if style_entry_name in cls.STYLE_CONSTRAINTS.keys():
+        if style_entry_name in list(cls.STYLE_CONSTRAINTS.keys()):
             return cls.STYLE_CONSTRAINTS[style_entry_name]["default"]
         else:
-            raise(NameError, "Unknown style entry '{}'".format(style_entry_name))
+            raise NameError
 
     def __init__(self, style_table):
         self.style = {}
         self.collect_style_defaults()
         if self.SHORTHAND_STYLES is None:
             self.construct_shorthand_style_table()
-        for style_entry in style_table.keys():
-            if style_entry in self.style.keys():
+        for style_entry in list(style_table.keys()):
+            if style_entry in list(self.style.keys()):
                 if not isinstance(style_table[style_entry], str) and \
                         hasattr(style_table[style_entry], '__len__'):
                     # the style engine always uses lists to store values
@@ -395,17 +394,16 @@ class WidgetStyle(object):
                 else:
                     self.style[style_entry] = style_table[style_entry]
                 if not type(self).compare_value_vs_constraint(style_entry, self.style[style_entry]):
-                    raise(WidgetStyleInvalid("Invalid value {} for style {}".
-                                             format(style_table[style_entry], style_entry)))
-            elif style_entry in self.SHORTHAND_STYLES.keys():
+                    raise WidgetStyleInvalid
+            elif style_entry in list(self.SHORTHAND_STYLES.keys()):
                 # shorthand properties must supply values in a list
                 # print("Style before shorthand expansion:\n{}".format(self.style))
                 self.style.update(self.expand_shorthand_style(style_entry,
                                                               style_table[style_entry]))
                 # print("Style after shorthand expansion:\n{}".format(self.style))
         # transform values (E.G. fill in missing values)
-        for style_entry in self.style.keys():
-            if style_entry in self.STYLE_TRANSFORMATIONS.keys():
+        for style_entry in list(self.style.keys()):
+            if style_entry in list(self.STYLE_TRANSFORMATIONS.keys()):
                 # print("Transform {}={}:".format(style_entry, self.style[style_entry]))
                 new_value = self.transform_value(style_entry, self.style[style_entry])
                 # print("{} -> {}".format(self.style[style_entry], new_value))
@@ -415,11 +413,11 @@ class WidgetStyle(object):
         """
         Give every style setting its default value.
         """
-        for style_entry in self.STYLE_CONSTRAINTS.keys():
+        for style_entry in list(self.STYLE_CONSTRAINTS.keys()):
             default = self.STYLE_CONSTRAINTS[style_entry]["default"]
             if not type(self).compare_value_vs_constraint(style_entry, default):
-                print("Warning: default value '{}' is not a valid setting for style entry '{}'!".
-                      format(default, style_entry))
+                print(("Warning: default value '{}' is not a valid setting for style entry '{}'!".
+                      format(default, style_entry)))
             self.style[style_entry] = default
 
     def join_properties(self, property_name, property_values):
@@ -437,7 +435,7 @@ class WidgetStyle(object):
         """
         new_value_list = []
         idx = 0
-        if property_name not in self.PROPERTY_JOIN_TABLE.keys():
+        if property_name not in list(self.PROPERTY_JOIN_TABLE.keys()):
             return property_values
         while idx < len(property_values):
             # print("Check value {}:".format(property_values[idx]))
@@ -477,11 +475,11 @@ class WidgetStyle(object):
         :type style_value: str
         """
         new_value = style_value
-        for a_regex in self.STYLE_TRANSFORMATIONS[style_name].keys():
+        for a_regex in list(self.STYLE_TRANSFORMATIONS[style_name].keys()):
             minfo = a_regex.search(style_value)
             if minfo is not None:
                 groupnames = ["group{}".format(idx+1) for idx in range(len(minfo.groups()))]
-                groupdict = dict(zip(groupnames, minfo.groups()))
+                groupdict = dict(list(zip(groupnames, minfo.groups())))
                 new_value = self.STYLE_TRANSFORMATIONS[style_name][a_regex].format(**groupdict)
         return new_value
 
@@ -501,17 +499,16 @@ class WidgetStyle(object):
         """
         joined_values = self.join_properties(style_name, style_values)
         sub_props = self.SHORTHAND_STYLES[style_name].get_sub_properties(joined_values)
-        for sub_prop_name in sub_props.keys():
+        for sub_prop_name in list(sub_props.keys()):
             if not type(self).compare_value_vs_constraint(sub_prop_name, sub_props[sub_prop_name]):
-                raise(WidgetStyleInvalid("Invalid value {} for style {}".
-                                         format(sub_props[sub_prop_name], sub_prop_name)))
+                raise WidgetStyleInvalid
         return sub_props
 
     def keys(self):
         """
         Implement a dict-like interface for style settings.
         """
-        return self.style.keys()
+        return list(self.style.keys())
 
     def __getitem__(self, itemname):
         return self.style.get(itemname, None)
@@ -522,11 +519,11 @@ class WidgetStyle(object):
             if type(self).compare_value_vs_constraint(itemname, value):
                 self.style[itemname] = value
             else:
-                print("Warning: value '{}' is not valid for style entry '{}'".
-                      format(value, itemname))
+                print(("Warning: value '{}' is not valid for style entry '{}'".
+                      format(value, itemname)))
 
     def __repr__(self):
-        key_list = self.style.keys()
+        key_list = list(self.style.keys())
         key_list.sort()
         prop_info = ["'{}': '{}'".format(k, self.style[k]) for k in key_list]
         return "{{{}}}".format(", ".join(prop_info))

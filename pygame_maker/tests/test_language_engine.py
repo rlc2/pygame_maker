@@ -33,10 +33,10 @@ LELOGGER.setLevel(logging.INFO)
 
 def dump_symtables(symtables):
     """Display symbol table contents."""
-    print "Symbol table:"
-    print "globals:"
+    print("Symbol table:")
+    print("globals:")
     symtables['globals'].dump_vars()
-    print "locals:"
+    print("locals:")
     symtables['locals'].dump_vars()
 
 
@@ -170,12 +170,12 @@ function set_X(number n) { x = n }
             "goodfunc", self.module_context, valid_function, self.functionmap)
         #print("ast:\n{}".format(code_block.astree))
         #print("outer block:\n{}".format(code_block.outer_block))
-        exec "from pygame_maker.logic.run_time_support import *\n" in self.module_context.__dict__
+        exec("from pygame_maker.logic.run_time_support import *\n", self.module_context.__dict__)
         code_block.load(['operator', 'math'])
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
         self.module_context.userfunc_set_X(sym_tables, 20)
-        print "Symbol table:"
+        print("Symbol table:")
         dump_symtables(sym_tables)
         self.assertEqual(sym_tables['locals']['x'], 20)
 
@@ -303,11 +303,11 @@ circumference = 2.0 * pi * radius
         testb_locals = SymbolTable()
         language_engine.execute_code_block("testB", testb_locals)
         language_engine.execute_code_block("testA", testa_locals)
-        print "Global symbol table:"
+        print("Global symbol table:")
         language_engine.global_symbol_table.dump_vars()
-        print "test A symbol table:"
+        print("test A symbol table:")
         testa_locals.dump_vars()
-        print "test B symbol table:"
+        print("test B symbol table:")
         testb_locals.dump_vars()
         testa_answers = {"a": 26, "b": -259, "x": 64, "y": 12}
         testb_answers = {"radius": 2, "circumference": 2 * math.pi * 2}
@@ -319,11 +319,11 @@ circumference = 2.0 * pi * radius
         language_engine = LanguageEngine()
         language_engine.register_code_block("testA", "a = 1")
         language_engine.register_code_block("testB", "b = 2")
-        self.assertEqual(['testA', 'testB'], language_engine.code_blocks.keys())
+        self.assertEqual(['testA', 'testB'], list(language_engine.code_blocks.keys()))
         language_engine.unregister_code_block("testA")
-        self.assertEqual(['testB'], language_engine.code_blocks.keys())
+        self.assertEqual(['testB'], list(language_engine.code_blocks.keys()))
         language_engine.unregister_code_block("testB")
-        self.assertEqual([], language_engine.code_blocks.keys())
+        self.assertEqual([], list(language_engine.code_blocks.keys()))
 
     def test_055symbol_change_callback(self):
         """

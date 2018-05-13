@@ -44,17 +44,17 @@ class TileProperties(object):
         self.horizontal_padding = 0
         self.vertical_padding = 0
         if kwargs:
-            if 'tile_width' in kwargs.keys():
+            if 'tile_width' in list(kwargs.keys()):
                 self.tile_width = int(kwargs['tile_width'])
-            if 'tile_height' in kwargs.keys():
+            if 'tile_height' in list(kwargs.keys()):
                 self.tile_height = int(kwargs['tile_height'])
-            if 'horizontal_offset' in kwargs.keys():
+            if 'horizontal_offset' in list(kwargs.keys()):
                 self.horizontal_offset = int(kwargs['horizontal_offset'])
-            if 'vertical_offset' in kwargs.keys():
+            if 'vertical_offset' in list(kwargs.keys()):
                 self.vertical_offset = int(kwargs['vertical_offset'])
-            if 'horizontal_padding' in kwargs.keys():
+            if 'horizontal_padding' in list(kwargs.keys()):
                 self.horizontal_padding = int(kwargs['horizontal_padding'])
-            if 'vertical_padding' in kwargs.keys():
+            if 'vertical_padding' in list(kwargs.keys()):
                 self.vertical_padding = int(kwargs['vertical_padding'])
 
     def __eq__(self, other):
@@ -101,29 +101,29 @@ class Background(object):
         if yaml_repr:
             for top_level in yaml_repr:
                 kwargs = {}
-                bkg_name = top_level.keys()[0]
+                bkg_name = list(top_level.keys())[0]
                 bkg_yaml = top_level[bkg_name]
-                if 'filename' in bkg_yaml.keys():
+                if 'filename' in list(bkg_yaml.keys()):
                     kwargs['filename'] = bkg_yaml['filename']
-                if 'smooth_edges' in bkg_yaml.keys():
+                if 'smooth_edges' in list(bkg_yaml.keys()):
                     kwargs['smooth_edges'] = (bkg_yaml['smooth_edges'] is True)
-                if 'preload_texture' in bkg_yaml.keys():
+                if 'preload_texture' in list(bkg_yaml.keys()):
                     kwargs['preload_texture'] = (bkg_yaml['preload_texture'] is True)
-                if 'transparent' in bkg_yaml.keys():
+                if 'transparent' in list(bkg_yaml.keys()):
                     kwargs['transparent'] = (bkg_yaml['transparent'] is True)
-                if 'tileset' in bkg_yaml.keys():
+                if 'tileset' in list(bkg_yaml.keys()):
                     kwargs['tileset'] = (bkg_yaml['tileset'] is True)
-                if 'tile_width' in bkg_yaml.keys():
+                if 'tile_width' in list(bkg_yaml.keys()):
                     kwargs['tile_width'] = bkg_yaml['tile_width']
-                if 'tile_height' in bkg_yaml.keys():
+                if 'tile_height' in list(bkg_yaml.keys()):
                     kwargs['tile_height'] = bkg_yaml['tile_height']
-                if 'horizontal_offset' in bkg_yaml.keys():
+                if 'horizontal_offset' in list(bkg_yaml.keys()):
                     kwargs['horizontal_offset'] = bkg_yaml['horizontal_offset']
-                if 'vertical_offset' in bkg_yaml.keys():
+                if 'vertical_offset' in list(bkg_yaml.keys()):
                     kwargs['vertical_offset'] = bkg_yaml['vertical_offset']
-                if 'horizontal_padding' in bkg_yaml.keys():
+                if 'horizontal_padding' in list(bkg_yaml.keys()):
                     kwargs['horizontal_padding'] = bkg_yaml['horizontal_padding']
-                if 'vertical_padding' in bkg_yaml.keys():
+                if 'vertical_padding' in list(bkg_yaml.keys()):
                     kwargs['vertical_padding'] = bkg_yaml['vertical_padding']
                 new_background_list.append(Background(bkg_name, **kwargs))
         return new_background_list
@@ -293,15 +293,12 @@ class Background(object):
         :rtype: bool
         """
         if not isinstance(self.filename, str):
-            raise(BackgroundException("Background error ({}): filename '{}' is not a string".
-                                      format(str(self), self.filename)))
+            raise BackgroundException
         elif len(self.filename) == 0:
-            raise(BackgroundException("Background error ({}): filename is empty".
-                                      format(str(self))))
+            raise BackgroundException
         if len(self.filename) > 0:
             if not os.path.exists(self.filename):
-                raise(BackgroundException("Background error ({}): filename '{}' not found".
-                                          format(str(self), self.filename)))
+                raise BackgroundException
         return True
 
     def __eq__(self, other):

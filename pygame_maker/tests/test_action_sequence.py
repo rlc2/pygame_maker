@@ -63,30 +63,30 @@ class TestActionSequence(unittest.TestCase):
         self.assertEqual(action_list, action_sequence.main_block.get_action_list())
         action_sequence.pretty_print()
         walked_list = []
-        print "\nconditional True paths:"
+        print("\nconditional True paths:")
         for action in action_sequence.get_next_action():
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
                 action.action_result = True
             walked_list.append(action)
         self.assertEqual(walked_list, all_true_action_list)
         walked_list = []
-        print "\nconditional False paths:"
+        print("\nconditional False paths:")
         for action in action_sequence.get_next_action():
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
                 action.action_result = False
             walked_list.append(action)
         self.assertEqual(walked_list, all_false_action_list)
         walked_list = []
-        print "\nSimulated real-time conditionals:"
+        print("\nSimulated real-time conditionals:")
         if_idx = 0
         for action in action_sequence.get_next_action():
             if_idx = action_list.index(action)
             if_result = result_list[if_idx]
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
-                print "---> RETURNED {}".format(if_result)
+                print("---> RETURNED {}".format(if_result))
                 action.action_result = if_result
             walked_list.append(action)
         self.assertEqual(walked_list, simulated_list)
@@ -134,30 +134,30 @@ class TestActionSequence(unittest.TestCase):
         self.assertEqual(action_list, action_sequence.main_block.get_action_list())
         action_sequence.pretty_print()
         walked_list = []
-        print "\nconditional True paths:"
+        print("\nconditional True paths:")
         for action in action_sequence.get_next_action():
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
                 action.action_result = True
             walked_list.append(action)
         self.assertEqual(walked_list, all_true_action_list)
         walked_list = []
-        print "\nconditional False paths:"
+        print("\nconditional False paths:")
         for action in action_sequence.get_next_action():
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
                 action.action_result = False
             walked_list.append(action)
         self.assertEqual(walked_list, all_false_action_list)
         walked_list = []
-        print "\nSimulated real-time conditionals:"
+        print("\nSimulated real-time conditionals:")
         if_idx = 0
         for action in action_sequence.get_next_action():
             if_idx = action_list.index(action)
             if_result = result_list[if_idx]
-            print "{}".format(action)
+            print("{}".format(action))
             if hasattr(action, "action_result"):
-                print "---> RETURNED {}".format(if_result)
+                print("---> RETURNED {}".format(if_result))
                 action.action_result = if_result
             walked_list.append(action)
         self.assertEqual(walked_list, simulated_list)
@@ -190,9 +190,9 @@ class TestActionSequence(unittest.TestCase):
         action_sequence = ActionSequence()
         for act in action_list:
             action_sequence.append_action(act)
-        print "{}".format(action_sequence.to_yaml())
+        print("{}".format(action_sequence.to_yaml()))
         yaml_out = yaml.load(action_sequence.to_yaml())
-        print "{}".format(yaml_out)
+        print("{}".format(yaml_out))
         new_seq = ActionSequence.load_sequence_from_yaml_obj(yaml_out)
         self.assertEqual(action_list, new_seq.main_block.get_action_list())
         new_seq.pretty_print()

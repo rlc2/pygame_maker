@@ -103,39 +103,39 @@ class MyGameManager(logging_object.LoggingObject):
             backgrounds = background.Background.load_from_yaml(yaml_f)
         for bkg in backgrounds:
             self.resources['backgrounds'][bkg.name] = bkg
-        if len(self.resources['backgrounds'].keys()) == 0:
-            print("Unable to load backgrounds from {}, aborting.".format(
-                TEST_BACKGROUND_LIST_YAML_FILE))
+        if len(list(self.resources['backgrounds'].keys())) == 0:
+            print(("Unable to load backgrounds from {}, aborting.".format(
+                TEST_BACKGROUND_LIST_YAML_FILE)))
             exit(1)
         sprites = None
         with open(TEST_SPRITE_LIST_YAML_FILE, "r") as yaml_f:
             sprites = object_sprite.ObjectSprite.load_from_yaml(yaml_f, self)
         for spr in sprites:
             self.resources['sprites'][spr.name] = spr
-        if len(self.resources['sprites'].keys()) == 0:
-            print("Unable to load sprites from {}, aborting.".format(
-                TEST_SPRITE_LIST_YAML_FILE))
+        if len(list(self.resources['sprites'].keys())) == 0:
+            print(("Unable to load sprites from {}, aborting.".format(
+                TEST_SPRITE_LIST_YAML_FILE)))
         sounds = None
         with open(TEST_SOUND_LIST_YAML_FILE, "r") as yaml_f:
             sounds = sound.Sound.load_from_yaml(yaml_f)
         for snd in sounds:
             self.resources['sounds'][snd.name] = snd
         if len(self.resources['sounds']) == 0:
-            print("Unable to load sounds from {}, aborting.".format(
-                TEST_SOUND_LIST_YAML_FILE))
+            print(("Unable to load sounds from {}, aborting.".format(
+                TEST_SOUND_LIST_YAML_FILE)))
         objects = None
         with open(TEST_OBJECT_LIST_YAML_FILE, "r") as yaml_f:
             objects = object_type.ObjectType.load_from_yaml(yaml_f, self)
         for obj in objects:
             self.resources['objects'][obj.name] = obj
         if len(self.resources['objects']) == 0:
-            print("Unable to load objects from {}, aborting.".format(
-                TEST_OBJECT_LIST_YAML_FILE))
+            print(("Unable to load objects from {}, aborting.".format(
+                TEST_OBJECT_LIST_YAML_FILE)))
         with open(TEST_ROOM_LIST_YAML_FILE, "r") as yaml_f:
             self.resources['rooms'] = Room.load_from_yaml(yaml_f, self)
         if len(self.resources['rooms']) == 0:
-            print("Unable to load rooms from {}, aborting.".format(
-                TEST_ROOM_LIST_YAML_FILE))
+            print(("Unable to load rooms from {}, aborting.".format(
+                TEST_ROOM_LIST_YAML_FILE)))
             exit(1)
         self.largest_dims = [0, 0]
         for room in self.resources['rooms']:
@@ -156,14 +156,14 @@ class MyGameManager(logging_object.LoggingObject):
         self.screen = screen
         self.draw_surface = self.screen
         self.font = pygame.font.Font(None, 16)
-        for spr in self.resources['sprites'].keys():
-            print "Setup {}".format(spr)
+        for spr in list(self.resources['sprites'].keys()):
+            print("Setup {}".format(spr))
             self.resources['sprites'][spr].setup()
-        for snd in self.resources['sounds'].keys():
-            print "Setup {}".format(snd)
+        for snd in list(self.resources['sounds'].keys()):
+            print("Setup {}".format(snd))
             self.resources['sounds'][snd].setup()
-        for bkg in self.resources['backgrounds'].keys():
-            print "Setup {}".format(bkg)
+        for bkg in list(self.resources['backgrounds'].keys()):
+            print("Setup {}".format(bkg))
             self.resources['backgrounds'][bkg].setup()
         self.resources['rooms'][0].load_room(self.screen)
         self.resources['rooms'][0].draw_room_background(self.screen)
@@ -188,7 +188,7 @@ class MyGameManager(logging_object.LoggingObject):
     def execute_action(self, action, an_event):
         """Handle execute_action() method calls from object instances."""
         action_params = {}
-        for param in action.action_data.keys():
+        for param in list(action.action_data.keys()):
             if param == 'apply_to':
                 continue
             action_params[param] = action.get_parameter_expression_result(
@@ -197,11 +197,11 @@ class MyGameManager(logging_object.LoggingObject):
         #print("Engine received action: {}".format(action))
         if action.name == "play_sound":
             if ((len(action_params['sound']) > 0) and
-                    (action_params['sound'] in self.resources['sounds'].keys())):
+                    (action_params['sound'] in list(self.resources['sounds'].keys()))):
                 self.resources['sounds'][action_params['sound']].play_sound()
         if action.name == "create_object":
             if (self.screen and (len(action_params['object']) > 0) and
-                    (action_params['object'] in self.resources['objects'].keys())):
+                    (action_params['object'] in list(self.resources['objects'].keys()))):
                 self.resources['objects'][action_params['object']].create_instance(
                     self.screen, action_params)
 
@@ -353,12 +353,12 @@ class MyGameManager(logging_object.LoggingObject):
             self.send_mouse_event(None)
         # done with event handling
         self.current_events = []
-        for obj in self.resources['objects'].keys():
+        for obj in list(self.resources['objects'].keys()):
             self.resources['objects'][obj].update()
         # check for object instance collisions
-        obj_types = self.resources['objects'].values()
+        obj_types = list(self.resources['objects'].values())
         collision_types = []
-        for obj_name in self.resources['objects'].keys():
+        for obj_name in list(self.resources['objects'].keys()):
             collision_types += self.resources['objects'][obj_name].collision_check(obj_types)
         if len(collision_types) > 0:
             for coll_type in collision_types:

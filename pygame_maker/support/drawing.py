@@ -53,17 +53,17 @@ def _divide_extra_segment_padding(length, padding_needed):
                 break
     if pad_count < leftover_padding:
         if (leftover_padding - pad_count) > 1:
-            print "_divide_extra_segment_padding(): Too much leftover padding"
+            print("_divide_extra_segment_padding(): Too much leftover padding")
         padding_ary[mid_idx] += 1
     return padding_ary
 
 def draw_line_segments(surface, line_properties):
     """Draw horizontal or vertical lines in dotted or dashed styles."""
     if line_properties["start"] == line_properties["end"]:
-        print "draw_line_segments(): Line starts and ends at the same coordinate"
+        print("draw_line_segments(): Line starts and ends at the same coordinate")
         return
     if line_properties["width"] == 0:
-        print "draw_line_segments(): Line has 0 width"
+        print("draw_line_segments(): Line has 0 width")
         return
     line_slope_y = abs(line_properties["end"].y - line_properties["start"].y)
     line_slope_x = abs(line_properties["end"].x - line_properties["start"].x)
@@ -73,8 +73,8 @@ def draw_line_segments(surface, line_properties):
         seg_len = line_properties["width"] + 1
         seg_gap = DOTTED_LINE_SEGMENT_GAP
     elif line_properties["style"] != "dashed":
-        print("draw_line_segments(): Line style '{}' is not segmented".
-              format(line_properties["style"]))
+        print(("draw_line_segments(): Line style '{}' is not segmented".
+              format(line_properties["style"])))
         return
     sqrd_length = (line_slope_x * line_slope_x) + (line_slope_y * line_slope_y)
     sqrd_full_gap_len = (seg_len * 2 + seg_gap) * (seg_len * 2 + seg_gap)
@@ -157,7 +157,7 @@ def draw_line_segments(surface, line_properties):
     else:
         # y_intercept = line_properties["start"].y - (float(line_slope_y) * \
         #     line_properties["start"].x) / float(line_slope_x)
-        print "draw_line_segments(): diagonal line segments NYI"
+        print("draw_line_segments(): diagonal line segments NYI")
 
 def draw_line(surface, line_start, line_end, width, color, style):
     """
@@ -178,10 +178,10 @@ def draw_line(surface, line_start, line_end, width, color, style):
     :type style: str
     """
     if line_start == line_end:
-        print "draw_line(): Line starts and ends at the same coordinate"
+        print("draw_line(): Line starts and ends at the same coordinate")
         return
     if width == 0:
-        print "draw_line(): Line has 0 width"
+        print("draw_line(): Line has 0 width")
         return
     line_properties = {"start": line_start, "end": line_end, "width": width,
                        "color": color, "style": style}
@@ -194,7 +194,7 @@ def draw_line(surface, line_start, line_end, width, color, style):
         pygame.draw.line(surface, color.color, (line_start.x, line_start.y),
                          (line_end.x, line_end.y), width)
     elif line_properties["style"] in ("groove", "ridge", "inset", "outset"):
-        print "draw_line(): Line style '{}' NYI".format(style)
+        print("draw_line(): Line style '{}' NYI".format(style))
     else:
-        print "draw_line(): Unknown line style '{}'".format(line_properties["style"])
+        print("draw_line(): Unknown line style '{}'".format(line_properties["style"]))
 

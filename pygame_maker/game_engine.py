@@ -197,7 +197,7 @@ class GameEngine(logging_object.LoggingObject):
 
         self.load_game_settings()
 
-        if 'logging_config' in self.game_settings.keys():
+        if 'logging_config' in list(self.game_settings.keys()):
             logging.config.dictConfig(self.game_settings['logging_config'])
         else:
             logging.basicConfig(level=logging.WARNING)
@@ -282,7 +282,7 @@ class GameEngine(logging_object.LoggingObject):
             with open(self.GAME_SETTINGS_FILE, "r") as yaml_f:
                 yaml_info = yaml.load(yaml_f)
                 if yaml_info:
-                    for yaml_key in yaml_info.keys():
+                    for yaml_key in list(yaml_info.keys()):
                         if yaml_key in self.game_settings:
                             self.game_settings[yaml_key] = yaml_info[yaml_key]
 
@@ -351,7 +351,7 @@ class GameEngine(logging_object.LoggingObject):
         """
         # filter the action parameters
         action_params = {}
-        for param in action.action_data.keys():
+        for param in list(action.action_data.keys()):
             if param == 'apply_to':
                 continue
             if param == 'child_instance':
@@ -368,14 +368,14 @@ class GameEngine(logging_object.LoggingObject):
         self.bump_indent_level()
         if action.name == "play_sound":
             if ((len(action_params['sound']) > 0) and
-                    (action_params['sound'] in self.resources['sounds'].keys())):
+                    (action_params['sound'] in list(self.resources['sounds'].keys()))):
                 self.debug("Playing sound '{}'".format(action_params['sound']))
                 self.resources['sounds'][action_params['sound']].play_sound()
             else:
                 self.debug("Sound '{}' not played".format(action_params['sound']))
         elif action.name in ["create_object", "create_object_with_velocity"]:
             if (self.screen and (len(action_params['object']) > 0) and
-                    (action_params['object'] in self.resources['objects'].keys())):
+                    (action_params['object'] in list(self.resources['objects'].keys()))):
                 self.info("Creating object '{}'".format(action_params['object']))
                 self.new_object_queue.append(
                     (self.resources['objects'][action_params['object']], action_params))
@@ -544,21 +544,21 @@ class GameEngine(logging_object.LoggingObject):
         if os.path.exists('sprites'):
             self.info("Preloading sprite images..")
             with logging_object.Indented(self):
-                for spr in self.resources['sprites'].keys():
+                for spr in list(self.resources['sprites'].keys()):
                     self.info("{}".format(spr))
                     self.resources['sprites'][spr].setup()
         sound_dir = os.path.join(topdir, 'sounds')
         if os.path.exists(sound_dir):
             self.info("Preloading sound files..")
             with logging_object.Indented(self):
-                for snd in self.resources['sounds'].keys():
+                for snd in list(self.resources['sounds'].keys()):
                     self.info("{}".format(snd))
                     self.resources['sounds'][snd].setup()
         background_dir = os.path.join(topdir, 'backgrounds')
         if os.path.exists(background_dir):
             self.info("Preloading background images..")
             with logging_object.Indented(self):
-                for bkg in self.resources['backgrounds'].keys():
+                for bkg in list(self.resources['backgrounds'].keys()):
                     self.info("{}".format(bkg))
                     self.resources['backgrounds'][bkg].setup()
         os.chdir(topdir)
@@ -651,12 +651,12 @@ class GameEngine(logging_object.LoggingObject):
         self.event_engine.queue_event(sev)
         self.event_engine.transmit_event(sev.name)
         # perform position updates on all objects
-        for obj_name in self.resources['objects'].keys():
+        for obj_name in list(self.resources['objects'].keys()):
             self.resources['objects'][obj_name].update()
         # check for object instance collisions
-        obj_types = self.resources['objects'].values()
+        obj_types = list(self.resources['objects'].values())
         collision_types = set()
-        for obj_name in self.resources['objects'].keys():
+        for obj_name in list(self.resources['objects'].keys()):
             collision_types |= self.resources['objects'][obj_name].collision_check(obj_types)
         if len(collision_types) > 0:
             for coll_type in collision_types:

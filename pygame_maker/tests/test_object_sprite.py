@@ -21,7 +21,7 @@ class DummyGameEngine(object):
         pass
     def warn(self, message):
         """Simulate the warning logger."""
-        print message
+        print(message)
 
 
 class TestSprite(unittest.TestCase):

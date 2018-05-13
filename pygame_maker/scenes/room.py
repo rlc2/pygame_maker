@@ -98,12 +98,12 @@ class Room(logging_object.LoggingObject):
         if yaml_repr:
             for top_level in yaml_repr:
                 kwargs = {}
-                room_name = top_level.keys()[0]
+                room_name = list(top_level.keys())[0]
                 room_yaml = top_level[room_name]
-                for attr in Room.ATTRIBUTES_TABLE.keys():
-                    if attr in room_yaml.keys():
+                for attr in list(Room.ATTRIBUTES_TABLE.keys()):
+                    if attr in list(room_yaml.keys()):
                         kwargs[attr] = room_yaml[attr]
-                if 'object_instances' in room_yaml.keys():
+                if 'object_instances' in list(room_yaml.keys()):
                     kwargs['object_instances'] = room_yaml['object_instances']
                 new_room_list.append(Room(room_name, game_engine, **kwargs))
         return new_room_list
@@ -213,7 +213,7 @@ class Room(logging_object.LoggingObject):
         #: is drawn
         self.disp_height = 0
         if kwargs:
-            for attr in self.ATTRIBUTES_TABLE.keys():
+            for attr in list(self.ATTRIBUTES_TABLE.keys()):
                 if attr in kwargs:
                     attr_type = self.ATTRIBUTES_TABLE[attr]
                     if attr_type != bool:
@@ -229,7 +229,7 @@ class Room(logging_object.LoggingObject):
                     obj_ok = True
                     err_msg = ""
                     init_code = None
-                    obj_name = obj_check.keys()[0]
+                    obj_name = list(obj_check.keys())[0]
                     if 'position' not in obj_check[obj_name]:
                         obj_ok = False
                         err_msg = "Missing position for object '{}'".format(obj_name)
@@ -238,7 +238,7 @@ class Room(logging_object.LoggingObject):
                         obj_ok = False
                         err_msg = "Invalid position '{}' for object '{}'".format(
                             obj_check[obj_name]['position'], obj_name)
-                    if 'init_code' in obj_check[obj_name].keys():
+                    if 'init_code' in list(obj_check[obj_name].keys()):
                         if not isinstance(obj_check[obj_name]['init_code'], str):
                             obj_ok = False
                             err_msg = "Invalid code block '{}' for object '{}'".format(
@@ -247,8 +247,7 @@ class Room(logging_object.LoggingObject):
                     if not obj_ok:
                         self.error("{}: Failed to create room: {}".format(
                             type(self).__name__, err_msg))
-                        raise(RoomException("{}: Failed to create room: {}".
-                                            format(type(self).__name__, err_msg)))
+                        raise RoomException
                     self.add_init_object_instance_at(obj_name,
                                                      obj_check[obj_name]['position'],
                                                      init_code)
@@ -319,7 +318,7 @@ class Room(logging_object.LoggingObject):
         """
         self.debug("add_object_instance_at({}, {}, {}, {}):".format(
             surface, object_type_name, locationxy, init_code))
-        if object_type_name in self.game_engine.resources['objects'].keys():
+        if object_type_name in list(self.game_engine.resources['objects'].keys()):
             self.object_instances.append(
                 self.game_engine.resources['objects'][object_type_name].create_instance(
                     surface, position=locationxy))
@@ -365,7 +364,7 @@ class Room(logging_object.LoggingObject):
         self.debug("load_room({}):".format(surface))
         self.info("  load room named '{}'".format(self.name))
         if (self.background and (self.background in
-                                 self.game_engine.resources['backgrounds'].keys())):
+                                 list(self.game_engine.resources['backgrounds'].keys()))):
             self.game_engine.resources['backgrounds'][self.background].load_graphic()
         if len(self._init_code) > 0:
             self.game_engine.language_engine.execute_code_block(
@@ -389,7 +388,7 @@ class Room(logging_object.LoggingObject):
         # draw the background
         if self.background:
             # draw background image, if any
-            if self.background in self.game_engine.resources['backgrounds'].keys():
+            if self.background in list(self.game_engine.resources['backgrounds'].keys()):
                 bkg = self.game_engine.resources['backgrounds'][self.background]
                 if ((self.disp_width != surface.get_width()) or
                         (self.disp_height != surface.get_height())):

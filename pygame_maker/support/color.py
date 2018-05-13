@@ -60,7 +60,7 @@ class Color(object):
     def is_known_color(cls, color_name):
         """Determine whether a given color name is known."""
         if len(cls.all_known_colors) == 0:
-            cls.all_known_colors = pygame.colordict.THECOLORS.keys() + cls.ADDITIONAL_COLORS.keys()
+            cls.all_known_colors = list(pygame.colordict.THECOLORS.keys()) + list(cls.ADDITIONAL_COLORS.keys())
         return color_name.lower() in cls.all_known_colors
 
     def __init__(self, *params):
@@ -88,7 +88,7 @@ class Color(object):
         """
         color_str = params[0]
         self.color = None
-        if params[0] in self.ADDITIONAL_COLORS.keys():
+        if params[0] in list(self.ADDITIONAL_COLORS.keys()):
             color_str = self.ADDITIONAL_COLORS[params[0]]
             # print("Passing named color {} as {} to pygame.Color".format(params[0], color_str))
             self.color = pygame.Color(color_str)

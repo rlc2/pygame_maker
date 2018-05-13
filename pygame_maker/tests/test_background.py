@@ -30,8 +30,8 @@ class MyGameManager(object):
         with open(TEST_BACKGROUND_LIST_YAML_FILE, "r") as yaml_f:
             self.backgrounds = Background.load_from_yaml(yaml_f)
         if len(self.backgrounds) == 0:
-            print("Unable to load backgrounds from {}, aborting.".format(
-                TEST_BACKGROUND_LIST_YAML_FILE))
+            print(("Unable to load backgrounds from {}, aborting.".format(
+                TEST_BACKGROUND_LIST_YAML_FILE)))
             exit(1)
         self.font = None
         self.done = False

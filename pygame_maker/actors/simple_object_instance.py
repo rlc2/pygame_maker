@@ -77,14 +77,14 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         self._symbols.update(self.INSTANCE_SYMBOLS)
         #: Symbol table
         self.symbols = SymbolTable()
-        for sym in self._symbols.keys():
+        for sym in list(self._symbols.keys()):
             self.symbols[sym] = self._symbols[sym]
 
         attr_values = {}
         if settings is not None:
             attr_values.update(settings)
         attr_values.update(kwargs)
-        if len(attr_values.keys()) > 0:
+        if len(list(attr_values.keys())) > 0:
             self._apply_kwargs(attr_values)
         # print("Initial symbols:")
         # self.symbols.dumpVars()
@@ -165,9 +165,9 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         # :type kwargs: dict
         self.debug("_apply_kwargs(kwargs={}):".format(str(kwargs)))
         relative = False
-        if "relative" in kwargs.keys():
+        if "relative" in list(kwargs.keys()):
             relative = kwargs["relative"]
-        for kwarg in kwargs.keys():
+        for kwarg in list(kwargs.keys()):
             if kwarg == 'relative':
                 # 'relative' is not an attribute, it instead determines how the
                 #  other attributes are applied.
@@ -281,25 +281,25 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                 for inter in inter_set:
                     inter_str = "{" + inter + "}"
                     rstr = "UNKNOWN"
-                    if inter in self.symbols.keys():
+                    if inter in list(self.symbols.keys()):
                         rstr = self.symbols[inter]
-                    elif inter in self.game_engine.language_engine.global_symbol_table.keys():
+                    elif inter in list(self.game_engine.language_engine.global_symbol_table.keys()):
                         rstr = self.game_engine.language_engine.global_symbol_table[inter]
                     msg_str = re.sub(inter_str, str(rstr), msg_str)
             message_parts.append(msg_str)
         else:
             message_parts.append("\nlocal symbol table entries:\n")
-            for lsym in self.symbols.keys():
+            for lsym in list(self.symbols.keys()):
                 if lsym in ["parent", "children", "position"]:
                     continue
                 message_parts.append("\t{:30s} = {:30s}\n".format(lsym, str(self.symbols[lsym])))
             message_parts.append("global symbol table entries:\n")
-            for gsym in self.game_engine.language_engine.global_symbol_table.keys():
+            for gsym in list(self.game_engine.language_engine.global_symbol_table.keys()):
                 if gsym in ["pi", "e"]:
                     continue
                 symname = str(self.game_engine.language_engine.global_symbol_table[gsym])
                 message_parts.append("\t{:30s} = {:30s}\n".format(gsym, symname))
-        print "".join(message_parts)
+        print("".join(message_parts))
 
     def if_variable_value(self, action):
         """
@@ -316,15 +316,15 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         var_val = self.symbols.DEFAULT_UNINITIALIZED_VALUE
         test_val = action['value']
         test_result = False
-        if action['variable'] in self.symbols.keys():
+        if action['variable'] in list(self.symbols.keys()):
             var_val = self.symbols[action['variable']]
-        elif action['variable'] in self.game_engine.language_engine.global_symbol_table.keys():
+        elif action['variable'] in list(self.game_engine.language_engine.global_symbol_table.keys()):
             var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
         if isinstance(action['value'], str):
             # replace a string with a symbol value, if the string is in a symbol table
-            if action['value'] in self.symbols.keys():
+            if action['value'] in list(self.symbols.keys()):
                 test_val = self.symbols[action['value']]
-            elif action['value'] in self.game_engine.language_engine.global_symbol_table.keys():
+            elif action['value'] in list(self.game_engine.language_engine.global_symbol_table.keys()):
                 test_val = self.game_engine.language_engine.global_symbol_table[action['value']]
         if action['test'] == "equals":
             test_result = (var_val == test_val)
@@ -490,12 +490,12 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         action_params = {}
         handled_action = False
         # check for expressions that need to be executed
-        for param in action.action_data.keys():
+        for param in list(action.action_data.keys()):
             if param == 'apply_to':
                 continue
             action_params[param] = action.get_parameter_expression_result(
                 param, self.symbols, self.game_engine.language_engine)
-        if action.name in self.action_name_to_method_map.keys():
+        if action.name in list(self.action_name_to_method_map.keys()):
             self.action_name_to_method_map[action.name](action)
             handled_action = True
             self.debug("  {} inst {} execute_action {} handled".format(self.kind.name,

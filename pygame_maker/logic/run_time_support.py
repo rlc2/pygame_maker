@@ -11,7 +11,7 @@ import time
 import sys
 
 #: The default value used for uninitialized symbols
-DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
+DEFAULT_UNINITIALIZED_VALUE = -sys.maxsize - 1
 
 
 class CodeBlockRuntimeError(RuntimeError):
@@ -34,7 +34,7 @@ def update_symbol(_symbols, symname, value):
     if symname[0] == "_":
         _symbols["globals"][symname[1:]] = value
     else:
-        if symname in _symbols["locals"].keys() or symname not in _symbols["globals"].keys():
+        if symname in list(_symbols["locals"].keys()) or symname not in list(_symbols["globals"].keys()):
             _symbols["locals"][symname] = value
         else:
             _symbols["globals"][symname] = value
@@ -56,10 +56,10 @@ def get_symbol(_symbols, symname):
     :return: The symbol's value
     """
     symval = DEFAULT_UNINITIALIZED_VALUE
-    if symname in _symbols["locals"].keys():
+    if symname in list(_symbols["locals"].keys()):
         # local variables can override globals
         symval = _symbols["locals"][symname]
-    elif symname in _symbols["globals"].keys():
+    elif symname in list(_symbols["globals"].keys()):
         symval = _symbols["globals"][symname]
     return symval
 
