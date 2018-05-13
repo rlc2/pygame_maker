@@ -414,7 +414,7 @@ class GameEngine(logging_object.LoggingObject):
         # print("queue event: {}".format(kev))
         self.event_engine.queue_event(kev)
         # print("xmit event: {}".format(key_event_name))
-        self.event_engine.transmit_event(key_event_name)
+        self.event_engine.transmit_event(key_event_init_name)
         self.debug("Event '{}' queued and transmitted".format(key_event_init_name))
 
     def send_mouse_event(self, mouse_event):
@@ -623,7 +623,8 @@ class GameEngine(logging_object.LoggingObject):
         sev = event.StepEvent('begin_step')
         self.event_engine.queue_event(sev)
         self.event_engine.transmit_event(sev.name)
-        for cev in self.current_events:
+        while len(self.current_events) > 0:
+            cev = self.current_events.pop()
             if cev.type == pygame.QUIT:
                 self.done = True
                 break
@@ -645,8 +646,6 @@ class GameEngine(logging_object.LoggingObject):
         if not mouse_button:
             # no mouse button events, so send the nobutton events
             self.send_mouse_event(None)
-        # done with event handling
-        self.current_events = []
         # normal_step happens before updating object instance positions
         sev = event.StepEvent('normal_step')
         self.event_engine.queue_event(sev)
