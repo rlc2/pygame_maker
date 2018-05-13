@@ -129,10 +129,12 @@ class Sound(object):
 
         :raise: SoundException if the file is not found
         """
-        if not os.path.exists(self.filename):
-            raise(SoundException("SoundException: Sound file '{}' not found.".format(
-                self.filename)))
         if not self.loaded:
+            if self.filename is None:
+                raise(SoundException("SoundException: No sound filename provided."))
+            if not os.path.exists(self.filename):
+                raise(SoundException("SoundException: Sound file '{}' not found.".format(
+                    self.filename)))
             self.audio = pygame.mixer.Sound(self.filename)
             self.loaded = True
 

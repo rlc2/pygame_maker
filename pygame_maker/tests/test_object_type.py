@@ -297,9 +297,9 @@ class TestGameManager(object):
             "spr_spaceship", filename="unittest_files/spaceship_strip07.png",
             collision_type="precise")
         res['sounds']['snd_test'] = Sound(
-            "snd_test", sound_file="unittest_files/Pop.wav")
+            "snd_test", filename="unittest_files/Pop.wav")
         res['sounds']['snd_explosion'] = Sound(
-            "snd_explosion", sound_file="unittest_files/explosion.wav")
+            "snd_explosion", filename="unittest_files/explosion.wav")
         with open(OBJ_TEST_FILE, "r") as yaml_f:
             res['objects']['obj_test'] = ObjectType.load_from_yaml(
                 yaml_f, self.game_engine)[0]
