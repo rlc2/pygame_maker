@@ -27,22 +27,22 @@ def _divide_extra_segment_padding(length, padding_needed):
     if padding_needed % 2 != 0:
         odd_padding = True
     if length == 2:
-        padding_ary = [padding_needed / 2, padding_needed / 2]
+        padding_ary = [int(padding_needed / 2), int(padding_needed / 2)]
         if odd_padding:
             padding_ary[0] += 1
         return padding_ary
-    base_padding = padding_needed / length
+    base_padding = int(padding_needed / length)
     current_padding = length * base_padding
     leftover_padding = padding_needed - current_padding
     padding_ary = [base_padding]*length
-    mid_idx = length / 2
+    mid_idx = int(length / 2)
     pad_count = 0
     if leftover_padding == 1:
         padding_ary[mid_idx] += 1
         pad_count += 1
     elif leftover_padding > 1:
         # spread out leftovers as evenly as possible
-        for idx in range(length/2):
+        for idx in range(int(length/2)):
             for alternate in [(1, 0), (-1, 1)]:
                 pad_idx = alternate[0] * (idx + alternate[1])
                 padding_ary[pad_idx] += 1
@@ -79,9 +79,9 @@ def draw_line_segments(surface, line_properties):
     sqrd_length = (line_slope_x * line_slope_x) + (line_slope_y * line_slope_y)
     sqrd_full_gap_len = (seg_len * 2 + seg_gap) * (seg_len * 2 + seg_gap)
     # divide up all but the final segment between segment + gap pairs
-    seg_count = (line_slope_x - seg_len) / (seg_len + seg_gap)
+    seg_count = int((line_slope_x - seg_len) / (seg_len + seg_gap))
     if line_slope_x == 0:
-        seg_count = (line_slope_y - seg_len) / (seg_len + seg_gap)
+        seg_count = int((line_slope_y - seg_len) / (seg_len + seg_gap))
     if sqrd_length <= (seg_len * seg_len):
         # not enough space for a gap, just draw between the two points
         pygame.draw.line(surface, line_properties["color"].color,

@@ -257,18 +257,18 @@ class Background(object):
                                              self.tile_properties.vertical_padding)
                     # print("row spacing: {}".format(self.tile_row_spacing))
                 if self.max_tile_rows < 0:
-                    self.max_tile_rows = ((screen.get_height() - xy_offset[1] -
+                    self.max_tile_rows = int(((screen.get_height() - xy_offset[1] -
                                            self.tile_properties.vertical_offset) /
-                                          self.tile_row_spacing)
+                                          self.tile_row_spacing))
                     # print("max rows: {}".format(self.max_tile_rows))
                 if self.tile_col_spacing < 0:
                     self.tile_col_spacing = (self.tile_properties.tile_width +
                                              self.tile_properties.horizontal_padding)
                     # print("col spacing: {}".format(self.tile_col_spacing))
                 if self.max_tile_cols < 0:
-                    self.max_tile_cols = ((screen.get_width() -
+                    self.max_tile_cols = int(((screen.get_width() -
                                            self.tile_properties.horizontal_offset) /
-                                          self.tile_col_spacing)
+                                          self.tile_col_spacing))
                     # print("max cols: {}".format(self.max_tile_cols))
                 for col in range(self.max_tile_cols):
                     for row in range(self.max_tile_rows):

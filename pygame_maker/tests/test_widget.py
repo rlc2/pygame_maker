@@ -117,8 +117,8 @@ LabelWidgetObjectType#0 {
 
     def create_subsurfaces(self, screen_width, screen_height):
         """Create a grid of subsurfaces for drawing widgets into."""
-        self.widget_rows = (screen_width - self.GRID_START_X) / self.GRID_SPACING_X
-        self.widget_cols = (screen_height - self.GRID_START_Y) / self.GRID_SPACING_Y
+        self.widget_rows = int((screen_width - self.GRID_START_X) / self.GRID_SPACING_X)
+        self.widget_cols = int((screen_height - self.GRID_START_Y) / self.GRID_SPACING_Y)
         first_col_left = self.GRID_START_X
         first_row_top = self.GRID_START_Y
         for row_idx in range(self.widget_rows):

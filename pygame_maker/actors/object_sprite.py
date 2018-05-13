@@ -93,7 +93,7 @@ def create_disk_mask(orig_rect, radius):
     #  will use this mask; the mask generated here won't fill the sprite's
     #  radius, but will be a circle with the correct radius that is clipped
     #  at the sprite's rect dimensions
-    disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
+    disk_mask_center = (int(orig_rect.width / 2), int(orig_rect.height / 2))
     #pylint: disable=too-many-function-args
     #pylint: disable=unexpected-keyword-arg
     disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height), depth=8)
@@ -438,7 +438,7 @@ class ObjectSprite(object):
         sub_cols = self.subimage_info["columns"]
         if len(sub_cols) <= 1:
             # subimage columns weren't passed in, so calculate them
-            max_si_width = self.image_size[0] / self.subimage_info["count"]
+            max_si_width = int(self.image_size[0] / self.subimage_info["count"])
             for idx in range(len(sub_cols), self.subimage_info["count"]):
                 sub_cols.append(max_si_width * idx)
         elif len(sub_cols) > self.subimage_info["count"]:
@@ -454,7 +454,7 @@ class ObjectSprite(object):
             if (last_custom_column + missing_count + 1) < self.image_size[0]:
                 # remember to leave room between the last custom column
                 # and the first missing X value
-                split_col_width = (self.image_size[0] - last_custom_column) / (missing_count + 1)
+                split_col_width = int((self.image_size[0] - last_custom_column) / (missing_count + 1))
                 for ccol in range(missing_count):
                     sub_cols.append(last_custom_column + (ccol + 1) * split_col_width)
             else:

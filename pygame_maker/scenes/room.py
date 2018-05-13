@@ -431,13 +431,13 @@ class Room(logging_object.LoggingObject):
                         # print("Cache normal background")
                         pix_width = self.disp_width - self.background_offsets[0]
                         if self.tile_horizontal and (self.bkg_width < pix_width):
-                            cols = pix_width / self.bkg_width
+                            cols = int(pix_width / self.bkg_width)
                             overage = pix_width % self.bkg_width
                             if overage != 0:
                                 cols += 1
                         pix_height = self.disp_height - self.background_offsets[1]
                         if self.tile_vertical and (self.bkg_height < pix_height):
-                            rows = pix_height / self.bkg_height
+                            rows = int(pix_height / self.bkg_height)
                             overage = pix_height % self.bkg_height
                             if overage != 0:
                                 rows += 1

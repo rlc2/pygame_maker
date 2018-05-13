@@ -734,12 +734,12 @@ class LabelWidgetInstance(WidgetInstance):
         top_left = coord.Coordinate(0, 0)
         if surf_width > text_width:
             if self.style_settings["text-align"] == "center":
-                top_left.x = (surf_width / 2) - (text_width / 2)
+                top_left.x = int((surf_width / 2) - (text_width / 2))
             elif self.style_settings["text-align"] == "right":
                 top_left.x = surf_width - text_width
         if surf_height > text_height:
             if self.style_settings["vertical-align"] == "middle":
-                top_left.y = (surf_height / 2) - (text_height / 2)
+                top_left.y = int((surf_height / 2) - (text_height / 2))
             elif self.style_settings["vertical-align"] == "bottom":
                 top_left.y = surf_height - text_height
         font_rndr.render_text(surface, top_left, self.label, self.style_values["color"])

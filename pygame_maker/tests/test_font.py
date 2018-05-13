@@ -89,10 +89,10 @@ class MyGameManager(object):
             self.fonts.append(font.Font("fnt_{}".format(idx),
                                         fontname=a_font,
                                         fontsize=self.FONT_SIZE))
-        self.font_pages = (len(known_fonts) / self.fonts_per_page)
+        self.font_pages = int(len(known_fonts) / self.fonts_per_page)
         if (len(known_fonts) % self.fonts_per_page) != 0:
             self.font_pages += 1
-        self.text_pages = (len(self.textlines) / self.LINES_PER_PAGE)
+        self.text_pages = int(len(self.textlines) / self.LINES_PER_PAGE)
         if (len(self.textlines) % self.LINES_PER_PAGE) != 0:
             self.text_pages += 1
 
