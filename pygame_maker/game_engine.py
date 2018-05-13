@@ -159,9 +159,6 @@ class GameEngine(logging_object.LoggingObject):
         self.event_engine = event_engine.EventEngine()
         #: The game's language engine for executing code blocks
         self.language_engine = language_engine.LanguageEngine()
-        #: The game's symbol table for keeping constants, such as mouse.x,
-        #: mouse.y, and others the game resources may need
-        self.symbols = language_engine.SymbolTable()
         #: The dict for organizing the game's resources, so each resource
         #: can find the others
         self.resources = {
@@ -364,7 +361,7 @@ class GameEngine(logging_object.LoggingObject):
                     action_params['parent'] = instance
                 continue
             action_params[param] = action.get_parameter_expression_result(
-                param, self.symbols, self.language_engine)
+                param, self.language_engine.global_symbol_table, self.language_engine)
 
         # print("Engine received action: {}".format(action))
         self.debug("Handle action '{}'".format(action.name))
@@ -530,8 +527,8 @@ class GameEngine(logging_object.LoggingObject):
         self.info("Setup:")
         with logging_object.Indented(self):
             self.screen = screen
-            self.symbols.set_constant('screen_width', screen.get_width())
-            self.symbols.set_constant('screen_height', screen.get_height())
+            self.language_engine.global_symbol_table.set_constant('screen_width', screen.get_width())
+            self.language_engine.global_symbol_table.set_constant('screen_height', screen.get_height())
             self.info("Pre-load game resources..")
             with logging_object.Indented(self):
                 self.setup_game_resources()
@@ -588,8 +585,8 @@ class GameEngine(logging_object.LoggingObject):
         #pylint: enable=too-many-function-args
         self.resources['rooms'][room_n].draw_room_background(self.draw_surface)
         self.resources['rooms'][room_n].load_room(self.draw_surface)
-        self.symbols.set_constant('room_width', room_width)
-        self.symbols.set_constant('room_height', room_height)
+        self.language_engine.global_symbol_table.set_constant('room_width', room_width)
+        self.language_engine.global_symbol_table.set_constant('room_height', room_height)
         self.info("Room {:d} loaded.".format(room_n))
 
     def collect_event(self, an_event):
