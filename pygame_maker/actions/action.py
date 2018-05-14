@@ -412,6 +412,9 @@ common_parameters:
                                                   value_str)
         return yaml_str
 
+    def keys(self):
+        return self.action_data.keys() + self.runtime_data.keys()
+
     def __getitem__(self, itemname):
         """
         Create a shortcut for accessing parameters.
