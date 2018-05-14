@@ -1178,7 +1178,8 @@ class CollideableObjectType(ManagerObjectType):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_instance_event(in_event={}):".format(in_event))
-        self.execute_action_sequence(in_event)
+        if in_event["type"] == self:
+            self.execute_action_sequence(in_event)
 
     def handle_mouse_event(self, in_event):
         """
