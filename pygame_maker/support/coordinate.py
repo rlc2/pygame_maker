@@ -107,7 +107,11 @@ class Coordinate(object):
         return 2
 
     def __eq__(self, other):
-        return (self.x == other.x) and (self.y == other.y)
+        if isinstance(other, Coordinate):
+            other_coord = other
+        else:
+            other_coord = Coordinate(other)
+        return (self.x == other_coord.x) and (self.y == other_coord.y)
 
     def __repr__(self):
         return "({:d}, {:d})".format(int(self.x), int(self.y))
