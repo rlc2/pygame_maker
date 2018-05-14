@@ -413,6 +413,7 @@ common_parameters:
         return yaml_str
 
     def keys(self):
+        """Return a list of all known action data keys."""
         return self.action_data.keys() + self.runtime_data.keys()
 
     def __getitem__(self, itemname):

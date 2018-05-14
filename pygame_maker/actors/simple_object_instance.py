@@ -505,16 +505,14 @@ class SimpleObjectInstance(logging_object.LoggingObject):
 
     def get_applied_instance_list(self, an_action, in_event):
         """
-        For actions with "apply_to" parameters, return a list of the
-        object instances affected.
+        Return a list of the object instances affected by an action.
 
-        The "apply_to" parameter may be "self", which can refer to a particular
-        instance (which needs to be part of the event data); or may be "other",
-        in cases where another instance is involved in the event (collisions);
-        or affect multiple objects if apply_to refers to an object type,
-        in which case all objects of the named type receive the action.  For
-        "create" type actions, "self" instead refers to the object type to be
-        created.
+        If the action has no "apply_to" parameter, assume self.
+        If the action has an "apply_to" parameter, it may be "self", which
+        refers to this instance; or may be "other", in cases where another
+        instance is involved in the event (collisions); or affect multiple
+        objects if apply_to refers to an object type, in which case all objects
+        of the named type receive the action.
 
         :param an_action: The action with an "apply_to" field
         :type an_action: :py:class:`~pygame_maker.actions.action.Action`
@@ -526,10 +524,6 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         """
         self.debug("get_applied_instance_list(an_action={}, in_event={}):".
                    format(an_action, in_event))
-        if (('instance' in in_event.event_params) and
-                (in_event.event_params['instance'] in self.kind.group) and
-                ('apply_to' not in an_action.action_data)):
-            return [in_event['instance']]
         apply_to_instances = [self]
         if "apply_to" in an_action.keys():
             if an_action["apply_to"] == "other":
