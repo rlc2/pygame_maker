@@ -503,5 +503,85 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                                                                        action.name))
         return (action_params, handled_action)
 
+    def get_applied_instance_list(self, an_action, in_event):
+        """
+        For actions with "apply_to" parameters, return a list of the
+        object instances affected.
+
+        The "apply_to" parameter may be "self", which can refer to a particular
+        instance (which needs to be part of the event data); or may be "other",
+        in cases where another instance is involved in the event (collisions);
+        or affect multiple objects if apply_to refers to an object type,
+        in which case all objects of the named type receive the action.  For
+        "create" type actions, "self" instead refers to the object type to be
+        created.
+
+        :param an_action: The action with an "apply_to" field
+        :type an_action: :py:class:`~pygame_maker.actions.action.Action`
+        :param in_event: The received event
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
+        :return: A list of instances affected by the event that the action
+            will apply to
+        :rtype: list
+        """
+        self.debug("get_applied_instance_list(an_action={}, in_event={}):".
+                   format(an_action, in_event))
+        if (('instance' in in_event.event_params) and
+                (in_event.event_params['instance'] in self.kind.group) and
+                ('apply_to' not in an_action.action_data)):
+            return [in_event['instance']]
+        apply_to_instances = [self]
+        if "apply_to" in an_action.keys():
+            if an_action["apply_to"] == "other":
+                if 'others' in in_event:
+                    # "others" are part of a collision event
+                    apply_to_instances = in_event['others']
+            elif an_action["apply_to"] != "self":
+                # applies to an object type; this means apply it to all instances
+                #  of that object
+                if an_action["apply_to"] in self.game_engine.resources['objects'].keys():
+                    apply_to_instances = list(
+                        self.game_engine.resources['objects'][an_action["apply_to"]].group)
+        return apply_to_instances
+
+    def execute_action_sequence(self, in_event):
+        """
+        Walk through an event action sequence when the event handler matches a
+        known event.
+
+        The sausage factory method.  There are many types of actions; the
+        object instance actions make the most sense to handle here, but the
+        game engine that inspired this one uses a model in which a hidden
+        manager object type triggers actions that affect other parts of the
+        game engine, so those actions need to be routed properly as well.
+
+        :param in_event: The event to be handled
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
+        :param targets: The event handler may pass in a list of target
+            instances for the action sequence to operate on
+        :type targets: array-like | None
+        """
+        self.debug("execute_action_sequence(in_event={}):".format(in_event))
+        if in_event.name in self.kind.event_action_sequences:
+            self.info("  Execute action sequence for event '{}'".format(in_event))
+            with logging_object.Indented(self):
+                self.debug("  Event args: {}".format(in_event.event_params))
+                for an_action in self.kind.event_action_sequences[in_event.name].get_next_action():
+                    self.debug("  Execute action {}".format(an_action))
+                    # forward instance actions to instance(s)
+                    action_targets = self.get_applied_instance_list(an_action, in_event)
+                    self.debug("apply {} to targets {}".format(an_action.name, action_targets))
+                    for target in action_targets:
+                        if target in self.kind.instance_delete_list:
+                            self.info("Skipping about-to-be-destroyed instance {}".
+                                      format(target.inst_id))
+                            continue
+                        if an_action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                            target.execute_action(an_action, in_event)
+                        else:
+                            # the game engine additionally receives the target
+                            #  instance as a parameter
+                            self.game_engine.execute_action(an_action, in_event, target)
+
     def __repr__(self):
         return "<{} {:03d}>".format(type(self).__name__, self.inst_id)
