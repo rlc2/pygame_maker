@@ -969,7 +969,7 @@ class CollideableObjectType(ManagerObjectType):
             # return an image (a copy of the subimage), a mask and possibly
             # radius from the sprite resource
             snum = subimage_number
-            if subimage_number > self.sprite_resource.subimage_info["count"]:
+            if subimage_number >= self.sprite_resource.subimage_info["count"]:
                 self.warn("{}: An instance requested a subimage number ({}) out of range (max {})".
                           format(self.name, subimage_number,
                                  self.sprite_resource.subimage_info["count"]))
