@@ -638,7 +638,7 @@ class ObjectType(logging_object.LoggingObject):
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("handle_step_event(in_event={}):".format(in_event))
-        self.execute_action_sequence(in_event, targets=[inst for inst in self.instance_list])
+        self.execute_action_sequence(in_event, targets=[inst for inst in self.get_instances()])
 
     def handle_alarm_event(self, in_event):
         """
@@ -1199,18 +1199,6 @@ class CollideableObjectType(ManagerObjectType):
         #pylint: enable=no-member
         if len(clicked) > 0:
             self.execute_action_sequence(in_event, clicked)
-
-    def handle_step_event(self, in_event):
-        """
-        Execute the action sequence associated with the supplied step event, if
-        the exact step event is handled by this object (begin, end, normal),
-        on every instance.
-
-        :param in_event: The step event
-        :type in_event: :py:class:`~pygame_maker.events.event.Event`
-        """
-        self.debug("handle_step_event(in_event={}):".format(in_event))
-        self.execute_action_sequence(in_event, targets=[inst for inst in self.group])
 
     def __repr__(self):
         rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name, self.sprite_resource)
