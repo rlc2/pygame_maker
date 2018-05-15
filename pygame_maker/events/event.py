@@ -14,6 +14,11 @@ __all__ = ["Event", "AlarmEvent", "CollisionEvent", "DrawEvent", "KeyEvent",
            "MouseEvent", "ObjectStateEvent", "OtherEvent", "StepEvent",
            "UnknownEventError"]
 
+def register_event_type(subclass):
+    """Register an Event subclass automatically."""
+    Event.register_new_event_type(subclass)
+    return subclass
+
 
 class UnknownEventError(Exception):
     """Raised when an Event type recieves an unknown event name."""
@@ -133,6 +138,7 @@ class Event(object):
                                       self.name, self._repr_event_strings()))
 
 
+@register_event_type
 class ObjectStateEvent(Event):
     """Wrap object state events."""
     OBJECT_STATE_EVENTS = [
@@ -159,6 +165,7 @@ class ObjectStateEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class AlarmEvent(Event):
     """Wrap alarm events."""
     ALARM_COUNT = 12
@@ -180,6 +187,7 @@ class AlarmEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class StepEvent(Event):
     """Wrap step events."""
     STEP_EVENTS = [
@@ -204,6 +212,7 @@ class StepEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class MouseEvent(Event):
     """Wrap mouse events."""
     MOUSE_EVENTS = [
@@ -257,6 +266,7 @@ class MouseEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class OtherEvent(Event):
     """Wrap miscellaneous events."""
     OTHER_EVENTS = [
@@ -303,6 +313,7 @@ class OtherEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class DrawEvent(Event):
     """Wrap draw events."""
     DRAW_EVENTS = [
@@ -327,6 +338,7 @@ class DrawEvent(Event):
         Event.__init__(self, event_name, event_params)
 
 
+@register_event_type
 class KeyEvent(Event):
     """Wrap keyboard events."""
     ARROW_KEYS = [
@@ -575,6 +587,7 @@ class KeyEvent(Event):
         return "<{} '{}' {}>".format(self.__class__.__name__, self.name, self._repr_event_strings())
 
 
+@register_event_type
 class CollisionEvent(Event):
     """Wrap collision events."""
     #: All collision events start with this prefix
@@ -637,12 +650,3 @@ class CollisionEvent(Event):
         return("<{} vs \"{}\"{}>".format(self.__class__.__name__,
                                          self.collision_object_name,
                                          self._repr_event_strings()))
-
-Event.register_new_event_type(ObjectStateEvent)
-Event.register_new_event_type(AlarmEvent)
-Event.register_new_event_type(StepEvent)
-Event.register_new_event_type(MouseEvent)
-Event.register_new_event_type(OtherEvent)
-Event.register_new_event_type(DrawEvent)
-Event.register_new_event_type(KeyEvent)
-Event.register_new_event_type(CollisionEvent)

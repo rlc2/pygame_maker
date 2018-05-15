@@ -16,6 +16,11 @@ __all__ = ["Action", "AccountingAction", "CodeAction", "DrawAction",
            "RoomAction", "SoundAction", "TimingAction", "VariableAction",
            "ActionException"]
 
+def register_action_type(subclass):
+    """Register an Action subclass automatically."""
+    Action.register_new_action_type(subclass)
+    return subclass
+
 
 class ActionException(Exception):
     """
@@ -464,6 +469,7 @@ common_parameters:
                 (self.action_data == other.action_data))
 
 
+@register_action_type
 class MotionAction(Action):
     """
     Wrap motion-related actions.
@@ -660,6 +666,7 @@ actions:
         # self.action_data = self.MOTION_ACTION_DATA_MAP[action_name]
 
 
+@register_action_type
 class ObjectAction(Action):
     """
     Wrap object-related actions.
@@ -784,6 +791,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class SoundAction(Action):
     """
     Wrap sound-related actions.
@@ -842,6 +850,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class RoomAction(Action):
     """
     Wrap room-related actions.
@@ -902,6 +911,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class TimingAction(Action):
     """
     Wrap timing-related actions.
@@ -998,6 +1008,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class InfoAction(Action):
     """
     Wrap information display actions.
@@ -1059,6 +1070,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class GameAction(Action):
     """
     Wrap game control actions.
@@ -1111,6 +1123,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class ResourceAction(Action):
     """
     Wrap resource actions.
@@ -1149,6 +1162,7 @@ class ResourceAction(Action):
                         settings, **kwargs)
 
 
+@register_action_type
 class QuestionAction(Action):
     """
     Wrap query actions.
@@ -1193,6 +1207,7 @@ class QuestionAction(Action):
                         settings, **kwargs)
 
 
+@register_action_type
 class OtherAction(Action):
     """
     Wrap action sequence control actions.
@@ -1253,6 +1268,7 @@ actions:
             self.nest_adjustment = "block_end"
 
 
+@register_action_type
 class CodeAction(Action):
     """
     Wrap code and script execution actions.
@@ -1307,6 +1323,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class VariableAction(Action):
     """
     Wrap variable set, test, and display actions.
@@ -1378,6 +1395,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class AccountingAction(Action):
     """
     Wrap game accounting actions.
@@ -1554,6 +1572,7 @@ actions:
                         settings, **kwargs)
 
 
+@register_action_type
 class ParticleAction(Action):
     """
     Wrap particle field actions.
@@ -1601,6 +1620,7 @@ class ParticleAction(Action):
                         settings, **kwargs)
 
 
+@register_action_type
 class DrawAction(Action):
     """
     Wrap drawing actions.
@@ -1837,20 +1857,3 @@ actions:
                         self.DRAW_ACTION_DATA_YAML,
                         settings, **kwargs)
         self.action_data['draw_self'] = {}
-
-# make it possible to request an action from any action type
-Action.register_new_action_type(MotionAction)
-Action.register_new_action_type(ObjectAction)
-Action.register_new_action_type(RoomAction)
-Action.register_new_action_type(SoundAction)
-Action.register_new_action_type(TimingAction)
-Action.register_new_action_type(InfoAction)
-Action.register_new_action_type(GameAction)
-Action.register_new_action_type(ResourceAction)
-Action.register_new_action_type(QuestionAction)
-Action.register_new_action_type(OtherAction)
-Action.register_new_action_type(CodeAction)
-Action.register_new_action_type(VariableAction)
-Action.register_new_action_type(AccountingAction)
-Action.register_new_action_type(ParticleAction)
-Action.register_new_action_type(DrawAction)

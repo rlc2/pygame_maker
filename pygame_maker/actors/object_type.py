@@ -19,6 +19,10 @@ from pygame_maker.events import event
 from pygame_maker.actions import action
 from pygame_maker.actions import action_sequence
 
+def register_object_type(subclass):
+    ObjectType.register_new_object_type(subclass)
+    return subclass
+
 
 class ObjectTypeException(logging_object.LoggingException):
     """
@@ -195,7 +199,7 @@ class ObjectType(logging_object.LoggingObject):
     object_type_registry = []
 
     @classmethod
-    def register_object_type(cls, object_type):
+    def register_new_object_type(cls, object_type):
         """
         Register object type subclasses, so load_from_yaml() can recognize the
         object types named in YAML files and create them.
@@ -709,6 +713,7 @@ class ObjectType(logging_object.LoggingObject):
             del self.event_action_sequences[itemname]
 
 
+@register_object_type
 class ManagerObjectType(ObjectType):
     """
     Another name for the base ObjectType, to flag that the object type is meant
@@ -717,6 +722,7 @@ class ManagerObjectType(ObjectType):
     pass
 
 
+@register_object_type
 class CollideableObjectType(ManagerObjectType):
     """
     Most in-game objects are of this type.  Collideable objects have:
@@ -1103,6 +1109,3 @@ class CollideableObjectType(ManagerObjectType):
     def __repr__(self):
         rpr = "<{} '{}' sprite='{}'>".format(type(self).__name__, self.name, self.sprite_resource)
         return rpr
-
-ObjectType.register_object_type(ManagerObjectType)
-ObjectType.register_object_type(CollideableObjectType)
