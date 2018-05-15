@@ -208,7 +208,7 @@ class GameEngine(logging_object.LoggingObject):
 
         self.info("Loading game resources..")
         self.global_style_settings = None
-        if "stylesheet" in self.game_settings and len(self.game_settings["stylesheet"]) > 0:
+        if "stylesheet" in self.game_settings and self.game_settings["stylesheet"]:
             with open(self.game_settings["stylesheet"], "r") as style_f:
                 self.global_style_settings = css_to_style.CSSStyleGenerator.get_css_style(
                     style_f.read())
@@ -216,7 +216,7 @@ class GameEngine(logging_object.LoggingObject):
         with logging_object.Indented(self):
             self.load_game_resources()
 
-        if len(self.resources['rooms']) == 0:
+        if not self.resources['rooms']:
             raise GameEngineException("No game room resource found")
 
     def load_game_settings(self):
@@ -367,14 +367,14 @@ class GameEngine(logging_object.LoggingObject):
         self.debug("Handle action '{}'".format(action.name))
         self.bump_indent_level()
         if action.name == "play_sound":
-            if ((len(action_params['sound']) > 0) and
+            if (action_params['sound'] and
                     (action_params['sound'] in list(self.resources['sounds'].keys()))):
                 self.debug("Playing sound '{}'".format(action_params['sound']))
                 self.resources['sounds'][action_params['sound']].play_sound()
             else:
                 self.debug("Sound '{}' not played".format(action_params['sound']))
         elif action.name in ["create_object", "create_object_with_velocity"]:
-            if (self.screen and (len(action_params['object']) > 0) and
+            if (self.screen and action_params['object'] and
                     (action_params['object'] in list(self.resources['objects'].keys()))):
                 self.info("Creating object '{}'".format(action_params['object']))
                 self.new_object_queue.append(
@@ -401,6 +401,7 @@ class GameEngine(logging_object.LoggingObject):
         pk_map = event.KeyEvent.PYGAME_KEY_TO_KEY_EVENT_MAP
         key_event_init_name = None
         key_event_name = None
+        #pylint: disable=no-member
         if not key_event:
             key_event_init_name = "kb_no_key"
             key_event_name = key_event_init_name
@@ -410,6 +411,7 @@ class GameEngine(logging_object.LoggingObject):
                 key_event_init_name = "{}_keydn".format(pk_map[key_event.key])
             elif key_event.type == pygame.KEYUP:
                 key_event_init_name = "{}_keyup".format(pk_map[key_event.key])
+        #pylint: enable=no-member
         kev = event.KeyEvent(key_event_init_name)
         # print("queue event: {}".format(kev))
         self.event_engine.queue_event(kev)
@@ -430,6 +432,7 @@ class GameEngine(logging_object.LoggingObject):
             button event occurred during the frame.
         :type mouse_event: None | :py:class:`~pygame_maker.events.event.Event`
         """
+        #pylint: disable=no-member
         if mouse_event:
             self.mouse_pos[0] = mouse_event.pos[0]
             self.mouse_pos[1] = mouse_event.pos[1]
@@ -513,6 +516,7 @@ class GameEngine(logging_object.LoggingObject):
             self.event_engine.transmit_event(ev_name)
             if ev_name not in ['mouse_nobutton', 'mouse_global_nobutton']:
                 self.debug("Event '{}' queued and transmitted".format(ev_name))
+        #pylint: enable=no-member
 
     def setup(self, screen):
         """
@@ -527,8 +531,10 @@ class GameEngine(logging_object.LoggingObject):
         self.info("Setup:")
         with logging_object.Indented(self):
             self.screen = screen
-            self.language_engine.global_symbol_table.set_constant('screen_width', screen.get_width())
-            self.language_engine.global_symbol_table.set_constant('screen_height', screen.get_height())
+            self.language_engine.global_symbol_table.set_constant('screen_width',
+                                                                  screen.get_width())
+            self.language_engine.global_symbol_table.set_constant('screen_height',
+                                                                  screen.get_height())
             self.info("Pre-load game resources..")
             with logging_object.Indented(self):
                 self.setup_game_resources()
@@ -623,7 +629,8 @@ class GameEngine(logging_object.LoggingObject):
         sev = event.StepEvent('begin_step')
         self.event_engine.queue_event(sev)
         self.event_engine.transmit_event(sev.name)
-        while len(self.current_events) > 0:
+        #pylint: disable=no-member
+        while self.current_events:
             cev = self.current_events.pop()
             if cev.type == pygame.QUIT:
                 self.done = True
@@ -640,6 +647,7 @@ class GameEngine(logging_object.LoggingObject):
                 self.send_mouse_event(cev)
                 if cev.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
                     mouse_button = True
+        #pylint: enable=no-member
         if not key_pressed:
             # no key events, so send the kb_no_key event
             self.send_key_event(None)
@@ -658,7 +666,7 @@ class GameEngine(logging_object.LoggingObject):
         collision_types = set()
         for obj_name in list(self.resources['objects'].keys()):
             collision_types |= self.resources['objects'][obj_name].collision_check(obj_types)
-        if len(collision_types) > 0:
+        if collision_types:
             for coll_type in collision_types:
                 self.event_engine.transmit_event(coll_type)
 
@@ -693,7 +701,9 @@ class GameEngine(logging_object.LoggingObject):
         all operations that require ``pygame.init()``, prior to entering the
         loop.
         """
+        #pylint: disable=no-member
         pygame.init()
+        #pylint: enable=no-member
         self.screen = pygame.display.set_mode(self.game_settings['screen_dimensions'])
         self.setup(self.screen)
         pygame.display.set_caption(self.game_settings['game_name'])
@@ -720,7 +730,9 @@ class GameEngine(logging_object.LoggingObject):
             self.clock.tick(self.game_settings['frames_per_second'])
 
         # close window & quit
+        #pylint: disable=no-member
         pygame.quit()
+        #pylint: enable=no-member
 
 if __name__ == "__main__":
     GAME_ENGINE = GameEngine()

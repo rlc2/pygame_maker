@@ -197,4 +197,3 @@ def draw_line(surface, line_start, line_end, width, color, style):
         print("draw_line(): Line style '{}' NYI".format(style))
     else:
         print("draw_line(): Unknown line style '{}'".format(line_properties["style"]))
-

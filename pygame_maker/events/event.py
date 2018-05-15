@@ -69,7 +69,7 @@ class Event(object):
         instance_params = {}
         if event_params is not None:
             instance_params.update(event_params)
-        if len(cls.event_type_registry) > 0:
+        if cls.event_type_registry:
             for atype in cls.event_type_registry:
                 if atype.find_event_by_name(event_name):
                     return atype(event_name, instance_params)
@@ -123,7 +123,7 @@ class Event(object):
         ev_parms_sorted.sort()
         for evparam in ev_parms_sorted:
             event_param_strs.append("{}={}".format(evparam, self.event_params[evparam]))
-        if len(event_param_strs) > 0:
+        if event_param_strs:
             ev_str = " "
             ev_str += ",".join(event_param_strs)
         return ev_str
@@ -410,6 +410,7 @@ class KeyEvent(Event):
                   DIGIT_KEYS + LETTER_KEYS + PUNCTUATION_KEYS + FUNCTION_KEYS +
                   OTHER_KEYS)
 
+    #pylint: disable=no-member
     PYGAME_KEY_TO_KEY_EVENT_MAP = {
         pygame.K_COMMA:         "kb_,",
         pygame.K_PERIOD:        "kb_.",
@@ -512,6 +513,8 @@ class KeyEvent(Event):
         pygame.K_F11:           "kb_F11",
         pygame.K_F12:           "kb_F12"
     }
+    #pylint: enable=no-member
+
     #: Append this string to the event name, to specify key release
     KEYBOARD_UP_SUFFIX = "_keyup"
     KEYBOARD_UP_SUFFIX_RE = re.compile("(.*)({})$".format(KEYBOARD_UP_SUFFIX))
@@ -537,7 +540,7 @@ class KeyEvent(Event):
             base_event_name = dn_minfo.group(1)
         if base_event_name not in cls.HANDLED_EVENTS:
             raise UnknownEventError("KeyEvent: key named '{}' unknown".format(base_event_name))
-        if len(base_event_name) == 0:
+        if not base_event_name:
             raise UnknownEventError("KeyEvent: '{}' is invalid".format(event_name))
         return event_name
 

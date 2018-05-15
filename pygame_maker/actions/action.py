@@ -250,7 +250,7 @@ common_parameters:
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
-        if len(cls.action_type_registry) > 0:
+        if cls.action_type_registry:
             for atype in cls.action_type_registry:
                 if action_name in atype.HANDLED_ACTIONS:
                     return atype(action_name, settings, **kwargs)
@@ -323,7 +323,7 @@ common_parameters:
                     if minfo:
                         action_map[action][par] = common_params[par_val]['default']
                         action_constraints[action] = common_params[par_val]
-                elif len(list(par_val.keys())) > 0:
+                elif list(par_val.keys()):
                     if par_val['type'] == "from_list":
                         if par_val['default'] not in par_val['accepted_list']:
                             print("WARNING: default value " +
@@ -358,7 +358,7 @@ common_parameters:
         # print("{}: get expression for field {}: {}".format(self, field_name,
         #    self.action_data[field_name]))
         if (not isinstance(self.action_data[field_name], str) or
-                (len(self.action_data[field_name]) == 0) or
+                (not self.action_data[field_name]) or
                 (self.action_data[field_name][0] != '=')):
             # not an expression, so just return the contents of the field
             return self.action_data[field_name]

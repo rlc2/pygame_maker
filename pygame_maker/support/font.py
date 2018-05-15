@@ -35,7 +35,7 @@ class FontRenderer(object):
             minfo = self.FILE_URI_RE.match(font_resource.fontname)
         if minfo:
             self.fontpath = minfo.group(1)
-            if len(self.fontpath) > 0:
+            if self.fontpath:
                 self.fontfile = True
         if self.fontfile:
             self._renderer = pygame.font.Font(self.fontpath, font_resource.fontsize)
@@ -96,7 +96,7 @@ class FontRenderer(object):
         """
         lines = text.splitlines()
         # remove trailing empty lines
-        while (len(lines)) > 0 and (len(lines[-1]) == 0):
+        while lines and not lines[-1]:
             del lines[-1]
         width = 0
         height = 0
@@ -105,7 +105,7 @@ class FontRenderer(object):
             if idx > 0:
                 height += self.font_resource.line_spacing
             minfo = self.NON_WHITESPACE_RE.search(line)
-            if (len(line) == 0) or not minfo:
+            if not line or not minfo:
                 height += self._renderer.get_linesize()
                 continue
             has_text = True
@@ -151,7 +151,7 @@ class FontRenderer(object):
         """
         lines = text.splitlines()
         # remove trailing empty lines
-        while (len(lines)) > 0 and (len(lines[-1]) == 0):
+        while lines and not lines[-1]:
             del lines[-1]
         x_posn = position.x
         y_posn = position.y
@@ -161,7 +161,7 @@ class FontRenderer(object):
             if idx > 0:
                 # print("Adding gap {}".format(self.font_resource.line_spacing))
                 y_posn += self.font_resource.line_spacing
-            if len(line) == 0:
+            if not line:
                 y_posn += self._renderer.get_linesize()
                 continue
             font_surf = None
@@ -425,4 +425,3 @@ class Font(object):
 
     def __repr__(self):
         return "<Font {} size {}>".format(self.name, self.fontsize)
-

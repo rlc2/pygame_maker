@@ -160,8 +160,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         """Get and set widget's width"""
         if "width" in list(self.symbols.keys()):
             return self.symbols["width"]
-        else:
-            return 0
+        return 0
 
     @width.setter
     def width(self, new_width):
@@ -586,7 +585,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             "element_type": self.kind.name,
             "element_id": self.widget_id,
         }
-        if len(self.widget_class) > 0:
+        if self.widget_class:
             props["element_class"] = self.widget_class
         if self.hover:
             props["pseudo_class"] = "hover"
@@ -664,13 +663,13 @@ class LabelWidgetInstance(WidgetInstance):
         the font name, or a system font if the name isn't known.
         """
         self.debug("LabelWidgetInstance.get_font_resource()")
-        if (len(self.font) == 0) or (self.font not in
-                                     list(self.kind.game_engine.resources['fonts'].keys())):
+        if not self.font or (self.font not in
+                             list(self.kind.game_engine.resources['fonts'].keys())):
             # revert to a system font, if found
             if hasattr(self.kind.game_engine, 'system_font'):
                 self.font_resource = self.kind.game_engine.system_font
             else:
-                return None
+                return
         else:
             self.font_resource = self.kind.game_engine.resources['fonts'][self.font]
 
@@ -682,7 +681,7 @@ class LabelWidgetInstance(WidgetInstance):
         self.debug("LabelWidgetInstance.calc_label_size()")
         if self.font_resource is None:
             return (0, 0)
-        if len(self.label) == 0:
+        if not self.label:
             return (0, 0)
         font_rndr = self.font_resource.get_font_renderer()
         return font_rndr.calc_render_size(self.label)
@@ -840,7 +839,7 @@ class WidgetObjectType(object_type.ObjectType):
     def draw(self, in_event):
         """Draw all visible instances."""
         self.debug("WidgetObjectType.draw(in_event={})".format(in_event))
-        if len(self.instance_list) > 0:
+        if self.instance_list:
             for inst in self.instance_list:
                 # self.debug("Check inst {}".format(inst))
                 if inst.parent is not None:
@@ -852,4 +851,3 @@ class WidgetObjectType(object_type.ObjectType):
 class LabelWidgetObjectType(WidgetObjectType):
     """Label widget type for displaying text"""
     WIDGET_INSTANCE_TYPE = LabelWidgetInstance
-

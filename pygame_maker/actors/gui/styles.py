@@ -142,7 +142,8 @@ class WidgetStyle(object):
     DISPLAY_OPTIONS = ("none", "inline", "block") + COMMON_PROPERTIES
     VISIBILITY = ("visible", "hidden") + COMMON_PROPERTIES
     POSITIONS = ("static", "relative", "fixed", "absolute") + COMMON_PROPERTIES
-    COLOR_CONSTRAINTS = (list(color.Color.ADDITIONAL_COLORS.keys()) + list(pygame.colordict.THECOLORS.keys()) +
+    COLOR_CONSTRAINTS = (list(color.Color.ADDITIONAL_COLORS.keys()) +
+                         list(pygame.colordict.THECOLORS.keys()) +
                          [WEB_COLOR_RE])
     HORIZONTAL_ALIGNMENT = ("left", "right", "center", "justify") + COMMON_PROPERTIES
     VERTICAL_ALIGNMENT = ("top", "middle", "bottom") + COMMON_PROPERTIES
@@ -520,11 +521,10 @@ class WidgetStyle(object):
                 self.style[itemname] = value
             else:
                 print(("Warning: value '{}' is not valid for style entry '{}'".
-                      format(value, itemname)))
+                       format(value, itemname)))
 
     def __repr__(self):
         key_list = list(self.style.keys())
         key_list.sort()
         prop_info = ["'{}': '{}'".format(k, self.style[k]) for k in key_list]
         return "{{{}}}".format(", ".join(prop_info))
-

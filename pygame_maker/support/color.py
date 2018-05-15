@@ -59,8 +59,9 @@ class Color(object):
     @classmethod
     def is_known_color(cls, color_name):
         """Determine whether a given color name is known."""
-        if len(cls.all_known_colors) == 0:
-            cls.all_known_colors = list(pygame.colordict.THECOLORS.keys()) + list(cls.ADDITIONAL_COLORS.keys())
+        if not cls.all_known_colors:
+            cls.all_known_colors = list(pygame.colordict.THECOLORS.keys()) + \
+                                   list(cls.ADDITIONAL_COLORS.keys())
         return color_name.lower() in cls.all_known_colors
 
     def __init__(self, *params):
@@ -148,4 +149,3 @@ class Color(object):
 
     def __repr__(self):
         return "Color <r={} g={} b={} a={}>".format(self.red, self.green, self.blue, self.alpha)
-

@@ -366,7 +366,7 @@ class Room(logging_object.LoggingObject):
         if (self.background and (self.background in
                                  list(self.game_engine.resources['backgrounds'].keys()))):
             self.game_engine.resources['backgrounds'][self.background].load_graphic()
-        if len(self._init_code) > 0:
+        if self._init_code:
             self.game_engine.language_engine.execute_code_block(
                 "{}_init".format(self.name))
         # instantiate objects in the init_object_instances list

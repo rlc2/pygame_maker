@@ -61,9 +61,9 @@ def sprite_collision_test(sprite_a, sprite_b):
         return pygame.sprite.collide_rect(sprite_a, sprite_b)
     elif coll_types == ("disk", "disk"):
         return pygame.sprite.collide_circle(sprite_a, sprite_b)
-    else:
-        # any mismatches fall back to mask collisions
-        return pygame.sprite.collide_mask(sprite_a, sprite_b)
+
+    # any mismatches fall back to mask collisions
+    return pygame.sprite.collide_mask(sprite_a, sprite_b)
 
 
 def get_collision_normal(instance_a, instance_b):
@@ -657,8 +657,8 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("__getitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
             return self.event_action_sequences[itemname]
-        else:
-            return None
+
+        return None
 
     def __setitem__(self, itemname, val):
         """
@@ -950,7 +950,7 @@ class CollideableObjectType(ManagerObjectType):
         collision_types_queued = set()
         for other_obj in other_obj_types:
             # other_obj.group = other_obj.group
-            if len(other_obj.group) == 0:
+            if  not other_obj.group:
                 continue
             if (len(self.group) == 1) and self.name == other_obj.name:
                 # skip self collision detection if there's only one sprite
@@ -1003,7 +1003,7 @@ class CollideableObjectType(ManagerObjectType):
                                                                        child_collision_info)
                     )
                 # queue parent collision events if this instance has children
-                if len(collider.symbols["children"]) > 0:
+                if collider.symbols["children"]:
                     for a_child in collider.symbols["children"]:
                         parent_collision_name = "parent_{}".format(collision_name)
                         collision_types_queued.add(parent_collision_name)
@@ -1023,13 +1023,13 @@ class CollideableObjectType(ManagerObjectType):
         instances have updated, handle any queued deletions.
         """
         self.debug("update():")
-        if len(self.group) > 0:
+        if self.group:
             #pylint: disable=no-member
             self.group.update()
             #pylint: enable=no-member
         # after all instances update(), check the delete list to see which
         #  ones should be removed and remove them
-        if len(self.instance_delete_list) > 0:
+        if self.instance_delete_list:
             self.group.remove(self.instance_delete_list)
             self.instance_delete_list = set()
 
@@ -1041,7 +1041,7 @@ class CollideableObjectType(ManagerObjectType):
         :type in_event: py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("draw():")
-        if (len(self.group) > 0) and self.visible:
+        if self.group and self.visible:
             for an_action in self.event_action_sequences["draw"].get_next_action():
                 if an_action.name == "draw_self":
                     # The normal, default action: each object instance draws
@@ -1092,7 +1092,7 @@ class CollideableObjectType(ManagerObjectType):
         #pylint: disable=no-member
         clicked = self.group.get_sprites_at(in_event['position'])
         #pylint: enable=no-member
-        if len(clicked) > 0:
+        if clicked:
             for click_target in clicked:
                 click_target.execute_action_sequence(in_event)
 

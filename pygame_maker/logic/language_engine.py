@@ -487,7 +487,7 @@ class CodeBlock(logging_object.LoggingObject):
                     arg_count = 1
                 # if this function takes no arguments, we shouldn't be here..
                 self.debug("  check {} call vs function map".format(tok))
-                if len(self.functionmap[func_name]["arglist"]) == 0:
+                if not self.functionmap[func_name]["arglist"]:
                     self.error("{} at {}: Too many arguments to function \"{}\"".
                                format(parsestr, loc, func_name))
                     raise ParseFatalException(
@@ -923,7 +923,7 @@ class CodeBlock(logging_object.LoggingObject):
                         prev_val = "{}({})".format(res_type, prev_val)
                 elif opname == "unary -":
                     # the special case
-                    if len(op_stack) > 0:
+                    if op_stack:
                         last_op_val = op_stack[-1]["val"]
                         last_op_type = op_stack[-1]["type"]
                         if last_op_type in ["int", "float"]:
@@ -1071,7 +1071,7 @@ class CodeBlock(logging_object.LoggingObject):
         python_code = ""
         # the code block has to have SOMETHING in it, but if it only contains
         #  function definitions, don't construct the run() method
-        if len(self.outer_block) > 0:
+        if self.outer_block:
             python_lines = ["def run(_symbols):"]
             python_lines += self.to_python_block(self.outer_block, code_loc)
             python_code = "\n".join(python_lines)
@@ -1126,7 +1126,7 @@ class CodeBlock(logging_object.LoggingObject):
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
         exec_code = self.to_python()
-        if len(exec_code) > 0:
+        if exec_code:
             pyth_code = import_lines + exec_code
             self.info("  Run program:\n{}".format(pyth_code))
             exec(pyth_code, self.module_context.__dict__)
@@ -1275,7 +1275,7 @@ class LanguageEngine(logging_object.LoggingObject):
         self.info("Register handle '{}'".format(block_name))
         self.debug("  code block:\n{}".format(code_string))
         if block_name in list(self.code_blocks.keys()):
-            raise DuplicateCodeBlockError("Attempt to register another code block named '{}'".
+            raise DuplicateCodeBlockError("Attempt to register another code block named '{}':\n{}".
                                           format(block_name, self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
@@ -1300,7 +1300,7 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.debug("Execute code with handle '{}'".format(block_name))
         if block_name not in self.code_blocks:
-            raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".
+            raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}':\n{}".
                                         format(block_name, self.error))
         if local_symbol_table:
             if block_name not in self.local_tables:

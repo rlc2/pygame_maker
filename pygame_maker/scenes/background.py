@@ -216,7 +216,7 @@ class Background(object):
         image, and the transparent attribute is False.
         """
         if self.image is None:
-            if len(self.filename) > 0 and self.check_filename():
+            if self.filename and self.check_filename():
                 img = pygame.image.load(self.filename).convert_alpha()
                 if not self.transparent:
                     # in case the image had transparent pixels, place it on a
@@ -242,7 +242,7 @@ class Background(object):
             horizontal/vertical offsets if it's a tileset)
         :type xy_offset: 2-element array-like
         """
-        if (len(self.filename) > 0) and self.check_filename():
+        if self.filename and self.check_filename():
             if not self.image:
                 self.load_graphic()
             if not self.tileset:
@@ -257,18 +257,18 @@ class Background(object):
                                              self.tile_properties.vertical_padding)
                     # print("row spacing: {}".format(self.tile_row_spacing))
                 if self.max_tile_rows < 0:
-                    self.max_tile_rows = int(((screen.get_height() - xy_offset[1] -
-                                           self.tile_properties.vertical_offset) /
-                                          self.tile_row_spacing))
+                    self.max_tile_rows = int((screen.get_height() - xy_offset[1] -
+                                              self.tile_properties.vertical_offset) /
+                                             self.tile_row_spacing)
                     # print("max rows: {}".format(self.max_tile_rows))
                 if self.tile_col_spacing < 0:
                     self.tile_col_spacing = (self.tile_properties.tile_width +
                                              self.tile_properties.horizontal_padding)
                     # print("col spacing: {}".format(self.tile_col_spacing))
                 if self.max_tile_cols < 0:
-                    self.max_tile_cols = int(((screen.get_width() -
-                                           self.tile_properties.horizontal_offset) /
-                                          self.tile_col_spacing))
+                    self.max_tile_cols = int((screen.get_width() -
+                                              self.tile_properties.horizontal_offset) /
+                                             self.tile_col_spacing)
                     # print("max cols: {}".format(self.max_tile_cols))
                 for col in range(self.max_tile_cols):
                     for row in range(self.max_tile_rows):
@@ -294,9 +294,9 @@ class Background(object):
         """
         if not isinstance(self.filename, str):
             raise BackgroundException
-        elif len(self.filename) == 0:
+        elif not self.filename:
             raise BackgroundException
-        if len(self.filename) > 0:
+        if self.filename:
             if not os.path.exists(self.filename):
                 raise BackgroundException
         return True

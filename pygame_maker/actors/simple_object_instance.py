@@ -84,7 +84,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         if settings is not None:
             attr_values.update(settings)
         attr_values.update(kwargs)
-        if len(list(attr_values.keys())) > 0:
+        if list(attr_values.keys()):
             self._apply_kwargs(attr_values)
         # print("Initial symbols:")
         # self.symbols.dumpVars()
@@ -235,7 +235,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         """
         self.debug("execute_code(action={}, keep_code_block={}):".format(action,
                                                                          keep_code_block))
-        if len(action.action_data['code']) > 0:
+        if action.action_data['code']:
             instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
             if 'language_engine_handle' not in action.runtime_data:
                 action['language_engine_handle'] = instance_handle_name
@@ -273,10 +273,10 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         :type action: :py:class:`~pygame_maker.actions.action.Action`
         """
         message_parts = ["DEBUG FROM {} instance #{}: ".format(self.kind.name, self.inst_id)]
-        if len(action['message']) > 0:
+        if action['message']:
             interpolations = self.INTERPOLATION_REGEX.findall(action['message'])
             msg_str = action['message']
-            if len(interpolations) > 0:
+            if interpolations:
                 inter_set = set(interpolations)
                 for inter in inter_set:
                     inter_str = "{" + inter + "}"
@@ -318,13 +318,15 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         test_result = False
         if action['variable'] in list(self.symbols.keys()):
             var_val = self.symbols[action['variable']]
-        elif action['variable'] in list(self.game_engine.language_engine.global_symbol_table.keys()):
+        elif action['variable'] in \
+             list(self.game_engine.language_engine.global_symbol_table.keys()):
             var_val = self.game_engine.language_engine.global_symbol_table[action['variable']]
         if isinstance(action['value'], str):
             # replace a string with a symbol value, if the string is in a symbol table
             if action['value'] in list(self.symbols.keys()):
                 test_val = self.symbols[action['value']]
-            elif action['value'] in list(self.game_engine.language_engine.global_symbol_table.keys()):
+            elif action['value'] in \
+                 list(self.game_engine.language_engine.global_symbol_table.keys()):
                 test_val = self.game_engine.language_engine.global_symbol_table[action['value']]
         if action['test'] == "equals":
             test_result = (var_val == test_val)
@@ -441,7 +443,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         self.game_engine.event_engine.queue_event(
             event.ObjectStateEvent("destroy", {"type": self.kind, "instance": self})
         )
-        if len(self.symbols["children"]) > 0:
+        if self.symbols["children"]:
             # destroy all child instances
             #pylint: disable=not-an-iterable
             for child_instance in self.symbols["children"]:

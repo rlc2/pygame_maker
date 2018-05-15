@@ -34,7 +34,8 @@ def update_symbol(_symbols, symname, value):
     if symname[0] == "_":
         _symbols["globals"][symname[1:]] = value
     else:
-        if symname in list(_symbols["locals"].keys()) or symname not in list(_symbols["globals"].keys()):
+        if symname in list(_symbols["locals"].keys()) or \
+           symname not in list(_symbols["globals"].keys()):
             _symbols["locals"][symname] = value
         else:
             _symbols["globals"][symname] = value

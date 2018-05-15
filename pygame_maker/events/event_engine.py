@@ -59,7 +59,7 @@ class EventEngine(logging_object.LoggingObject):
             if event_handler in self.event_handlers[event_name]:
                 self.info("  remove event handler for {}".format(event_name))
                 self.event_handlers[event_name].remove(event_handler)
-                if len(self.event_handlers[event_name]) == 0:
+                if not self.event_handlers[event_name]:
                     self.info("  delete last event handler for {}".format(event_name))
                     del self.event_handlers[event_name]
 

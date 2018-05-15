@@ -369,7 +369,7 @@ class ActionSequenceBlock(ActionSequenceStatement):
         if not isinstance(statement, ActionSequenceStatement):
             raise TypeError("{} is not an ActionSequenceStatement".format(str(statement)))
         last_statement = None
-        if len(self.contained_statements) > 0:
+        if self.contained_statements:
             last_statement = self.contained_statements[-1]
         if last_statement and last_statement.is_conditional:
             # If the last statement's conditional is still open, this statement
@@ -471,12 +471,12 @@ class ActionSequence(object):
         :rtype: ActionSequence
         """
         new_sequence = None
-        if len(sequence_repr) > 0:
+        if sequence_repr:
             new_sequence = ActionSequence()
             for action_hash in sequence_repr:
                 action_name = list(action_hash.keys())[0]
                 action_params = {}
-                if action_hash[action_name] and len(action_hash[action_name]) > 0:
+                if action_hash[action_name]:
                     action_params.update(action_hash[action_name])
                 next_action = Action.get_action_instance_by_name(action_name, **action_params)
                 # print("New action: {}".format(next_action))

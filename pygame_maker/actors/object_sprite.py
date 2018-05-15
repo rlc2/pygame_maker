@@ -339,7 +339,7 @@ class ObjectSprite(object):
             orig_y = 0
             if not isinstance(orig_item, str) and hasattr(orig_item, '__iter__'):
                 xylist = list(orig_item)
-                if len(orig_item) == 0:
+                if not orig_item:
                     raise ValueError("ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"]))
                 if len(orig_item) >= 2:
                     try:
@@ -454,7 +454,8 @@ class ObjectSprite(object):
             if (last_custom_column + missing_count + 1) < self.image_size[0]:
                 # remember to leave room between the last custom column
                 # and the first missing X value
-                split_col_width = int((self.image_size[0] - last_custom_column) / (missing_count + 1))
+                split_col_width = int((self.image_size[0] - last_custom_column) /
+                                      (missing_count + 1))
                 for ccol in range(missing_count):
                     sub_cols.append(last_custom_column + (ccol + 1) * split_col_width)
             else:
@@ -582,10 +583,10 @@ class ObjectSprite(object):
             raise ObjectSpriteException(
                 "ObjectSprite error ({}): filename '{}' is not a string".
                 format(str(self), self.filename))
-        elif len(self.filename) == 0:
+        elif not self.filename:
             raise ObjectSpriteException("ObjectSprite error ({}): filename is empty".
                                         format(str(self)))
-        if len(self.filename) > 0:
+        if self.filename:
             if not os.path.exists(self.filename):
                 raise ObjectSpriteException(
                     "ObjectSprite error ({}): filename '{}' not found".
