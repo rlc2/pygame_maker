@@ -416,8 +416,8 @@ class WidgetStyle(object):
         for style_entry in list(self.STYLE_CONSTRAINTS.keys()):
             default = self.STYLE_CONSTRAINTS[style_entry]["default"]
             if not type(self).compare_value_vs_constraint(style_entry, default):
-                print(("Warning: default value '{}' is not a valid setting for style entry '{}'!".
-                      format(default, style_entry)))
+                print("Warning: default value '{}' is not a valid setting for style entry '{}'!".
+                      format(default, style_entry))
             self.style[style_entry] = default
 
     def join_properties(self, property_name, property_values):

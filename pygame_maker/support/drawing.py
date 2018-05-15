@@ -73,8 +73,8 @@ def draw_line_segments(surface, line_properties):
         seg_len = line_properties["width"] + 1
         seg_gap = DOTTED_LINE_SEGMENT_GAP
     elif line_properties["style"] != "dashed":
-        print(("draw_line_segments(): Line style '{}' is not segmented".
-              format(line_properties["style"])))
+        print("draw_line_segments(): Line style '{}' is not segmented".
+              format(line_properties["style"]))
         return
     sqrd_length = (line_slope_x * line_slope_x) + (line_slope_y * line_slope_y)
     sqrd_full_gap_len = (seg_len * 2 + seg_gap) * (seg_len * 2 + seg_gap)

@@ -104,8 +104,8 @@ class MyGameManager(logging_object.LoggingObject):
         for bkg in backgrounds:
             self.resources['backgrounds'][bkg.name] = bkg
         if len(list(self.resources['backgrounds'].keys())) == 0:
-            print(("Unable to load backgrounds from {}, aborting.".format(
-                TEST_BACKGROUND_LIST_YAML_FILE)))
+            print("Unable to load backgrounds from {}, aborting.".format(
+                TEST_BACKGROUND_LIST_YAML_FILE))
             exit(1)
         sprites = None
         with open(TEST_SPRITE_LIST_YAML_FILE, "r") as yaml_f:
@@ -113,29 +113,29 @@ class MyGameManager(logging_object.LoggingObject):
         for spr in sprites:
             self.resources['sprites'][spr.name] = spr
         if len(list(self.resources['sprites'].keys())) == 0:
-            print(("Unable to load sprites from {}, aborting.".format(
-                TEST_SPRITE_LIST_YAML_FILE)))
+            print("Unable to load sprites from {}, aborting.".format(
+                TEST_SPRITE_LIST_YAML_FILE))
         sounds = None
         with open(TEST_SOUND_LIST_YAML_FILE, "r") as yaml_f:
             sounds = sound.Sound.load_from_yaml(yaml_f)
         for snd in sounds:
             self.resources['sounds'][snd.name] = snd
         if len(self.resources['sounds']) == 0:
-            print(("Unable to load sounds from {}, aborting.".format(
-                TEST_SOUND_LIST_YAML_FILE)))
+            print("Unable to load sounds from {}, aborting.".format(
+                TEST_SOUND_LIST_YAML_FILE))
         objects = None
         with open(TEST_OBJECT_LIST_YAML_FILE, "r") as yaml_f:
             objects = object_type.ObjectType.load_from_yaml(yaml_f, self)
         for obj in objects:
             self.resources['objects'][obj.name] = obj
         if len(self.resources['objects']) == 0:
-            print(("Unable to load objects from {}, aborting.".format(
-                TEST_OBJECT_LIST_YAML_FILE)))
+            print("Unable to load objects from {}, aborting.".format(
+                TEST_OBJECT_LIST_YAML_FILE))
         with open(TEST_ROOM_LIST_YAML_FILE, "r") as yaml_f:
             self.resources['rooms'] = Room.load_from_yaml(yaml_f, self)
         if len(self.resources['rooms']) == 0:
-            print(("Unable to load rooms from {}, aborting.".format(
-                TEST_ROOM_LIST_YAML_FILE)))
+            print("Unable to load rooms from {}, aborting.".format(
+                TEST_ROOM_LIST_YAML_FILE))
             exit(1)
         self.largest_dims = [0, 0]
         for room in self.resources['rooms']:

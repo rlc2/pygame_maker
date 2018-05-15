@@ -326,9 +326,9 @@ common_parameters:
                 elif len(list(par_val.keys())) > 0:
                     if par_val['type'] == "from_list":
                         if par_val['default'] not in par_val['accepted_list']:
-                            print(("WARNING: default value " +
+                            print("WARNING: default value " +
                                   "'{}' is not in the list of accepted values '{}'".
-                                  format(par_val['default'], par_val['accepted_list'])))
+                                  format(par_val['default'], par_val['accepted_list']))
                     action_map[action][par] = par_val['default']
                     action_constraints[action] = par_val
         # print("Got action_map:\n{}".format(action_map))
