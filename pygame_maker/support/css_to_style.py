@@ -6,6 +6,7 @@ Licensed under LGPL v2.1 (see file COPYING for details)
 Game engine CSS styling module.
 """
 
+from __future__ import print_function
 import re
 import logging
 from pyparsing import Literal, Word, Optional, ZeroOrMore, OneOrMore, nums, hexnums, alphas, \

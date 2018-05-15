@@ -6,6 +6,7 @@ Licensed under LGPL v2.1 (see file COPYING for details)
 Pygame maker drawing primitives.
 """
 
+from __future__ import print_function
 import pygame
 import pygame_maker.support.coordinate as coordinate
 
