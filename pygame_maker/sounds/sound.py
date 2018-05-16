@@ -57,13 +57,13 @@ class Sound(object):
         if yaml_info:
             for top_level in yaml_info:
                 sound_args = {}
-                sound_name = top_level.keys()[0]
+                sound_name = list(top_level.keys())[0]
                 yaml_info_hash = top_level[sound_name]
-                if 'filename' in yaml_info_hash.keys():
+                if 'filename' in list(yaml_info_hash.keys()):
                     sound_args['filename'] = yaml_info_hash['filename']
-                if 'sound_type' in yaml_info_hash.keys():
+                if 'sound_type' in list(yaml_info_hash.keys()):
                     sound_args['sound_type'] = yaml_info_hash['sound_type']
-                if 'preload' in yaml_info_hash.keys():
+                if 'preload' in list(yaml_info_hash.keys()):
                     sound_args['preload'] = yaml_info_hash['preload']
                 new_sound_list.append(Sound(sound_name, **sound_args))
                 new_sound_list[-1].check()
@@ -131,10 +131,10 @@ class Sound(object):
         """
         if not self.loaded:
             if self.filename is None:
-                raise(SoundException("SoundException: No sound filename provided."))
+                raise SoundException("SoundException: No sound filename provided.")
             if not os.path.exists(self.filename):
-                raise(SoundException("SoundException: Sound file '{}' not found.".format(
-                    self.filename)))
+                raise SoundException("SoundException: Sound file '{}' not found.".format(
+                    self.filename))
             self.audio = pygame.mixer.Sound(self.filename)
             self.loaded = True
 

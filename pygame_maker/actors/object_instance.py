@@ -643,7 +643,7 @@ class ObjectInstance(SimpleObjectInstance, pygame.sprite.DirtySprite):
             elif action.name == "bounce_off_collider":
                 # self.debug("bounce event: {}".format(an_event))
                 if ((action_params['precision'] == 'imprecise') or
-                        ('normal' not in an_event.event_params.keys())):
+                        ('normal' not in list(an_event.event_params.keys()))):
                     self.direction = 180.0 + self.direction
                 else:
                     norm = np.array(an_event['normal'])

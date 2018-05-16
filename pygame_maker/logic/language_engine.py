@@ -89,7 +89,7 @@ class SymbolTable(object):
     callback(sym_name, new_value).
     """
     #: Any unknown symbol receives this value, to help with debugging
-    DEFAULT_UNINITIALIZED_VALUE = -sys.maxint - 1
+    DEFAULT_UNINITIALIZED_VALUE = -sys.maxsize - 1
 
     def __init__(self, initial_symbols=None, sym_change_callback=None):
         """
@@ -115,14 +115,14 @@ class SymbolTable(object):
         """
         constlist = list(self.consts.keys())
         constlist.sort()
-        print "constants:"
+        print("constants:")
         for const in constlist:
-            print "{} = {}".format(const, self.consts[const])
+            print("{} = {}".format(const, self.consts[const]))
         varlist = list(self.vars.keys())
         varlist.sort()
-        print "variables:"
+        print("variables:")
         for var in varlist:
-            print "{} = {}".format(var, self.vars[var])
+            print("{} = {}".format(var, self.vars[var]))
 
     def keys(self):
         """
@@ -131,7 +131,7 @@ class SymbolTable(object):
         :return: Symbol list
         :rtype: list
         """
-        return self.vars.keys() + self.consts.keys()
+        return list(self.vars.keys()) + list(self.consts.keys())
 
     def __setitem__(self, item, val):
         """
@@ -477,8 +477,8 @@ class CodeBlock(logging_object.LoggingObject):
                 else:
                     # unknown function encountered
                     self.error("{} at {}: Unknown function call '{}'".format(parsestr, loc, tok))
-                    raise(ParseFatalException(parsestr, loc=loc,
-                                              msg="Unknown function call '{}'".format(tok)))
+                    raise ParseFatalException(parsestr, loc=loc,
+                                              msg="Unknown function call '{}'".format(tok))
             if tok == "\"":
                 # keep track of strings, to ignore functions named inside a string
                 in_string = not in_string
@@ -487,12 +487,12 @@ class CodeBlock(logging_object.LoggingObject):
                     arg_count = 1
                 # if this function takes no arguments, we shouldn't be here..
                 self.debug("  check {} call vs function map".format(tok))
-                if len(self.functionmap[func_name]["arglist"]) == 0:
+                if not self.functionmap[func_name]["arglist"]:
                     self.error("{} at {}: Too many arguments to function \"{}\"".
                                format(parsestr, loc, func_name))
-                    raise(ParseFatalException(
+                    raise ParseFatalException(
                         parsestr, loc=loc,
-                        msg="Too many arguments to function \"{}\"".format(func_name)))
+                        msg="Too many arguments to function \"{}\"".format(func_name))
                 # check whether an embedded function call should be skipped
                 # print("checking {}..".format(tok))
                 if tok in self.functionmap and not in_string:
@@ -522,9 +522,9 @@ class CodeBlock(logging_object.LoggingObject):
             elif arg_count > len(self.functionmap[func_name]["arglist"]):
                 self.error("{} at {}: Too many arguments to function \"{}\"".
                            format(parsestr, loc, func_name))
-                raise(ParseFatalException(
+                raise ParseFatalException(
                     parsestr, loc=loc,
-                    msg="Too many arguments to function \"{}\"".format(func_name)))
+                    msg="Too many arguments to function \"{}\"".format(func_name))
 
     def push_func_args(self, parsestr, loc, toks):
         """
@@ -557,9 +557,9 @@ class CodeBlock(logging_object.LoggingObject):
                     if func_name in self.functionmap:
                         self.error("{} at {}: Redefinition of existing function '{}'".
                                    format(parsestr, loc, func_name))
-                        raise(ParseFatalException(
+                        raise ParseFatalException(
                             parsestr, loc=loc,
-                            msg="Redefinition of existing function '{}'".format(func_name)))
+                            msg="Redefinition of existing function '{}'".format(func_name))
                     continue
                 if func_name:
                     if not arg_with_type:
@@ -568,10 +568,10 @@ class CodeBlock(logging_object.LoggingObject):
                             self.error(
                                 "{} at {}: Missing type name in declaration of function '{}'".
                                 format(parsestr, loc, func_name))
-                            raise(ParseFatalException(
+                            raise ParseFatalException(
                                 parsestr, loc=loc,
                                 msg="Missing type name in declaration of function '{}'".
-                                format(func_name)))
+                                format(func_name))
                         arg_with_type = {"type": typename}
                         if typename == "void":
                             arg_list.append(dict(arg_with_type))
@@ -580,10 +580,10 @@ class CodeBlock(logging_object.LoggingObject):
                             self.error(
                                 "{} at {}: Unexpected token '{}' in declaration of function '{}'".
                                 format(parsestr, loc, str(item), func_name))
-                            raise(ParseFatalException(
+                            raise ParseFatalException(
                                 parsestr, loc=loc,
                                 msg="Unexpected token '{}' in declaration of function '{}'".
-                                format(str(item), func_name)))
+                                format(str(item, func_name)))
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
                         arg_with_type = None
@@ -629,7 +629,7 @@ class CodeBlock(logging_object.LoggingObject):
         if not ret_minfo:
             # Force all functions to return a value.  If the final line is
             #  not 'return', return the "uninitialized" value
-            func_lines.append("  return {:d}".format(-sys.maxint - 1))
+            func_lines.append("  return {:d}".format(-sys.maxsize - 1))
         function_code = "\n".join(func_lines)
         self.info("  Function code:\n{}".format(function_code))
         self.functionmap[self.function_name]['compiled'] = \
@@ -886,9 +886,9 @@ class CodeBlock(logging_object.LoggingObject):
                     id_start = len(op_stack) - arg_count
                     id_end = len(op_stack)
                     if id_start < 0:
-                        raise(OpStackUnderflowError(
+                        raise OpStackUnderflowError(
                             "Stack underflow at line {} when assembling the line:\n{}".
-                            format(loc[0], code_line), self.error))
+                            format(loc[0], code_line, self.error))
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -923,7 +923,7 @@ class CodeBlock(logging_object.LoggingObject):
                         prev_val = "{}({})".format(res_type, prev_val)
                 elif opname == "unary -":
                     # the special case
-                    if len(op_stack) > 0:
+                    if op_stack:
                         last_op_val = op_stack[-1]["val"]
                         last_op_type = op_stack[-1]["type"]
                         if last_op_type in ["int", "float"]:
@@ -974,8 +974,8 @@ class CodeBlock(logging_object.LoggingObject):
                                          "val": "{}".format(opname)})
                         # print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
-            raise(OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".
-                                       format(loc[0], code_line), self.error))
+            raise OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".
+                                       format(loc[0], code_line, self.error))
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(str(code_line), op_stack))
         python_code_line = "{}{}".format(' ' * loc[1], op_stack[-1]['val'])
@@ -1071,7 +1071,7 @@ class CodeBlock(logging_object.LoggingObject):
         python_code = ""
         # the code block has to have SOMETHING in it, but if it only contains
         #  function definitions, don't construct the run() method
-        if len(self.outer_block) > 0:
+        if self.outer_block:
             python_lines = ["def run(_symbols):"]
             python_lines += self.to_python_block(self.outer_block, code_loc)
             python_code = "\n".join(python_lines)
@@ -1121,15 +1121,15 @@ class CodeBlock(logging_object.LoggingObject):
         for userfunc in self.functionmap:
             # print("exec {}".format(userfunc))
             if 'compiled' in self.functionmap[userfunc]:
-                exec self.functionmap[userfunc]['compiled'] in self.module_context.__dict__
+                exec(self.functionmap[userfunc]['compiled'], self.module_context.__dict__)
         import_lines = "from pygame_maker.logic.run_time_support import *\n"
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
         exec_code = self.to_python()
-        if len(exec_code) > 0:
+        if exec_code:
             pyth_code = import_lines + exec_code
             self.info("  Run program:\n{}".format(pyth_code))
-            exec pyth_code in self.module_context.__dict__
+            exec(pyth_code, self.module_context.__dict__)
 
     def run(self, sym_tables):
         """
@@ -1273,9 +1273,9 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.info("Register handle '{}'".format(block_name))
         self.debug("  code block:\n{}".format(code_string))
-        if block_name in self.code_blocks.keys():
-            raise(DuplicateCodeBlockError("Attempt to register another code block named '{}'".
-                                          format(block_name), self.error))
+        if block_name in list(self.code_blocks.keys()):
+            raise DuplicateCodeBlockError("Attempt to register another code block named '{}':\n{}".
+                                          format(block_name, self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
             block_name, module_context, code_string, self.functionmap)
@@ -1299,8 +1299,8 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         self.debug("Execute code with handle '{}'".format(block_name))
         if block_name not in self.code_blocks:
-            raise(UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".
-                                        format(block_name), self.error))
+            raise UnknownCodeBlockError("Attempt to execute unknown code block named '{}':\n{}".
+                                        format(block_name, self.error))
         symtables = {'globals': self.global_symbol_table,
                      'locals': local_symbol_table}
         self.code_blocks[block_name].module_context.run(symtables)
@@ -1313,7 +1313,7 @@ class LanguageEngine(logging_object.LoggingObject):
         :type block_name: str
         """
         self.info("Unregister code block handle '{}'".format(block_name))
-        if block_name in self.code_blocks.keys():
+        if block_name in list(self.code_blocks.keys()):
             del self.code_blocks[block_name]
 
 

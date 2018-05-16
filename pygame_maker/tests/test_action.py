@@ -25,13 +25,13 @@ class TestAction(unittest.TestCase):
         motion_action = Action.get_action_instance_by_name(
             "set_velocity_compass", compass_directions="DOWN")
         self.assertEqual(motion_action["compass_directions"], "DOWN")
-        print "action: {}".format(motion_action)
+        print("action: {}".format(motion_action))
 
     def test_005valid_motion_action(self):
         """Test creation of a MotionAction instance with proper keyword args."""
         good_action = MotionAction("set_velocity_degrees", speed=5)
         self.assertEqual(good_action["speed"], 5)
-        print "action: {}".format(good_action)
+        print("action: {}".format(good_action))
 
     def test_010valid_object_action(self):
         """
@@ -41,20 +41,20 @@ class TestAction(unittest.TestCase):
             "create_object", {'position.x':250, 'position.y':250})
         self.assertEqual(object_action["position.x"], 250)
         self.assertEqual(object_action["position.y"], 250)
-        print "action: {}".format(object_action)
+        print("action: {}".format(object_action))
 
     def test_015valid_sound_action(self):
         """Test creation of a SoundAction instance with proper keyword args."""
         sound_action = SoundAction("play_sound", loop=True)
         self.assertTrue(sound_action["loop"])
-        print "action: {}".format(sound_action)
+        print("action: {}".format(sound_action))
 
     def test_020valid_code_action(self):
         """Test creation of a CodeAction instance with proper keyword args."""
         code_string = "print(\"this is a test\")"
         code_action = CodeAction("execute_code", code=code_string)
         self.assertEqual(code_action["code"], code_string)
-        print "action {}".format(code_action)
+        print("action {}".format(code_action))
 
     def test_025valid_accounting_action(self):
         """
@@ -63,7 +63,7 @@ class TestAction(unittest.TestCase):
         accounting_action = AccountingAction("set_score_value", score=1, relative=True)
         self.assertEqual(accounting_action["score"], 1)
         self.assertTrue(accounting_action["relative"])
-        print "action {}".format(accounting_action)
+        print("action {}".format(accounting_action))
 
     def test_030invert(self):
         """Test setting and retrieving an action attribute."""
@@ -84,8 +84,8 @@ class TestAction(unittest.TestCase):
 """
         self.assertEqual(test_action.to_yaml(2), test_yaml)
         yaml_in = yaml.load(test_action.to_yaml())
-        print "{}".format(yaml_in)
-        print "{}".format(test_action.to_yaml(2))
+        print("{}".format(yaml_in))
+        print("{}".format(test_action.to_yaml(2)))
         code_str = """code line 1
 code line 2
   indented line 1
@@ -103,15 +103,15 @@ code line 3"""
 """
         self.assertEqual(test_action2.to_yaml(2), test_yaml2)
         yaml_in2 = yaml.load(test_action2.to_yaml())
-        print "{}".format(yaml_in2)
-        print "{}".format(test_action2.to_yaml(2))
+        print("{}".format(yaml_in2))
+        print("{}".format(test_action2.to_yaml(2)))
 
     def test_040valid_room_action(self):
         """Test creation of a RoomAction instance with proper keyword args."""
         room_action = RoomAction("goto_next_room", transition="create_from_top")
         self.assertEqual(room_action.name, "goto_next_room")
         self.assertEqual(room_action["transition"], "create_from_top")
-        print "action {}".format(room_action)
+        print("action {}".format(room_action))
 
     def test_045valid_timing_action(self):
         """

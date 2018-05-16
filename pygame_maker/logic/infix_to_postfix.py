@@ -142,7 +142,7 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
             if val in OPERATORS:
                 # Shift operators to the appropriate position based on operator
                 #  precedence.
-                while len(op_stack) > 0:
+                while op_stack:
                     prec_diff = precedence_check(val, op_stack[0])
                     if (((ASSOCIATIVITY[op_stack[0]] == RIGHT) and (prec_diff < 0)) or
                             ((ASSOCIATIVITY[op_stack[0]] == LEFT) and (prec_diff <= 0))):
@@ -160,16 +160,16 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
                 stack.append(val)
             else:
                 stack.append(val)
-        elif len(tok) > 0:
+        elif tok:
             # Throws a TypeError exception if len() isn't supported.
             stack = stack + convert_infix_to_postfix(tok, replacement_ops)
-    while len(op_stack) > 0:
+    while op_stack:
         stack.append(op_stack[0])
         if len(op_stack) > 1:
             op_stack = op_stack[1:]
         else:
             op_stack = []
-    if len(op_stack) > 0:
+    if op_stack:
         raise ExpressionException("Stack underflow in token list '{}'".format(tok_list))
     if replacement_ops:
         #pylint: disable=consider-using-enumerate

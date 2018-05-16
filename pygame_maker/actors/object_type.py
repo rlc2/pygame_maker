@@ -65,9 +65,9 @@ def sprite_collision_test(sprite_a, sprite_b):
         return pygame.sprite.collide_rect(sprite_a, sprite_b)
     elif coll_types == ("disk", "disk"):
         return pygame.sprite.collide_circle(sprite_a, sprite_b)
-    else:
-        # any mismatches fall back to mask collisions
-        return pygame.sprite.collide_mask(sprite_a, sprite_b)
+
+    # any mismatches fall back to mask collisions
+    return pygame.sprite.collide_mask(sprite_a, sprite_b)
 
 
 def get_collision_normal(instance_a, instance_b):
@@ -223,7 +223,7 @@ class ObjectType(logging_object.LoggingObject):
         :rtype: dict
         """
         kwargs = {"event_action_sequences": {}}
-        if "events" in obj_yaml.keys():
+        if "events" in list(obj_yaml.keys()):
             # print("Found '{}', passing {} to load..".format(kwarg, obj_yaml[kwarg]))
             for ev_seq in obj_yaml["events"]:
                 game_engine.debug("{}: create event sequence from '{}'".
@@ -251,11 +251,11 @@ class ObjectType(logging_object.LoggingObject):
         new_object_list = []
         for top_level in yaml_obj:
             # hash of 1 key, the object name
-            obj_name = top_level.keys()[0]
+            obj_name = list(top_level.keys())[0]
             # 'events' key contains event -> action sequence mappings
             obj_yaml = top_level[obj_name]
             kwargs = cls.gen_kwargs_from_yaml_obj(obj_name, obj_yaml, game_engine)
-            print "Creating new obj '{}' of type {}".format(obj_name, cls.__name__)
+            print("Creating new obj '{}' of type {}".format(obj_name, cls.__name__))
             new_cls = cls(obj_name, game_engine, **kwargs)
             new_object_list.append(new_cls)
         return new_object_list
@@ -295,7 +295,7 @@ class ObjectType(logging_object.LoggingObject):
         new_object_list = []
         yaml_repr = yaml.load(yaml_stream)
         if yaml_repr is not None:
-            for obj_type_name in yaml_repr.keys():
+            for obj_type_name in list(yaml_repr.keys()):
                 for reg_obj_type in cls.object_type_registry:
                     # print("Compare {} with {}".format(obj_type_name, reg_obj_type.__name__))
                     if obj_type_name == reg_obj_type.__name__:
@@ -356,13 +356,12 @@ class ObjectType(logging_object.LoggingObject):
         }
         #: A dict mapping event names to action sequences
         self.event_action_sequences = {}
-        if ((kwargs is not None) and ("event_action_sequences" in kwargs.keys()) and
+        if ((kwargs is not None) and ("event_action_sequences" in list(kwargs.keys())) and
                 kwargs["event_action_sequences"]):
             ev_dict = kwargs["event_action_sequences"]
             for ev_name in ev_dict:
                 if not isinstance(ev_dict[ev_name], action_sequence.ActionSequence):
-                    raise(ObjectTypeException("Event '{}' does not contain an ActionSequence",
-                                              self.error))
+                    raise ObjectTypeException
                 self[ev_name] = ev_dict[ev_name]
 
     def add_instance_to_delete_list(self, instance):
@@ -633,7 +632,7 @@ class ObjectType(logging_object.LoggingObject):
         # :rtype: callable
         self.debug("_select_event_handler(event_name={}):".format(event_name))
         hdlr = None
-        for ev_re in self.handler_table.keys():
+        for ev_re in list(self.handler_table.keys()):
             minfo = ev_re.match(event_name)
             if minfo:
                 hdlr = self.handler_table[ev_re]
@@ -647,7 +646,7 @@ class ObjectType(logging_object.LoggingObject):
         :rtype: list
         """
         self.debug("keys():")
-        return self.event_action_sequences.keys()
+        return list(self.event_action_sequences.keys())
 
     def __getitem__(self, itemname):
         """
@@ -662,8 +661,8 @@ class ObjectType(logging_object.LoggingObject):
         self.debug("__getitem__(itemname={}):".format(itemname))
         if itemname in self.event_action_sequences:
             return self.event_action_sequences[itemname]
-        else:
-            return None
+
+        return None
 
     def __setitem__(self, itemname, val):
         """
@@ -684,8 +683,7 @@ class ObjectType(logging_object.LoggingObject):
         if not isinstance(itemname, str):
             raise KeyError("Event action sequence keys must be strings", self.error)
         if not isinstance(val, action_sequence.ActionSequence):
-            raise(ValueError("Supplied event action sequence is not an ActionSequence instance",
-                             self.error))
+            raise ValueError
         self.event_action_sequences[itemname] = val
         # register our handler for this event
         new_handler = self._select_event_handler(itemname)
@@ -693,8 +691,7 @@ class ObjectType(logging_object.LoggingObject):
             self.info("{}: Register handler for event '{}'".format(self.name, itemname))
             self.game_engine.event_engine.register_event_handler(itemname, new_handler)
         else:
-            raise(ObjectTypeException("ObjectType does not yet handle '{}' events (NYI)".
-                                      format(itemname), self.error))
+            raise ObjectTypeException
 
     def __delitem__(self, itemname):
         """
@@ -795,13 +792,13 @@ class CollideableObjectType(ManagerObjectType):
             "sprite": CollideableObjectType.DEFAULT_SPRITE_RESOURCE,
             "blend_mode": CollideableObjectType.DEFAULT_BLEND_MODE,
         })
-        if "visible" in obj_yaml.keys():
+        if "visible" in list(obj_yaml.keys()):
             kwargs["visible"] = (obj_yaml["visible"] is True)
-        if "solid" in obj_yaml.keys():
+        if "solid" in list(obj_yaml.keys()):
             kwargs["solid"] = (obj_yaml["solid"] is True)
-        if "depth" in obj_yaml.keys():
+        if "depth" in list(obj_yaml.keys()):
             kwargs["depth"] = int(obj_yaml["depth"])
-        if "sprite" in obj_yaml.keys():
+        if "sprite" in list(obj_yaml.keys()):
             kwargs["sprite"] = str(obj_yaml["sprite"])
         if "blend_mode" in obj_yaml.keys():
             kwargs["blend_mode"] = str(obj_yaml["blend_mode"])
@@ -849,11 +846,10 @@ class CollideableObjectType(ManagerObjectType):
                 if kwarg == "depth":
                     self.depth = int(kwargs["depth"])
                 if (kwarg == "sprite") and kwargs[kwarg]:
-                    if kwargs['sprite'] in self.game_engine.resources['sprites'].keys():
+                    if kwargs['sprite'] in list(self.game_engine.resources['sprites'].keys()):
                         assigned_sprite = self.game_engine.resources['sprites'][kwargs['sprite']]
                         if not isinstance(assigned_sprite, object_sprite.ObjectSprite):
-                            raise(ObjectTypeException("'{}' is not a recognized sprite resource".
-                                                      format(kwargs["sprite"]), self.error))
+                            raise ObjectTypeException
                         self.sprite_resource = assigned_sprite
                 if kwarg == "blend_mode":
                     self.blend_mode = int(kwargs["blend_mode"])
@@ -960,14 +956,14 @@ class CollideableObjectType(ManagerObjectType):
         collision_types_queued = set()
         for other_obj in other_obj_types:
             # other_obj.group = other_obj.group
-            if len(other_obj.group) == 0:
+            if  not other_obj.group:
                 continue
             if (len(self.group) == 1) and self.name == other_obj.name:
                 # skip self collision detection if there's only one sprite
                 continue
             collision_map = pygame.sprite.groupcollide(
                 self.group, other_obj.group, False, False, collided=sprite_collision_test)
-            for collider in collision_map.keys():
+            for collider in list(collision_map.keys()):
                 collision_normal = None
                 for other_inst in collision_map[collider]:
                     overlap = get_mask_overlap(collider, other_inst)
@@ -1013,7 +1009,7 @@ class CollideableObjectType(ManagerObjectType):
                                                                        child_collision_info)
                     )
                 # queue parent collision events if this instance has children
-                if len(collider.symbols["children"]) > 0:
+                if collider.symbols["children"]:
                     for a_child in collider.symbols["children"]:
                         parent_collision_name = "parent_{}".format(collision_name)
                         collision_types_queued.add(parent_collision_name)
@@ -1033,13 +1029,13 @@ class CollideableObjectType(ManagerObjectType):
         instances have updated, handle any queued deletions.
         """
         self.debug("update():")
-        if len(self.group) > 0:
+        if self.group:
             #pylint: disable=no-member
             self.group.update()
             #pylint: enable=no-member
         # after all instances update(), check the delete list to see which
         #  ones should be removed and remove them
-        if len(self.instance_delete_list) > 0:
+        if self.instance_delete_list:
             self.group.remove(self.instance_delete_list)
             self.instance_delete_list = set()
 
@@ -1051,7 +1047,7 @@ class CollideableObjectType(ManagerObjectType):
         :type in_event: py:class:`~pygame_maker.events.event.Event`
         """
         self.debug("draw():")
-        if (len(self.group) > 0) and self.visible:
+        if self.group and self.visible:
             for an_action in self.event_action_sequences["draw"].get_next_action():
                 if an_action.name == "draw_self":
                     # The normal, default action: each object instance draws
@@ -1102,7 +1098,7 @@ class CollideableObjectType(ManagerObjectType):
         #pylint: disable=no-member
         clicked = self.group.get_sprites_at(in_event['position'])
         #pylint: enable=no-member
-        if len(clicked) > 0:
+        if clicked:
             for click_target in clicked:
                 click_target.execute_action_sequence(in_event)
 

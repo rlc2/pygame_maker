@@ -255,7 +255,7 @@ common_parameters:
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
-        if len(cls.action_type_registry) > 0:
+        if cls.action_type_registry:
             for atype in cls.action_type_registry:
                 if action_name in atype.HANDLED_ACTIONS:
                     return atype(action_name, settings, **kwargs)
@@ -319,7 +319,7 @@ common_parameters:
         yaml_obj = yaml.load(yaml_str)
         common_params = yaml_obj['common_parameters']
         # print("Got common params:\n{}".format(common_params))
-        for action in yaml_obj['actions'].keys():
+        for action in list(yaml_obj['actions'].keys()):
             action_map[action] = {}
             for par in yaml_obj['actions'][action]:
                 par_val = yaml_obj['actions'][action][par]
@@ -328,7 +328,7 @@ common_parameters:
                     if minfo:
                         action_map[action][par] = common_params[par_val]['default']
                         action_constraints[action] = common_params[par_val]
-                elif len(par_val.keys()) > 0:
+                elif list(par_val.keys()):
                     if par_val['type'] == "from_list":
                         if par_val['default'] not in par_val['accepted_list']:
                             print("WARNING: default value " +
@@ -363,7 +363,7 @@ common_parameters:
         # print("{}: get expression for field {}: {}".format(self, field_name,
         #    self.action_data[field_name]))
         if (not isinstance(self.action_data[field_name], str) or
-                (len(self.action_data[field_name]) == 0) or
+                (not self.action_data[field_name]) or
                 (self.action_data[field_name][0] != '=')):
             # not an expression, so just return the contents of the field
             return self.action_data[field_name]
@@ -372,7 +372,7 @@ common_parameters:
         # create a hopefully unique symbol to store the expression result in
         sym_name = "intern_{}_{}".format(field_name, abs(hash(field_name)))
         # print("sym_name: {}".format(sym_name))
-        if exp_name not in self.runtime_data.keys():
+        if exp_name not in list(self.runtime_data.keys()):
             # create an entry in the action data that points to a
             #  hopefully unique name that will be registered with the language
             #  engine
@@ -399,7 +399,7 @@ common_parameters:
         """
         indent_str = " " * indent
         yaml_str = "{}{}:\n".format(indent_str, self.name)
-        keylist = self.action_data.keys()
+        keylist = list(self.action_data.keys())
         keylist.sort()
         for act_key in keylist:
             value = self.action_data[act_key]
@@ -419,7 +419,7 @@ common_parameters:
 
     def keys(self):
         """Return a list of all known action data keys."""
-        return self.action_data.keys() + self.runtime_data.keys()
+        return list(self.action_data.keys()) + list(self.runtime_data.keys())
 
     def __getitem__(self, itemname):
         """

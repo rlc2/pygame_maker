@@ -100,7 +100,7 @@ class ActionSequenceStatement(object):
         :type indent: int
         """
         indent_string = "\t" * indent
-        print "{}{}".format(indent_string, self.action.name)
+        print("{}{}".format(indent_string, self.action.name))
 
     def __repr__(self):
         return "<{}: {}>".format(type(self).__name__, self.action)
@@ -134,8 +134,7 @@ class ActionSequenceConditional(ActionSequenceStatement):
         found_place = True
         # basic type check
         if not isinstance(statement, ActionSequenceStatement):
-            raise(ActionSequenceStatementException("{} is not a ActionSequenceStatement".
-                                                   format(str(statement))))
+            raise ActionSequenceStatementException
         if not self.contained_statement:
             # the statement is now the conditional clause
             self.contained_statement = statement
@@ -348,8 +347,7 @@ class ActionSequenceBlock(ActionSequenceStatement):
             else:
                 raise ActionSequenceStatementException("block_end cannot be added to a main block")
         elif isinstance(statement, ActionSequenceConditionalElse):
-            raise(ActionSequenceStatementException(
-                "Cannot add an 'else' statement without an 'if' statement."))
+            raise ActionSequenceStatementException
         else:
             self.contained_statements.append(statement)
 
@@ -371,7 +369,7 @@ class ActionSequenceBlock(ActionSequenceStatement):
         if not isinstance(statement, ActionSequenceStatement):
             raise TypeError("{} is not an ActionSequenceStatement".format(str(statement)))
         last_statement = None
-        if len(self.contained_statements) > 0:
+        if self.contained_statements:
             last_statement = self.contained_statements[-1]
         if last_statement and last_statement.is_conditional:
             # If the last statement's conditional is still open, this statement
@@ -473,12 +471,12 @@ class ActionSequence(object):
         :rtype: ActionSequence
         """
         new_sequence = None
-        if len(sequence_repr) > 0:
+        if sequence_repr:
             new_sequence = ActionSequence()
             for action_hash in sequence_repr:
-                action_name = action_hash.keys()[0]
+                action_name = list(action_hash.keys())[0]
                 action_params = {}
-                if action_hash[action_name] and len(action_hash[action_name]) > 0:
+                if action_hash[action_name]:
                     action_params.update(action_hash[action_name])
                 next_action = Action.get_action_instance_by_name(action_name, **action_params)
                 # print("New action: {}".format(next_action))

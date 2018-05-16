@@ -108,7 +108,7 @@ class GameEngine(logging_object.LoggingObject):
         """Draw the ball sprite mask as a graphic in the upper left corner."""
         if not self.mask_surface and objtype.mask:
             mask_dims = objtype.mask.get_size()
-            print "Mask size: {}".format(mask_dims)
+            print("Mask size: {}".format(mask_dims))
             #pylint: disable=too-many-function-args
             #pylint: disable=unexpected-keyword-arg
             self.mask_surface = pygame.Surface(mask_dims, depth=8)
@@ -128,7 +128,7 @@ class GameEngine(logging_object.LoggingObject):
     def execute_action(self, an_action, an_event, instance=None):
         """Handle play_sound and create_object events."""
         action_params = {}
-        for param in an_action.action_data.keys():
+        for param in list(an_action.action_data.keys()):
             if param == 'apply_to':
                 continue
             if param == 'child_instance':
@@ -143,11 +143,11 @@ class GameEngine(logging_object.LoggingObject):
         #print("Engine recieved action: {}".format(action))
         if an_action.name == "play_sound":
             if ((len(action_params['sound']) > 0) and
-                    (action_params['sound'] in self.resources['sounds'].keys())):
+                    (action_params['sound'] in list(self.resources['sounds'].keys()))):
                 self.resources['sounds'][action_params['sound']].play_sound()
         if an_action.name == "create_object":
             if (self.screen and (len(action_params['object']) > 0) and
-                    (action_params['object'] in self.resources['objects'].keys())):
+                    (action_params['object'] in list(self.resources['objects'].keys()))):
                 self.resources['objects'][action_params['object']].create_instance(
                     self.screen, action_params)
 #pylint: enable=unused-argument
@@ -281,7 +281,7 @@ class TestGameManager(object):
         self.test_sprite = None
         self.screen = None
         self.game_engine = GameEngine()
-        print "Manager init complete"
+        print("Manager init complete")
 
     def setup(self, screen):
         """Handle the game setup phase, prior to the main game loop."""
@@ -331,7 +331,7 @@ class TestGameManager(object):
                                     'position.y':"=mouse.y"
                                 })
         )
-        print "Setup complete"
+        print("Setup complete")
 
     def collect_event(self, an_event):
         """Add a new event to the current_events list."""
@@ -361,12 +361,12 @@ class TestGameManager(object):
             self.game_engine.send_mouse_event(None)
         # done with event handling
         self.current_events = []
-        for obj_name in res['objects'].keys():
+        for obj_name in list(res['objects'].keys()):
             res['objects'][obj_name].update()
         # check for object instance collisions
-        obj_types = res['objects'].values()
+        obj_types = list(res['objects'].values())
         collision_types = set()
-        for obj_name in res['objects'].keys():
+        for obj_name in list(res['objects'].keys()):
             collision_types |= res['objects'][obj_name].collision_check(obj_types)
         if len(collision_types) > 0:
             for coll_type in collision_types:

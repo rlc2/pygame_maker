@@ -6,6 +6,7 @@ Licensed under LGPL v2.1 (see file COPYING for details)
 Game engine CSS styling module.
 """
 
+from __future__ import print_function
 import re
 import logging
 from pyparsing import Literal, Word, Optional, ZeroOrMore, OneOrMore, nums, hexnums, alphas, \
@@ -50,7 +51,7 @@ def attribute_match(element, attribute_dict):
     :rtype: bool
     """
     matched = False
-    if element.attr_str in attribute_dict.keys():
+    if element.attr_str in list(attribute_dict.keys()):
         attr_val = attribute_dict[element.attr_str]
         if element.attr_type == "matches":
             matched = (element.attr_val == attr_val)
@@ -117,7 +118,7 @@ class CSSStyleEntry(object):
         self._parse_entry_string(entry_string)
 
     def _collect_id(self, id_match_info, pcls_match_info):
-        if len(id_match_info.group(1)) > 0:
+        if id_match_info.group(1):
             self.type_str = id_match_info.group(1)
             if "type" not in self.selector_types:
                 self.selector_types.add("type")
@@ -128,7 +129,7 @@ class CSSStyleEntry(object):
             self._collect_pclass(pcls_match_info)
 
     def _collect_class(self, cls_match_info, pcls_match_info):
-        if len(cls_match_info.group(1)) > 0:
+        if cls_match_info.group(1):
             self.type_str = cls_match_info.group(1)
             if "type" not in self.selector_types:
                 self.selector_types.add("type")
@@ -146,7 +147,7 @@ class CSSStyleEntry(object):
             self.selector_types.add("pclass")
 
     def _collect_attr(self, attr_match_info, pcls_match_info):
-        if len(attr_match_info.group(1)) > 0:
+        if attr_match_info.group(1):
             self.type_str = attr_match_info.group(1)
             if "type" not in self.selector_types:
                 self.selector_types.add("type")
@@ -163,7 +164,7 @@ class CSSStyleEntry(object):
             self.selector_types.add("pclass")
 
     def _parse_entry_string(self, entry_string):
-        if len(entry_string) == 0:
+        if not entry_string:
             return
         id_minfo = self.ID_SELECTOR_RE.search(entry_string)
         cls_minfo = self.CLASS_SELECTOR_RE.search(entry_string)
@@ -184,26 +185,26 @@ class CSSStyleEntry(object):
     def pretty_print(self, indent=0):
         """Print a nicely-formatted summary of the CSS entry."""
         indent_str = " " * indent
-        print "{}CSS Style Element {}:".format(indent_str, self.name)
+        print("{}CSS Style Element {}:".format(indent_str, self.name))
         if "type" in self.selector_types:
-            print "{}type name: {}".format(indent_str, self.type_str)
+            print("{}type name: {}".format(indent_str, self.type_str))
         if "id" in self.selector_types:
-            print "{}element ID: {}".format(indent_str, self.id_str)
+            print("{}element ID: {}".format(indent_str, self.id_str))
         if "class" in self.selector_types:
-            print "{}class name: {}".format(indent_str, self.class_str)
+            print("{}class name: {}".format(indent_str, self.class_str))
         if "pclass" in self.selector_types:
             pcls_arg = ""
-            if len(self.pclass_arg) > 0:
+            if self.pclass_arg:
                 pcls_arg = "({})".format(self.pclass_arg)
-            print "{}pclass name: {}{}".format(indent_str, self.pclass_str, pcls_arg)
+            print("{}pclass name: {}{}".format(indent_str, self.pclass_str, pcls_arg))
         if "attribute" in self.selector_types:
             attr_name = "any"
             if self.attr_type != "any":
                 attr_name = "{} {}".format(self.attr_type, self.attr_val)
-            print "{}attribute {} {}".format(indent_str, self.attr_str, attr_name)
-        print "{}parameters:".format(indent_str)
-        for param in self.parameters.keys():
-            print "{}  {}: {}".format(indent_str, param, self.parameters[param])
+            print("{}attribute {} {}".format(indent_str, self.attr_str, attr_name))
+        print("{}parameters:".format(indent_str))
+        for param in list(self.parameters.keys()):
+            print("{}  {}: {}".format(indent_str, param, self.parameters[param]))
 
     def __getitem__(self, itemname):
         return self.parameters[itemname]
@@ -221,7 +222,7 @@ class CSSStyleEntry(object):
             val_list.append("C={}".format(self.class_str))
         if "pclass" in self.selector_types:
             pcls_arg = ""
-            if len(self.pclass_arg) > 0:
+            if self.pclass_arg:
                 pcls_arg = "({})".format(self.pclass_arg)
             val_list.append("P={}{}".format(self.pclass_str, pcls_arg))
         if "attribute" in self.selector_types:
@@ -419,11 +420,11 @@ class ElementPrioritizerTable(object):
             if "attribute" in prop_set:
                 for attr_type_name in self.ATTR_SELECTOR_PRECEDENCE:
                     for tel in self.element_table[prop_set][attr_type_name]:
-                        print "{}:".format(tel.name)
+                        print("{}:".format(tel.name))
                         tel.pretty_print(2)
             else:
                 for tel in self.element_table[prop_set]:
-                    print "{}:".format(tel.name)
+                    print("{}:".format(tel.name))
                     tel.pretty_print(2)
 
 
@@ -494,12 +495,12 @@ class CSSStyleParser(CSSStyle):
         :param loc: The location within the string
         :param toks: The tokens supplied by PyParsing
         """
-        self.logger.debug("push_value(<css str>, parsestr={}, loc={}, toks={}):".format(
-            parsestr, loc, toks))
+        self.logger.debug("push_value(<css str>, parsestr=%s, loc=%d, toks=%s):",
+                          parsestr, loc, toks)
         new_value = "".join(toks.asList())
-        self.logger.debug("add {} to value list".format(new_value))
+        self.logger.debug("add %s to value list", new_value)
         self.__value_list.append(new_value)
-        self.logger.debug("self.__value_list is now: {}".format(self.__value_list))
+        self.logger.debug("self.__value_list is now: %s", self.__value_list)
 
     def push_ident_list(self, parsestr, loc, toks):
         """
@@ -509,10 +510,10 @@ class CSSStyleParser(CSSStyle):
         :param loc: The location within the string
         :param toks: The tokens supplied by PyParsing
         """
-        self.logger.debug("push_ident_list(<css str>, parsestr={}, loc={}, toks={}):".format(
-            parsestr, loc, toks))
+        self.logger.debug("push_ident_list(<css str>, parsestr=%s, loc=%d, toks=%s):",
+                          parsestr, loc, toks)
         self.__ident_list = list(toks.asList())
-        self.logger.debug("self.__ident_list is now: {}".format(self.__ident_list))
+        self.logger.debug("self.__ident_list is now: %s", self.__ident_list)
 
     def push_param_name(self, parsestr, loc, toks):
         """
@@ -522,10 +523,10 @@ class CSSStyleParser(CSSStyle):
         :param loc: The location within the string
         :param toks: The tokens supplied by PyParsing
         """
-        self.logger.debug("push_param_name(<css str>, parsestr={}, loc={}, toks={}):".format(
-            parsestr, loc, toks))
+        self.logger.debug("push_param_name(<css str>, parsestr=%s, loc=%d, toks=%s):",
+                          parsestr, loc, toks)
         self.__param_name = "".join(toks.asList())
-        self.logger.debug("Param name is now: {}".format(self.__param_name))
+        self.logger.debug("Param name is now: %s", self.__param_name)
 
     def push_parameter(self, parsestr, loc, toks):
         """
@@ -536,10 +537,10 @@ class CSSStyleParser(CSSStyle):
         :param loc: The location within the string
         :param toks: The tokens supplied by PyParsing
         """
-        self.logger.debug("push_parameter(<css str>, parsestr={}, loc={}, toks={}):".format(
-            parsestr, loc, toks))
+        self.logger.debug("push_parameter(<css str>, parsestr=%s, loc=%d, toks=%s):",
+                          parsestr, loc, toks)
         self.__style_block[self.__param_name] = list(self.__value_list)
-        self.logger.debug("__style_block is now {}".format(self.__style_block))
+        self.logger.debug("__style_block is now %s", self.__style_block)
         # clear the name for the next parameter
         self.__param_name = ""
         # clear the value list for the next parameter
@@ -553,10 +554,10 @@ class CSSStyleParser(CSSStyle):
         :param loc: The location within the string
         :param toks: The tokens supplied by PyParsing
         """
-        self.logger.debug("push_param_block(<css str>, parsestr={}, loc={}, toks={}):".format(
-            parsestr, loc, toks))
+        self.logger.debug("push_param_block(<css str>, parsestr=%s, loc=%d, toks=%s):",
+                          parsestr, loc, toks)
         for an_ident in self.__ident_list:
-            self.logger.debug("Create new style entry named '{}'".format(an_ident))
+            self.logger.debug("Create new style entry named '%s'", an_ident)
             new_style_entry = CSSStyleEntry(an_ident)
             new_style_entry.parameters.update(self.__style_block)
             self.add_element(new_style_entry)
@@ -569,8 +570,8 @@ class CSSStyleParser(CSSStyle):
         """Log missing or bad values reported by pyparsing."""
         substr_len = min(len(substr) - loc, 10)
         self.logger.debug("missing_or_bad_value(<css str>, " + \
-            "loc={}, substr='{}', expr={}, err='{}'):".format(
-                loc, substr[loc:loc+substr_len], expr, err))
+            "loc=%s, substr='%s', expr=%s, err='%s'):",
+                          loc, substr[loc:loc+substr_len], expr, err)
 
     def clear(self):
         """Clear the parsed data to prepare to parse another CSS string."""
@@ -688,4 +689,3 @@ def bnf(css_style_obj):
                     css_style_obj.push_param_block)
         BNF = OneOrMore(comment.suppress() | parameter_block)
     return BNF
-

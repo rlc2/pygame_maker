@@ -1,4 +1,4 @@
-#!/usr/bin/python -Wall
+#!/usr/bin/env python
 """
 Author: Ron Lockwood-Childs
 
@@ -188,13 +188,13 @@ class TestWidget(unittest.TestCase):
         """Test valid length values for parameters that accept them."""
         test_plain_values = ("4", "3px", "10%")
         test_plain_styles = ("margin-top", "padding-top", "margin-right")
-        test_plain_dict = dict(zip(test_plain_styles, test_plain_values))
+        test_plain_dict = dict(list(zip(test_plain_styles, test_plain_values)))
         for style_test_key in test_plain_dict:
             style = WidgetStyle({style_test_key: test_plain_dict[style_test_key]})
             self.assertEqual(style.style[style_test_key], test_plain_dict[style_test_key])
         test_str_values = ("auto", "inherit", "initial")
         test_str_styles = ("width", "left", "right")
-        test_str_dict = dict(zip(test_str_styles, test_str_values))
+        test_str_dict = dict(list(zip(test_str_styles, test_str_values)))
         for style_test_key in test_str_dict:
             style = WidgetStyle({style_test_key: test_str_dict[style_test_key]})
             self.assertEqual(style.style[style_test_key], test_str_dict[style_test_key])
@@ -205,7 +205,7 @@ class TestWidget(unittest.TestCase):
         """Test valid width values for parameters that accept them."""
         test_plain_values = ("4", "3px", "10%")
         test_plain_styles = ("border-top-width", "border-right-width", "border-left-width")
-        test_plain_dict = dict(zip(test_plain_styles, test_plain_values))
+        test_plain_dict = dict(list(zip(test_plain_styles, test_plain_values)))
         for style_test_key in test_plain_dict:
             style = WidgetStyle({style_test_key: test_plain_dict[style_test_key]})
             self.assertEqual(style.style[style_test_key], test_plain_dict[style_test_key])
@@ -213,7 +213,7 @@ class TestWidget(unittest.TestCase):
         test_str_values = ("thin", "thick", "medium", "inherit", "initial")
         test_str_styles = ("border-top-width", "border-left-width", "border-right-width",
                            "border-bottom-width", "border-top-width")
-        test_str_dict = dict(zip(test_str_styles, test_str_values))
+        test_str_dict = dict(list(zip(test_str_styles, test_str_values)))
         for style_test_key in test_str_dict:
             style = WidgetStyle({style_test_key: test_str_dict[style_test_key]})
             self.assertEqual(style.style[style_test_key], test_str_dict[style_test_key])

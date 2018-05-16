@@ -21,7 +21,7 @@ class DummyGameEngine(object):
         pass
     def warn(self, message):
         """Simulate the warning logger."""
-        print message
+        print(message)
 
 
 class TestSprite(unittest.TestCase):
@@ -80,7 +80,7 @@ class TestSprite(unittest.TestCase):
         sprite_strip = ObjectSprite("spr_strip", filename="unittest_files/spaceship_strip07.png")
         sprite_strip.load_graphic()
         self.assertEqual(sprite_strip.subimage_info["count"], 7)
-        expected_strip_width = (sprite_strip.image_size[0] / 7)
+        expected_strip_width = int(sprite_strip.image_size[0] / 7)
         expected_strip_height = sprite_strip.image_size[1]
         expected_width_offset = 0
         for idx, subim_size in enumerate(sprite_strip.subimage_info["sizes"]):

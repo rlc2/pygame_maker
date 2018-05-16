@@ -93,7 +93,7 @@ def create_disk_mask(orig_rect, radius):
     #  will use this mask; the mask generated here won't fill the sprite's
     #  radius, but will be a circle with the correct radius that is clipped
     #  at the sprite's rect dimensions
-    disk_mask_center = (orig_rect.width / 2, orig_rect.height / 2)
+    disk_mask_center = (int(orig_rect.width / 2), int(orig_rect.height / 2))
     #pylint: disable=too-many-function-args
     #pylint: disable=unexpected-keyword-arg
     disk_mask_surface = pygame.Surface((orig_rect.width, orig_rect.height), depth=8)
@@ -202,7 +202,7 @@ class ObjectSprite(object):
         if yaml_info:
             for top_level in yaml_info:
                 sprite_args = {}
-                sprite_name = top_level.keys()[0]
+                sprite_name = list(top_level.keys())[0]
                 yaml_info_hash = top_level[sprite_name]
                 if 'filename' in yaml_info_hash:
                     sprite_args['filename'] = yaml_info_hash['filename']
@@ -339,36 +339,33 @@ class ObjectSprite(object):
             orig_y = 0
             if not isinstance(orig_item, str) and hasattr(orig_item, '__iter__'):
                 xylist = list(orig_item)
-                if len(orig_item) == 0:
-                    raise ValueError, "ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"])
+                if not orig_item:
+                    raise ValueError("ObjectSprite(): Invalid origin '{}'".format(kwargs["origin"]))
                 if len(orig_item) >= 2:
                     try:
                         orig_y = int(xylist[1])
                     except ValueError:
-                        raise(ValueError, "ObjectSprite(): Invalid Y origin '{}'".
-                              format(orig_item[1]))
+                        raise ValueError
                 try:
                     orig_x = int(xylist[0])
                 except ValueError:
-                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+                    raise ValueError
             else:
                 try:
                     orig_x = int(orig_item)
                 except ValueError:
-                    raise(ValueError, "ObjectSprite(): Invalid X origin '{}'".format(orig_item[0]))
+                    raise ValueError
             self.origin = (orig_x, orig_y)
         if "collision_type" in kwargs:
             if kwargs["collision_type"] in self.COLLISION_TYPES:
                 self.collision_type = kwargs["collision_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid collision_type '{}'".
-                      format(kwargs["collision_type"]))
+                raise ValueError
         if "bounding_box_type" in kwargs:
             if kwargs["bounding_box_type"] in self.BOUNDING_BOX_TYPES:
                 self.bounding_box_type = kwargs["bounding_box_type"]
             else:
-                raise(ValueError, "ObjectSprite(): Invalid bounding_box_type '{}'".
-                      format(kwargs["bounding_box_type"]))
+                raise ValueError
         if ("manual_bounding_box_rect" in kwargs and
                 isinstance(kwargs["manual_bounding_box_rect"], dict)):
             dim = kwargs["manual_bounding_box_rect"]
@@ -405,8 +402,7 @@ class ObjectSprite(object):
         if 'custom_subimage_columns' in kwargs:
             im_cols = kwargs["custom_subimage_columns"]
             if isinstance(im_cols, dict) or not hasattr(im_cols, '__iter__'):
-                raise(ValueError, "ObjectSprite: Invalid 'custom_subimage_columns' value '{}'".
-                      format(im_cols))
+                raise ValueError
             else:
                 self.subimage_info["columns"] = list(im_cols)
 
@@ -442,7 +438,7 @@ class ObjectSprite(object):
         sub_cols = self.subimage_info["columns"]
         if len(sub_cols) <= 1:
             # subimage columns weren't passed in, so calculate them
-            max_si_width = self.image_size[0] / self.subimage_info["count"]
+            max_si_width = int(self.image_size[0] / self.subimage_info["count"])
             for idx in range(len(sub_cols), self.subimage_info["count"]):
                 sub_cols.append(max_si_width * idx)
         elif len(sub_cols) > self.subimage_info["count"]:
@@ -458,7 +454,8 @@ class ObjectSprite(object):
             if (last_custom_column + missing_count + 1) < self.image_size[0]:
                 # remember to leave room between the last custom column
                 # and the first missing X value
-                split_col_width = (self.image_size[0] - last_custom_column) / (missing_count + 1)
+                split_col_width = int((self.image_size[0] - last_custom_column) /
+                                      (missing_count + 1))
                 for ccol in range(missing_count):
                     sub_cols.append(last_custom_column + (ccol + 1) * split_col_width)
             else:
@@ -586,10 +583,10 @@ class ObjectSprite(object):
             raise ObjectSpriteException(
                 "ObjectSprite error ({}): filename '{}' is not a string".
                 format(str(self), self.filename))
-        elif len(self.filename) == 0:
+        elif not self.filename:
             raise ObjectSpriteException("ObjectSprite error ({}): filename is empty".
                                         format(str(self)))
-        if len(self.filename) > 0:
+        if self.filename:
             if not os.path.exists(self.filename):
                 raise ObjectSpriteException(
                     "ObjectSprite error ({}): filename '{}' not found".
@@ -649,9 +646,7 @@ class ObjectSprite(object):
         """
         bound_rect = self.manual_bounding_box_rect
         if not isinstance(bound_rect, pygame.Rect):
-            raise(ObjectSpriteException(
-                "ObjectSprite error ({}): Bounding box dimensions {} is not a Rect".
-                format(str(self), self.manual_bounding_box_rect)))
+            raise ObjectSpriteException
         dim = (bound_rect.left, bound_rect.right, bound_rect.top, bound_rect.bottom)
         if (bound_rect.left > bound_rect.right) or (bound_rect.top > bound_rect.bottom):
             raise ObjectSpriteException(

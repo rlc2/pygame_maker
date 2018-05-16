@@ -32,7 +32,7 @@ class TestEventEngine(unittest.TestCase):
         A simple event handler that prints a message when called and keeps a
         list of events in the order received for comparison.
         """
-        print "{} received event {}.".format(ev_tag, event)
+        print("{} received event {}.".format(ev_tag, event))
         self.called_events.append("{} {}".format(event, ev_tag))
 
     def test_005register_event_handler(self):
@@ -72,7 +72,7 @@ class TestEventEngine(unittest.TestCase):
         self.event_engine.transmit_event('begin_step')
         self.event_engine.transmit_event('mouse_left_pressed')
         self.event_engine.transmit_event('normal_step')
-        print "event handler calls:\n{}".format(self.called_events)
+        print("event handler calls:\n{}".format(self.called_events))
         expected_calls = [
             '<MouseEvent "mouse_left_pressed" x=20,y=42> hdlr1',
             '<MouseEvent "mouse_left_pressed" x=20,y=42> hdlr2',

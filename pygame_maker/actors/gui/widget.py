@@ -104,8 +104,8 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
         # width, height = self.get_element_dimensions()
         # self.symbols["width"] = width
         # self.symbols["height"] = height
-        for subclass_sym in self.WIDGET_INSTANCE_SUBCLASS_SYMS.keys():
-            if subclass_sym not in self.symbols.keys():
+        for subclass_sym in list(self.WIDGET_INSTANCE_SUBCLASS_SYMS.keys()):
+            if subclass_sym not in list(self.symbols.keys()):
                 self.symbols[subclass_sym] = self.WIDGET_INSTANCE_SUBCLASS_SYMS[subclass_sym]
 #pylint: enable-msg=too-many-arguments
 
@@ -158,10 +158,9 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
     @property
     def width(self):
         """Get and set widget's width"""
-        if "width" in self.symbols.keys():
+        if "width" in list(self.symbols.keys()):
             return self.symbols["width"]
-        else:
-            return 0
+        return 0
 
     @width.setter
     def width(self, new_width):
@@ -204,11 +203,11 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
                    format(setting_name, css_properties, parent_settings))
         default_setting = WidgetStyle.get_style_entry_default(setting_name)
         setting = default_setting
-        if setting_name in self.symbols.keys():
+        if setting_name in list(self.symbols.keys()):
             # settings passed in from object YAML or constructor override
             # default CSS
             setting = self.symbols[setting_name]
-        elif setting_name in css_properties.keys():
+        elif setting_name in list(css_properties.keys()):
             # check_setting = " ".join(css_properties[setting_name])
             check_setting = css_properties[setting_name]
             # self.debug("check_setting: {}".format(check_setting))
@@ -238,7 +237,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             # this could result in the parent checking its parent's
             # settings..
             parent_settings = self.parent.get_widget_settings(css_properties)
-        for setting_name in WidgetStyle.STYLE_CONSTRAINTS.keys():
+        for setting_name in list(WidgetStyle.STYLE_CONSTRAINTS.keys()):
             # self.debug("Get widget setting {} .. ".format(setting_name))
             self.style_settings[setting_name] = self.get_style_setting(setting_name, css_properties,
                                                                        parent_settings)
@@ -586,7 +585,7 @@ class WidgetInstance(simple_object_instance.SimpleObjectInstance):
             "element_type": self.kind.name,
             "element_id": self.widget_id,
         }
-        if len(self.widget_class) > 0:
+        if self.widget_class:
             props["element_class"] = self.widget_class
         if self.hover:
             props["pseudo_class"] = "hover"
@@ -664,13 +663,13 @@ class LabelWidgetInstance(WidgetInstance):
         the font name, or a system font if the name isn't known.
         """
         self.debug("LabelWidgetInstance.get_font_resource()")
-        if (len(self.font) == 0) or (self.font not in
-                                     self.kind.game_engine.resources['fonts'].keys()):
+        if not self.font or (self.font not in
+                             list(self.kind.game_engine.resources['fonts'].keys())):
             # revert to a system font, if found
             if hasattr(self.kind.game_engine, 'system_font'):
                 self.font_resource = self.kind.game_engine.system_font
             else:
-                return None
+                return
         else:
             self.font_resource = self.kind.game_engine.resources['fonts'][self.font]
 
@@ -682,7 +681,7 @@ class LabelWidgetInstance(WidgetInstance):
         self.debug("LabelWidgetInstance.calc_label_size()")
         if self.font_resource is None:
             return (0, 0)
-        if len(self.label) == 0:
+        if not self.label:
             return (0, 0)
         font_rndr = self.font_resource.get_font_renderer()
         return font_rndr.calc_render_size(self.label)
@@ -734,12 +733,12 @@ class LabelWidgetInstance(WidgetInstance):
         top_left = coord.Coordinate(0, 0)
         if surf_width > text_width:
             if self.style_settings["text-align"] == "center":
-                top_left.x = (surf_width / 2) - (text_width / 2)
+                top_left.x = int((surf_width / 2) - (text_width / 2))
             elif self.style_settings["text-align"] == "right":
                 top_left.x = surf_width - text_width
         if surf_height > text_height:
             if self.style_settings["vertical-align"] == "middle":
-                top_left.y = (surf_height / 2) - (text_height / 2)
+                top_left.y = int((surf_height / 2) - (text_height / 2))
             elif self.style_settings["vertical-align"] == "bottom":
                 top_left.y = surf_height - text_height
         font_rndr.render_text(surface, top_left, self.label, self.style_values["color"])
@@ -785,10 +784,10 @@ class WidgetObjectType(object_type.ObjectType):
         kwargs.update({
             "visible": WidgetObjectType.DEFAULT_VISIBLE,
         })
-        if "visible" in obj_yaml.keys():
+        if "visible" in list(obj_yaml.keys()):
             kwargs["visible"] = (obj_yaml["visible"] is True)
         for kw_entry, entry_type in cls.WIDGET_SUBCLASS_KW_ENTRIES:
-            if kw_entry in obj_yaml.keys():
+            if kw_entry in list(obj_yaml.keys()):
                 if isinstance(entry_type, bool):
                     kwargs[kw_entry] = (obj_yaml[kw_entry] is True)
                 else:
@@ -840,7 +839,7 @@ class WidgetObjectType(object_type.ObjectType):
     def draw(self, in_event):
         """Draw all visible instances."""
         self.debug("WidgetObjectType.draw(in_event={})".format(in_event))
-        if len(self.instance_list) > 0:
+        if self.instance_list:
             for inst in self.instance_list:
                 # self.debug("Check inst {}".format(inst))
                 if inst.parent is not None:
@@ -852,4 +851,3 @@ class WidgetObjectType(object_type.ObjectType):
 class LabelWidgetObjectType(WidgetObjectType):
     """Label widget type for displaying text"""
     WIDGET_INSTANCE_TYPE = LabelWidgetInstance
-

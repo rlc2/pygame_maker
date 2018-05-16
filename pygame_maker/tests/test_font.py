@@ -89,10 +89,10 @@ class MyGameManager(object):
             self.fonts.append(font.Font("fnt_{}".format(idx),
                                         fontname=a_font,
                                         fontsize=self.FONT_SIZE))
-        self.font_pages = (len(known_fonts) / self.fonts_per_page)
+        self.font_pages = int(len(known_fonts) / self.fonts_per_page)
         if (len(known_fonts) % self.fonts_per_page) != 0:
             self.font_pages += 1
-        self.text_pages = (len(self.textlines) / self.LINES_PER_PAGE)
+        self.text_pages = int(len(self.textlines) / self.LINES_PER_PAGE)
         if (len(self.textlines) % self.LINES_PER_PAGE) != 0:
             self.text_pages += 1
 
@@ -138,7 +138,7 @@ class MyGameManager(object):
                             # move one column to the left
                             self.current_font -= self.FONT_TABLE_ROWS
                     self.changed_setting = True
-                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                    print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif cev.key == pygame.K_RIGHT:
                     # select a different font
                     old_font = self.current_font
@@ -154,7 +154,7 @@ class MyGameManager(object):
                             # move one columnt to the right
                             self.current_font += self.FONT_TABLE_ROWS
                     self.changed_setting = True
-                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                    print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif cev.key == pygame.K_UP:
                     # select a different font
                     old_font = self.current_font
@@ -164,13 +164,13 @@ class MyGameManager(object):
                             self.current_font_page -= 1
                             self.current_font -= ((self.FONT_TABLE_ROWS *
                                                    (self.FONT_TABLE_COLUMNS-1)) + 1)
-                            print "Moving to font page {}".format(self.current_font_page)
+                            print("Moving to font page {}".format(self.current_font_page))
                     else:
                         if self.current_font > 0:
                             # move up one row
                             self.current_font -= 1
                     self.changed_setting = True
-                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                    print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif cev.key == pygame.K_DOWN:
                     # select a different font
                     old_font = self.current_font
@@ -185,13 +185,13 @@ class MyGameManager(object):
                                 self.current_font = len(self.fonts) - 1
                             else:
                                 self.current_font = next_font_idx
-                            print "Moving to font page {}".format(self.current_font_page)
+                            print("Moving to font page {}".format(self.current_font_page))
                     else:
                         if self.current_font < (len(self.fonts) - 1):
                             # move down one row
                             self.current_font += 1
                     self.changed_setting = True
-                    print "Moving to entry {} from {}".format(self.current_font, old_font)
+                    print("Moving to entry {} from {}".format(self.current_font, old_font))
                 elif cev.key == pygame.K_MINUS:
                     # select the next smallest font size, down to minimum size
                     if self.current_size > self.MIN_FONT_SIZE:
@@ -246,7 +246,7 @@ class MyGameManager(object):
         fnt_renderer = current_font.get_font_renderer()
         if self.changed_setting:
             self.text_dims = fnt_renderer.calc_render_size(page_text)
-            print "Text page dims: {}x{}".format(self.text_dims[0], self.text_dims[1])
+            print("Text page dims: {}x{}".format(self.text_dims[0], self.text_dims[1]))
             self.changed_setting = False
         fnt_renderer.render_text(self.screen, coord.Coordinate(self.TEXT_INDENT, self.TEXT_TOP),
                                  page_text, self.COLOR_LIST[self.current_color])

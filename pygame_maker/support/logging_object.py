@@ -96,7 +96,7 @@ class LoggingObject(object):
 
         :param message: Message to be logged
         """
-        self.logger.warn(self._get_format_string(message))
+        self.logger.warning(self._get_format_string(message))
 
     def error(self, message):
         """

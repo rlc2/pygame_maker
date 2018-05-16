@@ -35,7 +35,7 @@ class FontRenderer(object):
             minfo = self.FILE_URI_RE.match(font_resource.fontname)
         if minfo:
             self.fontpath = minfo.group(1)
-            if len(self.fontpath) > 0:
+            if self.fontpath:
                 self.fontfile = True
         if self.fontfile:
             self._renderer = pygame.font.Font(self.fontpath, font_resource.fontsize)
@@ -77,12 +77,12 @@ class FontRenderer(object):
         if not self.cache_enabled():
             return
         line_hash_key = FontRenderer.get_render_hash_key(text_line, color, background)
-        if line_hash_key not in self.cached_renders.keys():
+        if line_hash_key not in list(self.cached_renders.keys()):
             self.cached_renders[line_hash_key] = surface
         # cache with a key without colors, to make calculating the size of
         # this line quicker in calc_render_size()
         no_color_hash_key = FontRenderer.get_render_hash_key(text_line, None, None)
-        if no_color_hash_key not in self.cached_renders.keys():
+        if no_color_hash_key not in list(self.cached_renders.keys()):
             self.cached_renders[no_color_hash_key] = surface
         # print("Updated text cache:\n{}".format(self.cached_renders))
 
@@ -96,7 +96,7 @@ class FontRenderer(object):
         """
         lines = text.splitlines()
         # remove trailing empty lines
-        while (len(lines)) > 0 and (len(lines[-1]) == 0):
+        while lines and not lines[-1]:
             del lines[-1]
         width = 0
         height = 0
@@ -105,7 +105,7 @@ class FontRenderer(object):
             if idx > 0:
                 height += self.font_resource.line_spacing
             minfo = self.NON_WHITESPACE_RE.search(line)
-            if (len(line) == 0) or not minfo:
+            if not line or not minfo:
                 height += self._renderer.get_linesize()
                 continue
             has_text = True
@@ -114,7 +114,7 @@ class FontRenderer(object):
             # every render also caches a version without colors, to be used
             # when querying the size of the text render later
             no_color_hash_key = FontRenderer.get_render_hash_key(line, None, None)
-            if no_color_hash_key in self.cached_renders.keys():
+            if no_color_hash_key in list(self.cached_renders.keys()):
                 line_width = self.cached_renders[no_color_hash_key].get_width()
                 line_height = self.cached_renders[no_color_hash_key].get_height()
             else:
@@ -151,7 +151,7 @@ class FontRenderer(object):
         """
         lines = text.splitlines()
         # remove trailing empty lines
-        while (len(lines)) > 0 and (len(lines[-1]) == 0):
+        while lines and not lines[-1]:
             del lines[-1]
         x_posn = position.x
         y_posn = position.y
@@ -161,12 +161,12 @@ class FontRenderer(object):
             if idx > 0:
                 # print("Adding gap {}".format(self.font_resource.line_spacing))
                 y_posn += self.font_resource.line_spacing
-            if len(line) == 0:
+            if not line:
                 y_posn += self._renderer.get_linesize()
                 continue
             font_surf = None
             line_hash_key = FontRenderer.get_render_hash_key(line, color, background)
-            if line_hash_key in self.cached_renders.keys():
+            if line_hash_key in list(self.cached_renders.keys()):
                 font_surf = self.cached_renders[line_hash_key]
             else:
                 if background is None:
@@ -222,7 +222,7 @@ class Font(object):
         if yaml_info:
             for top_level in yaml_info:
                 font_args = {}
-                font_name = top_level.keys()[0]
+                font_name = list(top_level.keys())[0]
                 yaml_info_hash = top_level[font_name]
                 if 'fontname' in yaml_info_hash:
                     font_args['fontname'] = yaml_info_hash['fontname']
@@ -256,7 +256,7 @@ class Font(object):
         otherwise.
         """
         fhash = cls.hash_font(font_resource)
-        return fhash in cls.FONT_CACHE.keys()
+        return fhash in list(cls.FONT_CACHE.keys())
 
     @classmethod
     def get_cached_font(cls, font_resource):
@@ -269,7 +269,7 @@ class Font(object):
     def add_font_to_cache(cls, font_resource, renderer):
         """Add a font resource to the cache."""
         fhash = cls.hash_font(font_resource)
-        if fhash not in cls.FONT_CACHE.keys():
+        if fhash not in list(cls.FONT_CACHE.keys()):
             # print("Add {} to font cache".format(fhash))
             cls.FONT_CACHE[fhash] = renderer
 
@@ -425,4 +425,3 @@ class Font(object):
 
     def __repr__(self):
         return "<Font {} size {}>".format(self.name, self.fontsize)
-

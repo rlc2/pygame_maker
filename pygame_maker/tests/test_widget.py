@@ -1,4 +1,4 @@
-#!/usr/bin/python -Wall
+#!/usr/bin/env python
 """
 Author: Ron Lockwood-Childs
 
@@ -117,8 +117,8 @@ LabelWidgetObjectType#0 {
 
     def create_subsurfaces(self, screen_width, screen_height):
         """Create a grid of subsurfaces for drawing widgets into."""
-        self.widget_rows = (screen_width - self.GRID_START_X) / self.GRID_SPACING_X
-        self.widget_cols = (screen_height - self.GRID_START_Y) / self.GRID_SPACING_Y
+        self.widget_rows = int((screen_width - self.GRID_START_X) / self.GRID_SPACING_X)
+        self.widget_cols = int((screen_height - self.GRID_START_Y) / self.GRID_SPACING_Y)
         first_col_left = self.GRID_START_X
         first_row_top = self.GRID_START_Y
         for row_idx in range(self.widget_rows):
@@ -134,14 +134,14 @@ LabelWidgetObjectType#0 {
                 surf_rect.width = self.GRID_SPACING_X - 1
                 surf_rect.top = first_row_top + (row_idx * self.GRID_SPACING_Y) + 1
                 surf_rect.height = self.GRID_SPACING_Y - 1
-                print "Widget @ ({},{}) rect: {}".format(row_idx, col_idx, surf_rect)
+                print("Widget @ ({},{}) rect: {}".format(row_idx, col_idx, surf_rect))
                 widget_surf = self.draw_surface.subsurface(surf_rect)
                 if col_idx == 0:
                     self.widget_surface_matrix.append([])
                 self.widget_surface_matrix[-1].append(widget_surf)
-        print "Surface matrix rows={}, cols=".format(len(self.widget_surface_matrix))
+        print("Surface matrix rows={}, cols=".format(len(self.widget_surface_matrix)))
         for row in range(len(self.widget_surface_matrix)):
-            print "  {}".format(len(self.widget_surface_matrix[row]))
+            print("  {}".format(len(self.widget_surface_matrix[row])))
 
     def create_widgets(self):
         """Create all widget instances to be displayed."""

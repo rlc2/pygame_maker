@@ -6,6 +6,7 @@ Licensed under LGPL v2.1 (see file COPYING for details)
 Pygame maker drawing primitives.
 """
 
+from __future__ import print_function
 import pygame
 import pygame_maker.support.coordinate as coordinate
 
@@ -27,22 +28,22 @@ def _divide_extra_segment_padding(length, padding_needed):
     if padding_needed % 2 != 0:
         odd_padding = True
     if length == 2:
-        padding_ary = [padding_needed / 2, padding_needed / 2]
+        padding_ary = [int(padding_needed / 2), int(padding_needed / 2)]
         if odd_padding:
             padding_ary[0] += 1
         return padding_ary
-    base_padding = padding_needed / length
+    base_padding = int(padding_needed / length)
     current_padding = length * base_padding
     leftover_padding = padding_needed - current_padding
     padding_ary = [base_padding]*length
-    mid_idx = length / 2
+    mid_idx = int(length / 2)
     pad_count = 0
     if leftover_padding == 1:
         padding_ary[mid_idx] += 1
         pad_count += 1
     elif leftover_padding > 1:
         # spread out leftovers as evenly as possible
-        for idx in range(length/2):
+        for idx in range(int(length/2)):
             for alternate in [(1, 0), (-1, 1)]:
                 pad_idx = alternate[0] * (idx + alternate[1])
                 padding_ary[pad_idx] += 1
@@ -53,17 +54,17 @@ def _divide_extra_segment_padding(length, padding_needed):
                 break
     if pad_count < leftover_padding:
         if (leftover_padding - pad_count) > 1:
-            print "_divide_extra_segment_padding(): Too much leftover padding"
+            print("_divide_extra_segment_padding(): Too much leftover padding")
         padding_ary[mid_idx] += 1
     return padding_ary
 
 def draw_line_segments(surface, line_properties):
     """Draw horizontal or vertical lines in dotted or dashed styles."""
     if line_properties["start"] == line_properties["end"]:
-        print "draw_line_segments(): Line starts and ends at the same coordinate"
+        print("draw_line_segments(): Line starts and ends at the same coordinate")
         return
     if line_properties["width"] == 0:
-        print "draw_line_segments(): Line has 0 width"
+        print("draw_line_segments(): Line has 0 width")
         return
     line_slope_y = abs(line_properties["end"].y - line_properties["start"].y)
     line_slope_x = abs(line_properties["end"].x - line_properties["start"].x)
@@ -79,9 +80,9 @@ def draw_line_segments(surface, line_properties):
     sqrd_length = (line_slope_x * line_slope_x) + (line_slope_y * line_slope_y)
     sqrd_full_gap_len = (seg_len * 2 + seg_gap) * (seg_len * 2 + seg_gap)
     # divide up all but the final segment between segment + gap pairs
-    seg_count = (line_slope_x - seg_len) / (seg_len + seg_gap)
+    seg_count = int((line_slope_x - seg_len) / (seg_len + seg_gap))
     if line_slope_x == 0:
-        seg_count = (line_slope_y - seg_len) / (seg_len + seg_gap)
+        seg_count = int((line_slope_y - seg_len) / (seg_len + seg_gap))
     if sqrd_length <= (seg_len * seg_len):
         # not enough space for a gap, just draw between the two points
         pygame.draw.line(surface, line_properties["color"].color,
@@ -157,7 +158,7 @@ def draw_line_segments(surface, line_properties):
     else:
         # y_intercept = line_properties["start"].y - (float(line_slope_y) * \
         #     line_properties["start"].x) / float(line_slope_x)
-        print "draw_line_segments(): diagonal line segments NYI"
+        print("draw_line_segments(): diagonal line segments NYI")
 
 def draw_line(surface, line_start, line_end, width, color, style):
     """
@@ -178,10 +179,10 @@ def draw_line(surface, line_start, line_end, width, color, style):
     :type style: str
     """
     if line_start == line_end:
-        print "draw_line(): Line starts and ends at the same coordinate"
+        print("draw_line(): Line starts and ends at the same coordinate")
         return
     if width == 0:
-        print "draw_line(): Line has 0 width"
+        print("draw_line(): Line has 0 width")
         return
     line_properties = {"start": line_start, "end": line_end, "width": width,
                        "color": color, "style": style}
@@ -194,7 +195,6 @@ def draw_line(surface, line_start, line_end, width, color, style):
         pygame.draw.line(surface, color.color, (line_start.x, line_start.y),
                          (line_end.x, line_end.y), width)
     elif line_properties["style"] in ("groove", "ridge", "inset", "outset"):
-        print "draw_line(): Line style '{}' NYI".format(style)
+        print("draw_line(): Line style '{}' NYI".format(style))
     else:
-        print "draw_line(): Unknown line style '{}'".format(line_properties["style"])
-
+        print("draw_line(): Unknown line style '{}'".format(line_properties["style"]))
