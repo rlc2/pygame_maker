@@ -1249,7 +1249,7 @@ class LanguageEngine(logging_object.LoggingObject):
             'time': {"arglist": [],
                      'block': ["time.time", "_return"]
                     },
-            'debug': {"argslist":
+            'debug': {"arglist":
                       [{"type": "string", "name": "debug_str"}],
                       'block': []
                      }
@@ -1257,7 +1257,6 @@ class LanguageEngine(logging_object.LoggingObject):
         #: Code blocks registered in the language engine
         self.code_blocks = {}
         #: Local symbol tables associated with each code block
-        self.local_tables = {}
 
     def register_code_block(self, block_name, code_string):
         """
@@ -1302,10 +1301,6 @@ class LanguageEngine(logging_object.LoggingObject):
         if block_name not in self.code_blocks:
             raise(UnknownCodeBlockError("Attempt to execute unknown code block named '{}'".
                                         format(block_name), self.error))
-        if local_symbol_table:
-            if block_name not in self.local_tables:
-                self.local_tables[block_name] = {}
-            self.local_tables[block_name].update(local_symbol_table)
         symtables = {'globals': self.global_symbol_table,
                      'locals': local_symbol_table}
         self.code_blocks[block_name].module_context.run(symtables)
