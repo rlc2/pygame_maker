@@ -1385,6 +1385,7 @@ def bnf_interpret(code_block_obj):
         comment_sym = Literal("#")
         boolean_true = Literal("true")
         boolean_false = Literal("false")
+        booltype = Literal("boolean")
         plus = Literal("+")
         minus = Literal("-")
         mult = Literal("*")
@@ -1418,7 +1419,7 @@ def bnf_interpret(code_block_obj):
         boolop = boolor | booland
         addop = plus | minus
         multop = mult | div | mod
-        typestring = num | strn
+        typestring = num | strn | booltype
         expop = Literal("^")
 
         comments = comment_sym + uptolineend

@@ -234,6 +234,24 @@ b = string_arg("THIS IS A STRING ARG with a known function name userfunc_time")
                          "THIS IS A STRING ARG with a known function name userfunc_time")
         self.assertEqual(sym_tables['locals']['b'], "I returned a string")
 
+    def test_027func_arg_bool(self):
+        """Test defining and calling a function that accepts a boolean."""
+        module_context = imp.new_module('for_func_arg_bool')
+        bool_func_arg_code = """
+function bool_arg(boolean a_bool) {
+    a = a_bool
+    return true
+}
+b = bool_arg(false)
+"""
+        code_block = CodeBlockGenerator.wrap_code_block(
+            "func_arg_bool", module_context, bool_func_arg_code, self.functionmap)
+        code_block.load(['operator', 'math'])
+        sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
+        code_block.run(sym_tables)
+        self.assertEqual(sym_tables['locals']['a'], False)
+        self.assertEqual(sym_tables['locals']['b'], True)
+
     def test_030invalid_syntax(self):
         """Test that syntax errors produce the expected exceptions."""
         module_context = imp.new_module('for_errors')
