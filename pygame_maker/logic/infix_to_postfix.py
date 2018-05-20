@@ -128,15 +128,19 @@ def convert_infix_to_postfix(tok_list, replacement_ops=None):
         # val will take on the proper type based on string contents.
         val = None
         if isinstance(tok, str):
-            minfo = FLOAT_RE.search(tok)
-            if minfo:
+            fl_minfo = FLOAT_RE.search(tok)
+            if fl_minfo:
                 val = float(tok)
-            else:
-                minfo = INT_RE.search(tok)
-                if minfo:
-                    #pylint: disable=redefined-variable-type
-                    val = int(tok)
-                    #pylint: enable=redefined-variable-type
+            in_minfo = INT_RE.search(tok)
+            if in_minfo:
+                #pylint: disable=redefined-variable-type
+                val = int(tok)
+                #pylint: enable=redefined-variable-type
+            if not (fl_minfo or in_minfo):
+                if tok == "true":
+                    val = 1
+                elif tok == "false":
+                    val = 0
                 else:
                     val = str(tok)
             if val in OPERATORS:

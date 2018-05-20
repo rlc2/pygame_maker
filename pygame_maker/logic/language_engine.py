@@ -414,6 +414,25 @@ class CodeBlock(logging_object.LoggingObject):
         self.debug("  stack now points at inner block #{:d}".format(self.inner_block_count - 1))
         self.stack = self.inner_blocks[-1]
 
+    def push_boolean(self, parsestr, loc, toks):
+        """
+        Push true or false to the stack (usually in place of a comparison
+        statement in if / elsif conditionals).
+
+        :param parsestr: The entire string parsed by pyparsing
+        :type parsestr: str
+        :param loc: The location passed in by pyparsing
+        :param toks: The iterable sequence of tokens parsed
+        :type toks: iterable
+        """
+        self.debug("push_boolean(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
+        for tok in toks:
+            self.scratch += infix_to_postfix.convert_infix_to_postfix([tok],
+                                                                      self.OPERATOR_REPLACEMENTS)
+            break
+        self.debug("  append boolean {} to stack".format(str(self.scratch)))
+
     def push_comparison(self, parsestr, loc, toks):
         """
         When the parser matches a comparison, push it onto the current stack.
@@ -566,7 +585,7 @@ class CodeBlock(logging_object.LoggingObject):
                 if func_name:
                     if not arg_with_type:
                         typename = str(item)
-                        if typename not in ["void", "number", "string"]:
+                        if typename not in ["void", "number", "boolean", "string"]:
                             self.error(
                                 "{} at {}: Missing type name in declaration of function '{}'".
                                 format(parsestr, loc, func_name))
@@ -1100,14 +1119,7 @@ class CodeBlock(logging_object.LoggingObject):
             # print("eval {} {}".format(op_name, stargs))
             eval_str = "{}({})".format(op_name, ",".join(stargs))
             res = eval(eval_str)
-            # true/false become ints
-            if isinstance(res, bool):
-                if res:
-                    res = 1
-                else:
-                    res = 0
-            else:
-                res = result_type(res)
+            res = result_type(res)
         return res
 
     def load(self, import_list=None):
@@ -1330,6 +1342,7 @@ def bnf_interpret(code_block_obj):
     * lower_case    :: 'a' .. 'z'
     * upper_case    :: 'A' .. 'Z'
     * alpha         :: lower_case | upper_case
+    * boolean       :: 'true' | 'false'
     * boolean_op    :: 'or' | 'and'
     * boolnot       :: 'not'
     * conditional_keyword   :: 'if' | 'elseif' | 'else'
@@ -1342,7 +1355,7 @@ def bnf_interpret(code_block_obj):
     * integer :: ['+' | '-'] '0'..'9'+
     * float   :: ['+' | '-'] '0'..'9'+ [ '.' '0' .. '9'+ ] [ 'e' | 'E' ['+' | '-'] '0' .. '9'+ ]
     * string  :: '"' [ alpha | decimal_digit | [`~!@#$%^&*()_=+;:',<.>/? -]* ] '"'
-    * atom    :: identifier | PI | E | real |
+    * atom    :: identifier | PI | E | real | boolean |
                  fn '(' [ combinatorial [',' combinatorial ] ] ')' | '(' combinatorial ')'
     * factor  :: atom [ expop factor ]*
     * term    :: factor [ multop factor ]*
@@ -1350,7 +1363,7 @@ def bnf_interpret(code_block_obj):
     * combinatorial :: [boolnot] expr [ boolean_op [boolnot] expr ]*
     * function_def  :: 'function' identifier '('[ identifier ] [',' identifier]* ')' block
     * assignment    :: identifier equalop combinatorial
-    * comparison    :: combinatorial compareop combinatorial
+    * comparison    :: boolean | combinatorial compareop combinatorial
     * conditional   :: conditional_keyword '(' comparison ')' block
     * block         :: '{' assignment | conditional '}'
 
@@ -1370,6 +1383,8 @@ def bnf_interpret(code_block_obj):
 
         uptolineend = Regex(r".*{}".format(os.linesep))
         comment_sym = Literal("#")
+        boolean_true = Literal("true")
+        boolean_false = Literal("false")
         plus = Literal("+")
         minus = Literal("-")
         mult = Literal("*")
@@ -1398,6 +1413,7 @@ def bnf_interpret(code_block_obj):
         is_gt = Keyword(">")
         is_gte = Keyword(">=")
         assignop = Keyword("=")
+        boolean = boolean_true | boolean_false
         compareop = is_equal | is_nequal | is_lte | is_lt | is_gte | is_gt
         boolop = boolor | booland
         addop = plus | minus
@@ -1410,9 +1426,11 @@ def bnf_interpret(code_block_obj):
         expr = Forward()
         atom = ((0, None) * minus + (((ident + lpar + Optional(
             combinatorial + ZeroOrMore("," + combinatorial)) + rpar).setParseAction(
-                code_block_obj.count_function_args) | fnumber | ident | string).setParseAction(
-                    code_block_obj.push_atom) | Group(
-                        lpar + combinatorial + rpar))).setParseAction(code_block_obj.push_u_minus)
+                code_block_obj.count_function_args) | \
+                    fnumber | ident | boolean | string).setParseAction(
+                        code_block_obj.push_atom) | Group(
+                            lpar + combinatorial + rpar))).setParseAction(
+                                code_block_obj.push_u_minus)
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of
         # "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-right
@@ -1434,14 +1452,16 @@ def bnf_interpret(code_block_obj):
         block = Forward()
         conditional_start = (
             ifcond.setParseAction(code_block_obj.push_if_cond) + Group(
-                lpar + combinatorial + rpar).setParseAction(
-                    code_block_obj.push_comparison) + block.setParseAction(
-                        code_block_obj.push_conditional_block))
+                lpar + (combinatorial | boolean.setParseAction(
+                    code_block_obj.push_boolean)) + rpar).setParseAction(
+                        code_block_obj.push_comparison) + block.setParseAction(
+                            code_block_obj.push_conditional_block))
         conditional_continue = (
             elseifcond.setParseAction(code_block_obj.push_if_cond) + Group(
-                lpar + combinatorial + rpar).setParseAction(
-                    code_block_obj.push_comparison) + block.setParseAction(
-                        code_block_obj.push_conditional_block))
+                lpar + (combinatorial | boolean.setParseAction(
+                    code_block_obj.push_boolean)) + rpar).setParseAction(
+                        code_block_obj.push_comparison) + block.setParseAction(
+                            code_block_obj.push_conditional_block))
         conditional_else = (elsecond.setParseAction(
             code_block_obj.push_if_cond) + block.setParseAction(
                 code_block_obj.push_conditional_block))
