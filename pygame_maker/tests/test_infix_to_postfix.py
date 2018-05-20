@@ -49,12 +49,19 @@ class InfixToPostfixTest(unittest.TestCase):
                     'math.pow', 'operator.mul']
         self.assertEqual(expected, postfix)
 
-    def test_020boolean(self):
-        """Test proper placement of boolean operators 'not' and 'or'."""
+    def test_020boolean_ops(self):
+        """
+        Test true and false, and proper placement of boolean operators 'not'
+        and 'or'.
+        """
         tok_list = ['not', ['a', '>', '1'], 'or', ['a', '==', '4']]
         postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
         expected = ['_a', 1, 'operator.gt', 'operator.not_', '_a', 4,
                     'operator.eq', 'or']
+        self.assertEqual(expected, postfix)
+        tok_list = [['false'], 'or', ['true']]
+        postfix = convert_infix_to_postfix(tok_list, self.replacement_table)
+        expected = [0, 1, 'or']
         self.assertEqual(expected, postfix)
 
 unittest.main()

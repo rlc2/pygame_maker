@@ -75,10 +75,18 @@ class TestLanguageEngine(unittest.TestCase):
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
         dump_symtables(sym_tables)
-        self.assertTrue(sym_tables['locals']['x'] == 49)
+        self.assertEqual(sym_tables['locals']['x'], 49)
+        simple_line = "x = true"
+        code_block = CodeBlockGenerator.wrap_code_block(
+            "goodassignment2", self.module_context, simple_line, self.functionmap)
+        code_block.load(['operator', 'math'])
+        sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
+        code_block.run(sym_tables)
+        dump_symtables(sym_tables)
+        self.assertTrue(sym_tables['locals']['x'])
         simple_line2 = "global y = 49"
         code_block = CodeBlockGenerator.wrap_code_block(
-            "goodassignment2", self.module_context, simple_line2, self.functionmap)
+            "goodassignment3", self.module_context, simple_line2, self.functionmap)
         code_block.load(['operator', 'math'])
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
@@ -117,7 +125,9 @@ answer = wrong_answer
 if (4 > 5) { x = 1 }
 elseif (4 > 4) { x = 2 }
 elseif (4 < 4) { x = 3 }
-else { x = 4 }
+elseif (false) { x = 4 }
+elseif (true and false) { x = 5 }
+else { x = 6 }
         """
         code_block = CodeBlockGenerator.wrap_code_block(
             "goodconditional", self.module_context, valid_conditional, self.functionmap)
@@ -125,7 +135,7 @@ else { x = 4 }
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
         dump_symtables(sym_tables)
-        self.assertTrue(sym_tables['locals']['x'] == 4)
+        self.assertTrue(sym_tables['locals']['x'] == 6)
 
     def test_015valid_operations(self):
         """Test various operators."""
@@ -140,6 +150,7 @@ vg = 1 != 2
 vh = 1 == 2
 vi = ((va == 0) and vb)
 vj = ve or vf
+vk = true == false
 vv = 7 / 3
 vw = 6.0 / 1.5
 vx = 4 + 5
@@ -156,7 +167,7 @@ vz = -2 * 4
         dump_symtables(sym_tables)
         answers = {
             "va": 1, "vb": 0, "vc": 1, "vd": 1, "ve": 0, "vf": 1,
-            "vg": 1, "vh": 0, "vi": 0, "vj": 1,
+            "vg": 1, "vh": 0, "vi": 0, "vj": 1, "vk": False,
             "vv": 2, "vw": 4.0, "vx": 9, "vy": 216, "vz": -8
         }
         self.assertEqual(sym_tables['locals'].vars, answers)
@@ -319,7 +330,7 @@ circumference = 2.0 * pi * radius
         language_engine = LanguageEngine()
         language_engine.register_code_block("testA", "a = 1")
         language_engine.register_code_block("testB", "b = 2")
-        self.assertEqual(['testA', 'testB'], 
+        self.assertEqual(['testA', 'testB'],
                          list(sorted(language_engine.code_blocks.keys())))
         language_engine.unregister_code_block("testA")
         self.assertEqual(['testB'], list(language_engine.code_blocks.keys()))
