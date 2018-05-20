@@ -210,8 +210,9 @@ y = debug("THIS IS A DEBUG STRING")
         code_block.load(['operator', 'math'])
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
+        self.assertEqual(sym_tables['locals']['y'], "THIS IS A DEBUG STRING")
 
-    def test_029func_arg_string(self):
+    def test_026func_arg_string(self):
         """
         Test both definining and calling a function that accepts a string
         argument and returns a string.
