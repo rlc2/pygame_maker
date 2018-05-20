@@ -39,8 +39,10 @@ high-level language constructs are one of three types:
 
 import imp
 import numbers
-import math
+#pylint: disable=unused-import
 import operator
+#pylint: enable=unused-import
+import math
 import os
 import re
 import sys
@@ -316,8 +318,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_assignment(<code str>, parsestr={}, loc={}, toks={}):".format(
-            loc, parsestr, toks))
+        self.debug("push_assignment(<code str>, parsestr=.., loc={}, toks={}):".format(
+            loc, toks))
         assign_list = []
         global_prefix = ""
         for assign_tok in toks.asList():
@@ -353,8 +355,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_conditional_block(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_conditional_block(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         if self.inner_block_count > 1:
             # print("inner block #{}\n{}".format(self.inner_block_count-1,self.stack))
             self.inner_block_count -= 1
@@ -392,8 +394,8 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # print("push {}".format(toks.asList()))
-        self.debug("push_if_cond(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_if_cond(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         if_statement = ""
         for tok in toks:
             if_statement = "_{}".format(tok)
@@ -422,8 +424,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_comparison(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_comparison(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         self.debug("  append comparison {} to stack".format(str(self.scratch)))
         self.stack.append(list(self.scratch))
         self.scratch = []
@@ -459,8 +461,8 @@ class CodeBlock(logging_object.LoggingObject):
         # print("function w/ args: {}".format(toks))
         # assume embedded function calls have been validated, just skip
         #  them to count the args in the outer function call
-        self.debug("count_function_args(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("count_function_args(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         func_call = False
         func_name = ""
         skip_count = 0
@@ -542,8 +544,8 @@ class CodeBlock(logging_object.LoggingObject):
         :raise: ParseFatalException if the function already exists, has
             invalid argument types, or has anything following ``void``
         """
-        self.debug("pushFunctionArgs(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("pushFunctionArgs(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         func_name = None
         arg_with_type = None
         arg_list = []
@@ -583,7 +585,7 @@ class CodeBlock(logging_object.LoggingObject):
                             raise ParseFatalException(
                                 parsestr, loc=loc,
                                 msg="Unexpected token '{}' in declaration of function '{}'".
-                                format(str(item, func_name)))
+                                format(str(item), func_name))
                         arg_with_type["name"] = str(item)
                         arg_list.append(dict(arg_with_type))
                         arg_with_type = None
@@ -610,8 +612,8 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # reduce the function source
-        self.debug("push_func_block(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_func_block(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         self.reduce_block(self.frame)
         func_loc = [0, 0]
         param_list = [fparam["name"] for fparam in self.functionmap[self.function_name]["arglist"]]
@@ -653,8 +655,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_atom(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_atom(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         tok_n = 0
         add_not = False
         add_tok = None
@@ -708,8 +710,8 @@ class CodeBlock(logging_object.LoggingObject):
         :type toks: iterable
         """
         # print("pre-op: {}".format(toks.asList()))
-        self.debug("push_first(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_first(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         self.scratch += infix_to_postfix.convert_infix_to_postfix(toks[0],
                                                                   self.OPERATOR_REPLACEMENTS)
         self.debug("  op + scratch is now: {}".format(str(self.scratch)))
@@ -725,8 +727,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_u_minus(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_u_minus(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         for tok in toks:
             if tok == '-':
                 self.scratch.append('unary -')
@@ -744,8 +746,8 @@ class CodeBlock(logging_object.LoggingObject):
         :param toks: The iterable sequence of tokens parsed
         :type toks: iterable
         """
-        self.debug("push_return(<code str>, parsestr={}, loc={}, toks={}):".
-                   format(parsestr, loc, toks))
+        self.debug("push_return(<code str>, parsestr=.., loc={}, toks={}):".
+                   format(loc, toks))
         self.stack.append(list(self.scratch) + ["_return"])
         self.scratch = []
 
@@ -888,7 +890,7 @@ class CodeBlock(logging_object.LoggingObject):
                     if id_start < 0:
                         raise OpStackUnderflowError(
                             "Stack underflow at line {} when assembling the line:\n{}".
-                            format(loc[0], code_line, self.error))
+                            format(loc[0], code_line), self.error)
                     res_type = "int"
                     last_type = None
                     type_upgrade = False
@@ -975,7 +977,7 @@ class CodeBlock(logging_object.LoggingObject):
                         # print("New op_stack: {}".format(op_stack))
         if len(op_stack) > 1:
             raise OpStackOverflowError("Stack overflow at line {} when assembling the line:\n{}".
-                                       format(loc[0], code_line, self.error))
+                                       format(loc[0], code_line), self.error)
         # apply the (possibly upgraded) result type to the remaining item
         self.debug("      Result of {}: {}".format(str(code_line), op_stack))
         python_code_line = "{}{}".format(' ' * loc[1], op_stack[-1]['val'])
