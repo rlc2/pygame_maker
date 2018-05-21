@@ -7,8 +7,10 @@ Represent an action that executes following an event.
 """
 
 import re
+from collections import OrderedDict
+from string import maketrans
 import yaml
-from pygame_maker.logic.language_engine import SymbolTable
+from pygame_maker.logic.language_engine import SymbolTable, LanguageEngine
 
 __all__ = ["Action", "AccountingAction", "CodeAction", "DrawAction",
            "GameAction", "InfoAction", "MotionAction", "ObjectAction",
@@ -20,6 +22,16 @@ def register_action_type(subclass):
     """Register an Action subclass automatically."""
     Action.register_new_action_type(subclass)
     return subclass
+
+def dict_list_to_ordered_dict(dict_list):
+    """
+    Combine a list of single-entry dicts into a single OrderedDict.
+    """
+    odict = OrderedDict()
+    for a_dict in dict_list:
+        for dkey in list(a_dict.keys()):
+            odict[dkey] = a_dict[dkey]
+    return odict
 
 
 class ActionException(Exception):
@@ -150,6 +162,8 @@ class Action(object):
         "continue_from_here",
         "reverse"
     ]
+    #: Actions that should _not_ be executed within user code.
+    FUNCTION_CALL_BLACKLIST = []
     # YAML descriptions of common action parameters for re-use by other
     #  actions
     COMMON_DATA_YAML = """
@@ -220,9 +234,13 @@ common_parameters:
             - greater_than
             - greater_than_or_equals
 """
+    COMMON_CACHED = None
+    ACTION_DEFAULTS = None
+    ACTION_CONSTRAINTS = None
     IF_STATEMENT_RE = re.compile("^if_")
     TUPLE_RE = re.compile(r"\(([^)]+)\)")
     COMMON_RE = re.compile("^common_")
+    PARAM_TRANSLATION = maketrans('.', '_')
 
     # Class variable to be filled in with Action subclasses
     action_type_registry = []
@@ -262,14 +280,83 @@ common_parameters:
         # no action type handles the named action
         raise ActionException("Action '{}' is unknown".format(action_name))
 
-    def __init__(self, action_name, action_yaml, settings_dict=None, **kwargs):
+    @classmethod
+    def collect_parameter_yaml_info(cls, yaml_str):
+        """
+        Parse the YAML parameter information for an action subtype.
+
+        :param yaml_str: YAML string with common params and actions
+        :type yaml_str: str
+        :return:
+            A tuple of 2 dicts, one maps params with defaults, the other maps
+            params with types and constraints
+        :rtype: (dict, dict)
+        """
+        action_map = {}
+        action_constraints = {}
+        yaml_obj = yaml.load(yaml_str)
+        if Action.COMMON_CACHED is None:
+            # One-time conversion of common data YAML.
+            Action.COMMON_CACHED = yaml.load(Action.COMMON_DATA_YAML)
+        common_params = Action.COMMON_CACHED['common_parameters']
+        # print("Got common params:\n{}".format(common_params))
+        for action in list(yaml_obj['actions'].keys()):
+            action_map[action] = {}
+            action_constraints[action] = {}
+            param_dict = yaml_obj['actions'][action]
+            if isinstance(yaml_obj['actions'][action], list):
+                # If action parameters are placed in a list, its single-entry
+                #  dicts should be combined into an OrderedDict.
+                param_dict = dict_list_to_ordered_dict(yaml_obj['actions'][action])
+            for par in list(param_dict.keys()):
+                par_val = param_dict[par]
+                if not isinstance(par_val, dict):
+                    minfo = cls.COMMON_RE.search(par_val)
+                    if minfo:
+                        action_map[action][par] = common_params[par_val]['default']
+                        action_constraints[action][par] = common_params[par_val]
+                elif list(par_val.keys()):
+                    if par_val['type'] == "from_list":
+                        if par_val['default'] not in par_val['accepted_list']:
+                            print("WARNING: default value " +
+                                  "'{}' is not in the list of accepted values '{}'".
+                                  format(par_val['default'], par_val['accepted_list']))
+                    action_map[action][par] = par_val['default']
+                    action_constraints[action][par] = par_val
+            # If not blacklisted, add an entry to the language engine's
+            #  user function map for this action.
+            if isinstance(param_dict, OrderedDict) and action not in cls.FUNCTION_CALL_BLACKLIST:
+                param_info = []
+                for parm in list(param_dict.keys()):
+                    parm_name = parm.translate(cls.PARAM_TRANSLATION)
+                    parm_type = None
+                    if action_constraints[action][parm]['type'] in ["int", "float"]:
+                        parm_type = "number"
+                    elif action_constraints[action][parm]['type'] in ["from_list", "str"]:
+                        parm_type = "string"
+                    elif action_constraints[action][parm]['type'] == "bool":
+                        parm_type = "boolean"
+                    param_info.append({"name": parm_name, "type": parm_type})
+                # print("Adding new user func '{}' with arg list '{}'".format(action, param_info))
+                # This only tells the language engine that this function
+                #  exists.
+                # TODO: Make an actual function that accepts the args, tacks on
+                #  the event that triggered the user code (so "other" can be
+                #  used in "apply_to" in a collision event), and validates
+                #  arguments before calling execute_action() in the proper
+                #  context (game engine or object instance).
+                LanguageEngine.add_new_function_call(action, param_info)
+        # print("Got action_map:\n{}".format(action_map))
+        # print("Got action_constraints:\n{}".format(action_constraints))
+        cls.ACTION_DEFAULTS = action_map
+        cls.ACTION_CONSTRAINTS = action_constraints
+
+    def __init__(self, action_name, settings_dict=None, **kwargs):
         """
         Supply the basic properties for any action.
 
         :param action_name: Name of the action
         :type action_name: str
-        :param action_yaml: YAML string describing the action's parameters
-        :type action_yaml: str
         :param settings_dict: dict mapping values to the action's parameters
         :type settings_dict: dict
         :param kwargs: Parameter values specified as named arguments
@@ -286,12 +373,11 @@ common_parameters:
         if settings_dict is not None:
             args.update(settings_dict)
         args.update(kwargs)
-        data_map, data_constraints = self._collect_parameter_yaml_info(
-            action_yaml + self.COMMON_DATA_YAML)
-        if action_name in data_map:
-            self.action_data.update(data_map[action_name])
-        if action_name in data_constraints:
-            self.action_constraints.update(data_constraints[action_name])
+        if action_name in self.ACTION_DEFAULTS:
+            # Set all values to defaults.
+            self.action_data.update(self.ACTION_DEFAULTS[action_name])
+        if action_name in self.ACTION_CONSTRAINTS:
+            self.action_constraints.update(self.ACTION_CONSTRAINTS[action_name])
         # default: don't nest subsequent action(s)
         minfo = self.IF_STATEMENT_RE.search(action_name)
         if minfo is not None or (action_name == "else"):
@@ -302,44 +388,9 @@ common_parameters:
         else:
             self.nest_adjustment = None
         for param in args:
+            # Set parameter values passed in args.
             if param in self.action_data:
                 self.action_data[param] = args[param]
-
-    def _collect_parameter_yaml_info(self, yaml_str):
-        # Parse the YAML parameter information for the action.
-
-        # :param yaml_str: YAML string with common params and actions
-        # :type yaml_str: str
-        # :return:
-        #     A tuple of 2 dicts, one maps params with defaults, the other maps
-        #     params with types and constraints
-        # :rtype: (dict, dict)
-        action_map = {}
-        action_constraints = {}
-        yaml_obj = yaml.load(yaml_str)
-        common_params = yaml_obj['common_parameters']
-        # print("Got common params:\n{}".format(common_params))
-        for action in list(yaml_obj['actions'].keys()):
-            action_map[action] = {}
-            for par in yaml_obj['actions'][action]:
-                par_val = yaml_obj['actions'][action][par]
-                if not isinstance(par_val, dict):
-                    minfo = self.COMMON_RE.search(par_val)
-                    if minfo:
-                        action_map[action][par] = common_params[par_val]['default']
-                        action_constraints[action] = common_params[par_val]
-                elif list(par_val.keys()):
-                    if par_val['type'] == "from_list":
-                        if par_val['default'] not in par_val['accepted_list']:
-                            print("WARNING: default value " +
-                                  "'{}' is not in the list of accepted values '{}'".
-                                  format(par_val['default'], par_val['accepted_list']))
-                    action_map[action][par] = par_val['default']
-                    action_constraints[action] = par_val
-        # print("Got action_map:\n{}".format(action_map))
-        # print("Got action_constraints:\n{}".format(action_constraints))
-        parm_info = (action_map, action_constraints)
-        return parm_info
 
     def get_parameter_expression_result(self, field_name, symbols,
                                         language_engine):
@@ -515,97 +566,97 @@ class MotionAction(Action):
     MOTION_ACTION_DATA_YAML = """
 actions:
     set_velocity_compass:
-        apply_to: common_apply_to
-        compass_directions: common_compass_direction
-        speed: common_speed
+      - apply_to: common_apply_to
+      - compass_directions: common_compass_direction
+      - speed: common_speed
     set_velocity_degrees:
-        apply_to: common_apply_to
-        direction:
-            type: float
-            default: 0.0
-        speed: common_speed
-        relative: common_relative
+      - apply_to: common_apply_to
+      - direction:
+          type: float
+          default: 0.0
+      - speed: common_speed
+      - relative: common_relative
     move_toward_point:
-        apply_to: common_apply_to
-        destination.x: common_position
-        destination.y: common_position
-        speed: common_speed
-        relative: common_relative
+      - apply_to: common_apply_to
+      - destination.x: common_position
+      - destination.y: common_position
+      - speed: common_speed
+      - relative: common_relative
     set_horizontal_speed:
-        apply_to: common_apply_to
-        horizontal_direction:
-            type: from_list
-            default: right
-            accepted_list: [right, left]
-        horizontal_speed: common_speed
-        relative: common_relative
+      - apply_to: common_apply_to
+      - horizontal_direction:
+          type: from_list
+          default: right
+          accepted_list: [right, left]
+      - horizontal_speed: common_speed
+      - relative: common_relative
     set_vertical_speed:
-        apply_to: common_apply_to
-        vertical_direction:
-            type: from_list
-            default: up
-            accepted_list: [up, down]
-        vertical_speed: common_speed
-        relative: common_relative
+      - apply_to: common_apply_to
+      - vertical_direction:
+          type: from_list
+          default: up
+          accepted_list: [up, down]
+      - vertical_speed: common_speed
+      - relative: common_relative
     apply_gravity:
-        apply_to: common_apply_to
-        gravity_direction: common_compass_direction
-        relative: common_relative
+      - apply_to: common_apply_to
+      - gravity_direction: common_compass_direction
+      - relative: common_relative
     reverse_horizontal_speed:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     reverse_vertical_speed:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     set_friction:
-        apply_to: common_apply_to
-        friction:
+      - apply_to: common_apply_to
+      - friction:
             type: float
             default: '0.0'
-        relative: common_relative
+      - relative: common_relative
     jump_to:
-        apply_to: common_apply_to
-        position.x: common_position
-        position.y: common_position
-        relative: common_relative
+      - apply_to: common_apply_to
+      - position.x: common_position
+      - position.y: common_position
+      - relative: common_relative
     jump_to_start:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     jump_random:
-        apply_to: common_apply_to
-        snap.x: common_position
-        snap.y: common_position
+      - apply_to: common_apply_to
+      - snap.x: common_position
+      - snap.y: common_position
     snap_to_grid:
-        apply_to: common_apply_to
-        grid.x: common_position
-        grid.y: common_position
+      - apply_to: common_apply_to
+      - grid.x: common_position
+      - grid.y: common_position
     wrap_around:
-        apply_to: common_apply_to
-        wrap_direction:
+      - apply_to: common_apply_to
+      - wrap_direction:
             type: from_list
             default: horizontal
             accepted_list: [horizontal, vertical, both]
     move_until_collision:
-        apply_to: common_apply_to
-        direction:
+      - apply_to: common_apply_to
+      - direction:
             type: float
             default: 0.0
-        max_distance:
+      - max_distance:
             type: int
             default: -1
-        stop_at_collision_type: common_collision_type
+      - stop_at_collision_type: common_collision_type
     bounce_off_collider:
-        apply_to: common_apply_to
-        precision:
+      - apply_to: common_apply_to
+      - precision:
             type: from_list
             default: imprecise
             accepted_list: [precise, imprecise]
-        bounce_collision_type: common_collision_type
+      - bounce_collision_type: common_collision_type
     set_path:
-        apply_to: common_apply_to
-        path:
+      - apply_to: common_apply_to
+      - path:
             type: str
             default: ''
-        speed:
+      - speed:
             common_speed
-        at_end:
+      - at_end:
             type: from_list
             default: stop
             accepted_list:
@@ -613,34 +664,34 @@ actions:
                 - continue_from_start
                 - continue_from_here
                 - reverse
-        relative: common_relative
+      - relative: common_relative
     end_path:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     set_location_on_path:
-        apply_to: common_apply_to
-        location:
+      - apply_to: common_apply_to
+      - location:
             type: str
             default: 0
-        relative:
+      - relative:
             common_relative
     set_path_speed:
-        apply_to: common_apply_to
-        speed: common_speed
-        relative: common_relative
+      - apply_to: common_apply_to
+      - speed: common_speed
+      - relative: common_relative
     step_toward_point:
-        apply_to: common_apply_to
-        destination.x: common_position
-        destination.y: common_position
-        speed: common_speed
-        stop_at_collision_type: common_collision_type
-        relative: common_relative
+      - apply_to: common_apply_to
+      - destination.x: common_position
+      - destination.y: common_position
+      - speed: common_speed
+      - stop_at_collision_type: common_collision_type
+      - relative: common_relative
     step_toward_point_around_objects:
-        apply_to: common_apply_to
-        position.x: common_position
-        position.y: common_position
-        speed: common_speed
-        avoid_collision_type: common_collision_type
-        relative: common_relative
+      - apply_to: common_apply_to
+      - position.x: common_position
+      - position.y: common_position
+      - speed: common_speed
+      - avoid_collision_type: common_collision_type
+      - relative: common_relative
 
 """
 
@@ -654,14 +705,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.MOTION_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("MotionAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.MOTION_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
         # print("Created new action {}".format(self))
         # self.action_data = self.MOTION_ACTION_DATA_MAP[action_name]
 
@@ -695,78 +746,78 @@ class ObjectAction(Action):
     OBJECT_ACTION_DATA_YAML = """
 actions:
     create_object:
-        object: common_object
-        position.x: common_position
-        position.y: common_position
-        child_instance:
+      - object: common_object
+      - position.x: common_position
+      - position.y: common_position
+      - child_instance:
             type: bool
             default: False
-        relative: common_relative
+      - relative: common_relative
     create_object_with_velocity:
-        object: common_object
-        position.x: common_position
-        position.y: common_position
-        speed: common_speed
-        direction:
+      - object: common_object
+      - position.x: common_position
+      - position.y: common_position
+      - speed: common_speed
+      - direction:
             type: float
             default: 0.0
-        child_instance:
+      - child_instance:
             type: bool
             default: False
-        relative: common_relative
+      - relative: common_relative
     create_random_object:
-        position.x: common_position
-        position.y: common_position
-        object_1: common_object
-        object_2: common_object
-        object_3: common_object
-        object_4: common_object
-        relative: common_relative
+      - position.x: common_position
+      - position.y: common_position
+      - object_1: common_object
+      - object_2: common_object
+      - object_3: common_object
+      - object_4: common_object
+      - relative: common_relative
     transform_object:
-        apply_to: common_apply_to
-        object: common_object
-        new_object: common_object
-        perform_events:
+      - apply_to: common_apply_to
+      - object: common_object
+      - new_object: common_object
+      - perform_events:
             type: bool
             default: False
     destroy_object:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     destroy_instances_at_location:
-        apply_to: common_apply_to
-        position.x: common_position
-        position.y: common_position
-        relative: common_relative
+      - apply_to: common_apply_to
+      - position.x: common_position
+      - position.y: common_position
+      - relative: common_relative
     set_sprite:
-        apply_to: common_apply_to
-        sprite:
+      - apply_to: common_apply_to
+      - sprite:
             type: str
             default: ''
-        subimage:
+      - subimage:
             type: int
             default: 0
-        speed:
+      - speed:
             type: int
             default: 1
     transform_sprite:
-        apply_to: common_apply_to
-        horizontal_scale:
+      - apply_to: common_apply_to
+      - horizontal_scale:
             type: float
             default: 1.0
-        vertical_scale:
+      - vertical_scale:
             type: float
             default: 1.0
-        rotation:
+      - rotation:
             type: float
             default: 0.0
-        mirror:
+      - mirror:
             type: bool
             default: False
     color_sprite:
-        apply_to: common_apply_to
-        color:
+      - apply_to: common_apply_to
+      - color:
             type: str
             default: '#000000'
-        opacity:
+      - opacity:
             type: float
             default: 1.0
 """
@@ -781,14 +832,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.OBJECT_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("ObjectAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.OBJECT_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -813,21 +864,21 @@ class SoundAction(Action):
     SOUND_ACTION_DATA_YAML = """
 actions:
     play_sound:
-        sound:
+      - sound:
             type: str
             default: ''
-        loop:
+      - loop:
             type: bool
             default: False
     stop_sound:
-        sound:
+      - sound:
             type: str
             default: ''
     if_sound_is_playing:
-        sound:
+      - sound:
             type: str
             default: ''
-        invert: common_invert
+      - invert: common_invert
 """
 
     def __init__(self, action_name, settings_dict=None, **kwargs):
@@ -840,14 +891,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.SOUND_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("SoundAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.SOUND_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -875,20 +926,20 @@ class RoomAction(Action):
     ROOM_ACTION_DATA_YAML = """
 actions:
     goto_previous_room:
-        transition: common_transition
+      - transition: common_transition
     goto_next_room:
-        transition: common_transition
+      - transition: common_transition
     restart_current_room:
-        transition: common_transition
+      - transition: common_transition
     goto_room:
-        new_room:
+      - new_room:
             type: str
             default: ''
-        transition: common_transition
+      - transition: common_transition
     if_previous_room_exists:
-        invert: common_invert
+      - invert: common_invert
     if_next_room_exists:
-        invert: common_invert
+      - invert: common_invert
 """
 
     def __init__(self, action_name, settings_dict=None, **kwargs):
@@ -901,14 +952,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.ROOM_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("RoomAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.ROOM_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -941,51 +992,51 @@ class TimingAction(Action):
     TIMING_ACTION_DATA_YAML = """
 actions:
     set_alarm:
-        apply_to: common_apply_to
-        steps:
+      - apply_to: common_apply_to
+      - steps:
             type: int
             default: 0
-        alarm:
+      - alarm:
             type: int
             default: 0
     sleep:
-        milliseconds:
+      - milliseconds:
             type: int
             default: 1000
-        redraw:
+      - redraw:
             type: bool
             default: True
     set_timeline:
-        timeline:
+      - timeline:
             type: str
             default: ''
-        position:
+      - position:
             type: int
             default: 0
-        start:
+      - start:
             type: bool
             default: True
-        loop:
+      - loop:
             type: bool
             default: False
     set_timeline_location:
-        apply_to: common_apply_to
-        position:
+      - apply_to: common_apply_to
+      - position:
             type: int
             default: 0
-        relative: common_relative
+      - relative: common_relative
     set_timeline_speed:
-        apply_to: common_apply_to
-        speed:
+      - apply_to: common_apply_to
+      - speed:
             type: int
             default: 1
-        relative: common_relative
+      - relative: common_relative
     start_resume_timeline:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     pause_timeline:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
     stop_timeline:
-        apply_to: common_apply_to
+      - apply_to: common_apply_to
 """
 
     def __init__(self, action_name, settings_dict=None, **kwargs):
@@ -998,14 +1049,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.TIMING_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("TimingAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.TIMING_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1030,22 +1081,22 @@ class InfoAction(Action):
     INFO_ACTION_DATA_YAML = """
 actions:
     debug:
-        message:
+      - message:
             type: str
             default: ''
     display_message:
-        message:
+      - message:
             type: str
             default: ''
     show_game_info: {}
     show_video:
-        filename:
+      - filename:
             type: str
             default: ''
-        full_screen:
+      - full_screen:
             type: bool
             default: False
-        loop:
+      - loop:
             type: bool
             default: False
 """
@@ -1060,14 +1111,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.INFO_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("InfoAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.INFO_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1094,11 +1145,11 @@ actions:
     restart_game: {}
     end_game: {}
     save_game:
-        filename:
+      - filename:
             type: str
             default: savegame
     load_game:
-        filename:
+      - filename:
             type: str
             default: savegame
 """
@@ -1113,14 +1164,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.GAME_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("GameAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.GAME_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1157,9 +1208,7 @@ class ResourceAction(Action):
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("ResourceAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        "",
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1202,9 +1251,7 @@ class QuestionAction(Action):
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("QuestionAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        "",
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1227,6 +1274,7 @@ class OtherAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = OTHER_ACTIONS
+    FUNCTION_CALL_BLACKLIST = OTHER_ACTIONS
     OTHER_ACTION_DATA_MAP = {
         "start_of_block": {},
         "else": {},
@@ -1253,14 +1301,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.OTHER_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("OtherAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.OTHER_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
         # handle blocks
         if action_name == "start_of_block":
             self.nest_adjustment = "nest_until_block_end"
@@ -1285,20 +1333,21 @@ class CodeAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = CODE_ACTIONS
+    FUNCTION_CALL_BLACKLIST = CODE_ACTIONS
 
     CODE_ACTION_DATA_YAML = """
 actions:
     execute_code:
-        apply_to: common_apply_to
-        code:
+      - apply_to: common_apply_to
+      - code:
             type: str
             default: ''
     execute_script:
-        apply_to: common_apply_to
-        script:
+      - apply_to: common_apply_to
+      - script:
             type: str
             default: ''
-        parameters:
+      - parameters:
             type: str
             default: ''
 """
@@ -1313,14 +1362,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.CODE_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("CodeAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.CODE_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1341,38 +1390,42 @@ class VariableAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = VARIABLE_ACTIONS
+    FUNCTION_CALL_BLACKLIST = [
+        "set_variable_value",
+        "if_variable_value"
+    ]
     VARIABLE_ACTION_DATA_YAML = """
 actions:
     set_variable_value:
-        apply_to: common_apply_to
-        variable:
+      - apply_to: common_apply_to
+      - variable:
             type: str
             default: test
-        value:
+      - value:
             type: str
             default: '0'
-        is_global:
+      - is_global:
             type: bool
             default: False
-        relative: common_relative
+      - relative: common_relative
     if_variable_value:
-        apply_to: common_apply_to
-        variable:
+      - apply_to: common_apply_to
+      - variable:
             type: str
             default: test
-        test: common_test
-        value:
+      - test: common_test
+      - value:
             type: str
             default: '0'
-        invert: common_invert
+      - invert: common_invert
     draw_variable_value:
-        apply_to: common_apply_to
-        variable:
+      - apply_to: common_apply_to
+      - variable:
             type: str
             default: test
-        position.x: common_position
-        position.y: common_position
-        relative: common_relative
+      - position.x: common_position
+      - position.y: common_position
+      - relative: common_relative
 """
 
     def __init__(self, action_name, settings_dict=None, **kwargs):
@@ -1385,14 +1438,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.VARIABLE_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("VariableAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.VARIABLE_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1438,116 +1491,116 @@ class AccountingAction(Action):
     ACCOUNTING_ACTION_DATA_YAML = """
 actions:
     set_score_value:
-        score:
+      - score:
             type: int
             default: 0
-        relative: common_relative
+      - relative: common_relative
     if_score_value:
-        score:
+      - score:
             type: int
             default: 0
-        test: common_test
-        invert: common_invert
+      - test: common_test
+      - invert: common_invert
     draw_score_value:
-        position.x: common_position
-        position.y: common_position
-        caption:
+      - position.x: common_position
+      - position.y: common_position
+      - caption:
             type: str
             default: 'Score:'
-        relative: common_relative
+      - relative: common_relative
     show_highscore_table:
-        background:
+      - background:
             type: str
             default: ''
-        border:
+      - border:
             type: bool
             default: True
-        new_color:
+      - new_color:
             type: str
             default: '#ff0000'
-        other_color:
+      - other_color:
             type: str
             default: '#ffffff'
-        font:
+      - font:
             type: str
             default: ''
     clear_highscore_table: {}
     set_lives_value:
-        lives:
+      - lives:
             type: int
             default: 0
-        relative: common_relative
+      - relative: common_relative
     if_lives_value:
-        lives:
+      - lives:
             type: int
             default: 0
-        test: common_test
-        invert: common_invert
+      - test: common_test
+      - invert: common_invert
     draw_lives_value:
-        position.x: common_position
-        position.y: common_position
-        caption:
+      - position.x: common_position
+      - position.y: common_position
+      - caption:
             type: str
             default: 'Lives:'
-        relative: common_relative
+      - relative: common_relative
     draw_lives_image:
-        position.x: common_position
-        position.y: common_position
-        sprite:
+      - position.x: common_position
+      - position.y: common_position
+      - sprite:
             type: str
             default: ''
-        relative: common_relative
+      - relative: common_relative
     set_health_value:
-        value:
+      - value:
             type: int
             default: 0
-        relative: common_relative
+      - relative: common_relative
     if_health_value:
-        value:
+      - value:
             type: int
             default: 0
-        test: common_test
-        invert: common_invert
+      - test: common_test
+      - invert: common_invert
     draw_health_bar:
-        x1:
+      - x1:
             type: int
             default: 0
-        y1:
+      - y1:
             type: int
             default: 0
-        x2:
+      - x2:
             type: int
             default: 0
-        y2:
+      - y2:
             type: int
             default: 0
-        back_color:
+      - back_color:
             type: str
             default: ''
-        bar_color_min:
+      - bar_color_min:
             type: str
             default: "#ff0000"
-        bar_color_max:
+      - bar_color_max:
             type: str
             default: "#00ff00"
-        relative: common_relative
+      - relative: common_relative
     set_window_caption:
-        show_score:
+      - show_score:
             type: bool
             default: True
-        score_caption:
+      - score_caption:
             type: str
             default: 'score:'
-        show_lives:
+      - show_lives:
             type: bool
             default: True
-        lives_caption:
+      - lives_caption:
             type: str
             default: 'lives:'
-        show_health:
+      - show_health:
             type: bool
             default: True
-        health_caption:
+      - health_caption:
             type: str
             default: 'health:'
 """
@@ -1562,14 +1615,14 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.ACCOUNTING_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("AccountingAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.ACCOUNTING_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1616,8 +1669,7 @@ class ParticleAction(Action):
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("ParticleAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name, "",
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
 
 
 @register_action_type
@@ -1660,153 +1712,153 @@ class DrawAction(Action):
     DRAW_ACTION_DATA_YAML = """
 actions:
     draw_sprite_at_location:
-        apply_to: common_apply_to
-        sprite:
+      - apply_to: common_apply_to
+      - sprite:
             type: str
             default: ''
-        position.x: common_position
-        position.y: common_position
-        subimage:
+      - position.x: common_position
+      - position.y: common_position
+      - subimage:
             type: int
             default: -1
-        relative: common_relative
+      - relative: common_relative
     draw_background_at_location:
-        background:
+      - background:
             type: str
             default: ''
-        position.x: common_position
-        position.y: common_position
-        tile:
+      - position.x: common_position
+      - position.y: common_position
+      - tile:
             type: bool
             default: False
-        relative: common_relative
+      - relative: common_relative
     draw_text_at_location:
-        apply_to: common_apply_to
-        text:
+      - apply_to: common_apply_to
+      - text:
             type: str
             default: ''
-        position.x: common_position
-        position.y: common_position
-        relative: common_relative
+      - position.x: common_position
+      - position.y: common_position
+      - relative: common_relative
     draw_transformed_text_at_location:
-        apply_to: common_apply_to
-        text:
+      - apply_to: common_apply_to
+      - text:
             type: str
             default: ''
-        position.x: common_position
-        position.y: common_position
-        hor_scale:
+      - position.x: common_position
+      - position.y: common_position
+      - hor_scale:
             type: float
             default: 1.0
-        ver_scale:
+      - ver_scale:
             type: float
             default: 1.0
-        angle:
+      - angle:
             type: float
             default: 0
-        relative: common_relative
+      - relative: common_relative
     draw_rectangle:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        filled:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - filled:
             type: from_list
             default: filled
             accepted_list: [filled, outline]
-        relative: common_relative
+      - relative: common_relative
     draw_horizontal_gradient:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        color1:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - color1:
             type: str
             default: #000000
-        color2:
+      - color2:
             type: str
             default: #FFFFFF
-        relative: common_relative
+      - relative: common_relative
     draw_vertical_gradient:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        color1:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - color1:
             type: str
             default: #000000
-        color2:
+      - color2:
             type: str
             default: #FFFFFF
-        relative: common_relative
+      - relative: common_relative
     draw_ellipse:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        filled:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - filled:
             type: from_list
             default: filled
             accepted_list: [filled, outline]
-        relative: common_relative
+      - relative: common_relative
     draw_gradient_ellipse:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        color1:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - color1:
             type: str
             default: #000000
-        color2:
+      - color2:
             type: str
             default: #FFFFFF
-        relative: common_relative
+      - relative: common_relative
     draw_line:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        relative: common_relative
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - relative: common_relative
     draw_arrow:
-        apply_to: common_apply_to
-        x1: common_position
-        y1: common_position
-        x2: common_position
-        y2: common_position
-        tip_size:
+      - apply_to: common_apply_to
+      - x1: common_position
+      - y1: common_position
+      - x2: common_position
+      - y2: common_position
+      - tip_size:
             type: int
             default: 12
-        relative: common_relative
+      - relative: common_relative
     set_draw_color:
-        color:
+      - color:
             type: str
             default: #000000
     set_draw_font:
-        font:
+      - font:
             type: str
             default: ''
-        alignment:
+      - alignment:
             type: from_list
             default: left
             accepted_list: [left, center, right]
     set_fullscreen:
-        screen_size:
+      - screen_size:
             type: from_list
             default: toggle
             accepted_list: [toggle, windowed, fullscreen]
     take_snapshot:
-        filename:
+      - filename:
             type: str
             default: 'snapshot.png'
     create_effect:
-        apply_to: common_apply_to
-        effect_type:
+      - apply_to: common_apply_to
+      - effect_type:
             type: from_list
             default: explosion
             accepted_list:
@@ -1822,20 +1874,20 @@ actions:
                 - cloud
                 - rain
                 - snow
-        position.x: common_position
-        position.y: common_position
-        size:
+      - position.x: common_position
+      - position.y: common_position
+      - size:
             type: from_list
             default: medium
             accepted_list: [small, medium, large]
-        color:
+      - color:
             type: str
             default: #000000
-        positioning:
+      - positioning:
             type: from_list
             default: foreground
             accepted_list: [foreground, background]
-        relative: common_relative
+      - relative: common_relative
 """
 
     def __init__(self, action_name, settings_dict=None, **kwargs):
@@ -1848,12 +1900,12 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
+        if self.ACTION_DEFAULTS is None:
+            self.collect_parameter_yaml_info(self.DRAW_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
         if action_name not in self.HANDLED_ACTIONS:
             raise ActionException("DrawAction: Unknown action '{}'".format(action_name))
-        Action.__init__(self, action_name,
-                        self.DRAW_ACTION_DATA_YAML,
-                        settings, **kwargs)
+        Action.__init__(self, action_name, settings, **kwargs)
         self.action_data['draw_self'] = {}

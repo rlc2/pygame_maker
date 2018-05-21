@@ -1241,6 +1241,40 @@ class LanguageEngine(logging_object.LoggingObject):
     the code block.
     """
 
+    #: A dict containing known function signatures
+    functionmap = {
+        'distance': {"arglist":
+                     [{"type": "number", "name": "start"}, {"type": "number", "name": "end"}],
+                     'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
+                    },
+        'randint': {"arglist":
+                    [{"type": "number", "name": "max"}],
+                    'block': [0, "_max", "random.randint", "_return"]
+                   },
+        'time': {"arglist": [],
+                 'block': ["time.time", "_return"]
+                },
+        'debug': {"arglist":
+                  [{"type": "string", "name": "debug_str"}],
+                  'block': []
+                 }
+    }
+
+    @classmethod
+    def add_new_function_call(cls, function_name, arg_list):
+        """
+        Add new function_name that can be called by user code.  Used mainly
+        by Action for registering actions as function calls.
+
+        :param function_name: A function name not already in the table.
+        :type function_name: str
+        :param arg_list: A list of dicts containing type and argument name
+            info, E.G. [{"type": "string", "name": "apply_to"}, ...]
+        :type arg_list: list
+        """
+        if function_name not in cls.functionmap.keys():
+            cls.functionmap[function_name] = {"arglist": arg_list, "block": []}
+
     def __init__(self):
         """
         Initialize a new language engine.
@@ -1250,27 +1284,8 @@ class LanguageEngine(logging_object.LoggingObject):
         self.global_symbol_table = SymbolTable()
         self.global_symbol_table.set_constant('pi', math.pi)
         self.global_symbol_table.set_constant('e', math.e)
-        #: A dict containing known function signatures
-        self.functionmap = {
-            'distance': {"arglist":
-                         [{"type": "number", "name": "start"}, {"type": "number", "name": "end"}],
-                         'block': ["_start", "_end", "operator.sub", "operator.abs", "_return"]
-                        },
-            'randint': {"arglist":
-                        [{"type": "number", "name": "max"}],
-                        'block': [0, "_max", "random.randint", "_return"]
-                       },
-            'time': {"arglist": [],
-                     'block': ["time.time", "_return"]
-                    },
-            'debug': {"arglist":
-                      [{"type": "string", "name": "debug_str"}],
-                      'block': []
-                     }
-        }
         #: Code blocks registered in the language engine
         self.code_blocks = {}
-        #: Local symbol tables associated with each code block
 
     def register_code_block(self, block_name, code_string):
         """
