@@ -382,7 +382,8 @@ class SimpleObjectInstance(logging_object.LoggingObject):
         if not isinstance(parent, SimpleObjectInstance):
             self.warn("set_parent_instance() passed non-instance '{}'".format(parent))
             return
-        # if this instance already has a parent, remove it from the parent's child instances
+        # if this instance already has a parent, remove it from the parent's
+        #  child instances
         if self.symbols["parent"] is not None:
             #pylint: disable=no-member
             self.symbols["parent"].remove_child_instance(self)
@@ -417,7 +418,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             'parent' events
         """
         if not isinstance(child, SimpleObjectInstance):
-            self.warn("add_child_instance() passed non-instance '{}'".format(child))
+            self.warn("remove_child_instance() passed non-instance '{}'".format(child))
             return
         self.debug("remove_child_instance(child={} inst {}):".
                    format(child.kind.name, child.inst_id))
