@@ -1259,6 +1259,8 @@ class LanguageEngine(logging_object.LoggingObject):
                   'block': []
                  }
     }
+    #: A list of user-callable action methods.
+    action_methods = []
 
     @classmethod
     def add_new_function_call(cls, function_name, arg_list):
@@ -1274,6 +1276,7 @@ class LanguageEngine(logging_object.LoggingObject):
         """
         if function_name not in cls.functionmap.keys():
             cls.functionmap[function_name] = {"arglist": arg_list, "block": []}
+            cls.action_methods.append(function_name)
 
     def __init__(self):
         """
