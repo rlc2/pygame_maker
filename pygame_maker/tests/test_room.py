@@ -185,7 +185,7 @@ class MyGameManager(logging_object.LoggingObject):
         self.text_objects.append(("text", self.font.render(
             text, 1, self.TEXT_COLOR, self.TEXT_BACKG)))
 
-    def execute_action(self, action, an_event):
+    def execute_action(self, action, an_event, target=None):
         """Handle execute_action() method calls from object instances."""
         action_params = {}
         for param in list(action.action_data.keys()):
@@ -226,7 +226,7 @@ class MyGameManager(logging_object.LoggingObject):
         #print("queue event: {}".format(kev))
         self.event_engine.queue_event(kev)
         #print("xmit event: {}".format(key_event_name))
-        self.event_engine.transmit_event(key_event_name)
+        self.event_engine.transmit_event(key_event_init_name)
 
     def send_mouse_event(self, mouse_event):
         """
