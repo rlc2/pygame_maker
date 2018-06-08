@@ -11,6 +11,7 @@ import imp
 import logging
 import unittest
 from pyparsing import ParseException, ParseFatalException
+from pygame_maker.events.event import Event
 from pygame_maker.logic.code_block import CodeBlockGenerator
 from pygame_maker.logic.language_engine import SymbolTable
 from pygame_maker.logic import run_time_support
@@ -29,6 +30,19 @@ def dump_symtables(symtables):
     symtables['globals'].dump_vars()
     print("locals:")
     symtables['locals'].dump_vars()
+
+
+class DummyObject(object):
+    """Stub object for testing action methods."""
+    def __init__(self):
+        self.action_called = False
+
+    def forward_action(self, an_action, in_event):
+        """
+        Log and keep track of whether this method has been called from user code.
+        """
+        print("Forward action {}, with event {}".format(an_action, in_event))
+        self.action_called = True
 
 
 class TestCodeBlock(unittest.TestCase):
@@ -50,7 +64,8 @@ class TestCodeBlock(unittest.TestCase):
                         'block': [0, "_max", "random.randint", "_return"]
                        },
             'time': {"arglist": [], 'block': ["time.time", "_return"]},
-            'debug': {"arglist": [{"type": "string", "name": "debug_str"}], 'block': []}
+            'print': {"arglist": [{"type": "string", "name": "print_str"}], 'block': []},
+            'debug': {"arglist": [{"type": "string", "name": "message"}], 'block': []}
         }
         self.sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         self.module_context = imp.new_module('game_functions')
@@ -193,16 +208,16 @@ x = distance(12, 19)
         dump_symtables(sym_tables)
         self.assertEqual(sym_tables['locals']['x'], 7)
         debug_function_call = """
-y = debug("THIS IS A DEBUG STRING")
+y = print("THIS IS A STRING")
         """
         code_block = CodeBlockGenerator.wrap_code_block(
             "debugfunccall", self.module_context, debug_function_call, self.functionmap)
         code_block.load(['operator', 'math'])
         sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
         code_block.run(sym_tables)
-        self.assertEqual(sym_tables['locals']['y'], "THIS IS A DEBUG STRING")
+        self.assertEqual(sym_tables['locals']['y'], "THIS IS A STRING")
 
-    def test_026func_arg_string(self):
+    def test_030func_arg_string(self):
         """
         Test both definining and calling a function that accepts a string
         argument and returns a string.
@@ -210,7 +225,7 @@ y = debug("THIS IS A DEBUG STRING")
         module_context = imp.new_module('for_func_arg_string')
         str_func_arg_code = """
 function string_arg(string a_str) {
-    a = debug(a_str)
+    a = print(a_str)
     return "I returned a string"
 }
 b = string_arg("THIS IS A STRING ARG with a known function name userfunc_time")
@@ -224,7 +239,7 @@ b = string_arg("THIS IS A STRING ARG with a known function name userfunc_time")
                          "THIS IS A STRING ARG with a known function name userfunc_time")
         self.assertEqual(sym_tables['locals']['b'], "I returned a string")
 
-    def test_027func_arg_bool(self):
+    def test_035func_arg_bool(self):
         """Test defining and calling a function that accepts a boolean."""
         module_context = imp.new_module('for_func_arg_bool')
         bool_func_arg_code = """
@@ -242,7 +257,23 @@ b = bool_arg(false)
         self.assertEqual(sym_tables['locals']['a'], False)
         self.assertEqual(sym_tables['locals']['b'], True)
 
-    def test_030invalid_syntax(self):
+    def test_040action_method(self):
+        """Test that user code can call action methods."""
+        module_context = imp.new_module('for_action_methods')
+        action_method_code = """
+a = debug("This is a debug message!")
+"""
+        code_block = CodeBlockGenerator.wrap_code_block(
+            "action_method", module_context, action_method_code, self.functionmap, ("debug",))
+        code_block.load(['operator', 'math'])
+        sym_tables = {"globals": SymbolTable(), "locals": SymbolTable()}
+        obj_inst = DummyObject()
+        sym_tables['locals']['self'] = obj_inst
+        sym_tables['locals']['in_event'] = Event.get_event_instance_by_name("begin_step")
+        code_block.run(sym_tables)
+        self.assertTrue(obj_inst.action_called)
+
+    def test_045invalid_syntax(self):
         """Test that syntax errors produce the expected exceptions."""
         module_context = imp.new_module('for_errors')
         bad_line1 = "x + 1 = 59"
@@ -274,7 +305,7 @@ b = bool_arg(false)
             CodeBlockGenerator.wrap_code_block(
                 "badsyntax7", module_context, bad_line7, self.functionmap)
 
-    def test_035semantic_errors(self):
+    def test_050semantic_errors(self):
         """
         Test that calling an undefined function and incorrect argument counts
         to a function result in the expected exception.
@@ -289,7 +320,7 @@ b = bool_arg(false)
             CodeBlockGenerator.wrap_code_block(
                 "semanticerror2", module_context, bad_code2, self.functionmap)
 
-    def test_040call_stack_error(self):
+    def test_055call_stack_error(self):
         """Test that maximum recursion depth is enforced correctly."""
         module_context = imp.new_module('for_recursion_error')
         call_stack_error_code = """

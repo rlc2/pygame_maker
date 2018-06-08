@@ -10,6 +10,7 @@ import pygame
 import yaml
 from pygame_maker.support import logging_object
 from pygame_maker.actions import action
+from pygame_maker.events import event
 from pygame_maker.support import color
 
 
@@ -329,7 +330,9 @@ class Room(logging_object.LoggingObject):
                 # Create a throw-away code action, and send it to the new
                 #  instance's execute_code method.
                 code_action = action.CodeAction('execute_code', code=init_code)
-                self.object_instances[-1].execute_code(code_action,
+                # Manufacture an event, needed by execute_code().
+                room_event = event.OtherEvent('room_start')
+                self.object_instances[-1].execute_code(code_action, room_event,
                                                        keep_code_block=False)
 
     def set_init_code_block(self, code_block_string):

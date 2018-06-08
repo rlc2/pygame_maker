@@ -132,11 +132,39 @@ class CodeBlock(logging_object.LoggingObject):
         "operator.ne": "!=",
         "math.pow": "**"
     }
+    # Interpolations:
+    # {action_name}: An action name from pygame_maker.actions.action
+    # {action_params}: A comma-delimited string containing action parameter
+    #                  names (cannot be empty!)
+    # {action_settings}: A string representation of a dict, with each key in
+    #                    quotes, and each value a bare identifier (each of
+    #                    which will match one of {action_params})
+    ACTION_CODE_BOILERPLATE = """
+def userfunc_{action_name}(_symbols, {action_params}, count=0):
+    success = 0
+    if 'self' in list(_symbols['locals'].keys()):
+        if 'in_event' in list(_symbols['locals'].keys()):
+            action_name = "{action_name}"
+            action_settings = {action_settings}
+            action_inst = Action.get_action_instance_by_name(action_name, action_settings)
+            action_constraints = action_inst.ACTION_CONSTRAINTS[action_name]
+            for action_param in list(action_inst.keys()):
+                if action_param != "apply_to" and 'accepted_list' in action_constraints[action_param]:
+                    if action_inst[action_param] not in action_constraints[action_param]['accepted_list']:
+                        print("Invalid setting {{}} for {{}} parameter '{{}}'".format(action_inst[action_param], action_name, action_param))
+                        return success
+            if hasattr(_symbols['locals']['self'], 'forward_action'):
+                fwd_action = getattr(_symbols['locals']['self'], 'forward_action')
+                fwd_action(action_inst, _symbols['locals']['in_event'])
+                success = 1
+    return success
+
+"""
     SYMBOL_RE = re.compile("_[a-zA-Z][a-zA-Z0-9._]*$")
     GLOBAL_RE = re.compile("^__")
     RETURN_RE = re.compile("  return ")
 
-    def __init__(self, name, module_context, funcmap=None, astree=None):
+    def __init__(self, name, module_context, funcmap=None, action_names=(), astree=None):
         """
         Initialize a new code block.
 
@@ -165,8 +193,10 @@ class CodeBlock(logging_object.LoggingObject):
         self.frame = self.outer_block
         self.scratch = []
         self.inner_block_count = 0
+        self.external_functions = set()
         self.func_name = None
         self.functionmap = {}
+        self.action_names = set(action_names)
         self.function_name = ''
         if funcmap is not None:
             self.functionmap.update(funcmap)
@@ -584,6 +614,11 @@ class CodeBlock(logging_object.LoggingObject):
         func_call = False
         if add_tok in self.functionmap:
             func_call = True
+            if add_tok in self.action_names:
+                # Action methods used by this code block will be constructed as
+                #  needed.
+                print("Adding external action: {}".format(add_tok))
+                self.external_functions.add(add_tok)
         # print("atom: {}".format(toks.asList()))
         if func_call:
             self.scratch += infix_to_postfix.convert_infix_to_postfix([add_tok],
@@ -1007,6 +1042,24 @@ class CodeBlock(logging_object.LoggingObject):
             res = result_type(res)
         return res
 
+    def define_action_methods(self):
+        """
+        Produce method definitions in user code blocks for each action named as
+        a function call in user code.
+        """
+        method_code_list = []
+        for meth_name in self.external_functions:
+            params = [p_info["name"] for p_info in \
+                     self.functionmap[meth_name]['arglist']]
+            s_entries = ['"{}": {}'.format(val, val) for val in params]
+            param_settings = "{{{}}}".format(", ".join(s_entries))
+            action_func_def = self.ACTION_CODE_BOILERPLATE.format(
+                action_name=meth_name,
+                action_params=", ".join(params),
+                action_settings=param_settings)
+            method_code_list.append(action_func_def)
+        return "\n".join(method_code_list)
+
     def load(self, import_list=None):
         """
         Place all functions and executable code into the source code module's
@@ -1025,6 +1078,9 @@ class CodeBlock(logging_object.LoggingObject):
         if import_list:
             import_lines += "import {}\n".format(",".join(import_list))
         exec_code = self.to_python()
+        if self.external_functions:
+            import_lines += "from pygame_maker.actions.action import Action\n"
+            import_lines += self.define_action_methods()
         if exec_code:
             pyth_code = import_lines + exec_code
             self.info("  Run program:\n{}".format(pyth_code))
@@ -1055,6 +1111,10 @@ class CodeBlock(logging_object.LoggingObject):
         # other.scratch = list(self.scratch)
         # other.inner_blocks = list(self.inner_blocks)
         other.outer_block = list(self.outer_block)
+        if len(self.action_names) > 0:
+            other.action_names = set(self.action_names)
+        if self.external_functions:
+            other.external_functions = set(self.external_functions)
         # print("Copied outer block:\n{}".format(other.outer_block))
         if self.astree:
             other.astree = list(self.astree)
@@ -1070,6 +1130,7 @@ class CodeBlock(logging_object.LoggingObject):
         self.outer_block = []
         self.frame = self.outer_block
         self.stack = self.outer_block
+        self.external_functions = set()
         self.func_name = None
         self.functionmap = {}
         self.astree = None
@@ -1088,7 +1149,8 @@ class CodeBlockGenerator(object):
     code_block = CodeBlock("none", None)
 
     @classmethod
-    def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=None):
+    def wrap_code_block(cls, program_name, module_context, source_code_str, funcmap=None,
+                        action_names=()):
         """
         Create a new code block with the given program data.
 
@@ -1103,6 +1165,8 @@ class CodeBlockGenerator(object):
         :return: A new executable code block
         :rtype: :py:class:`CodeBlock`
         """
+        if action_names:
+            cls.code_block.action_names = set(action_names)
         if module_context:
             cls.code_block.module_context = module_context
         if funcmap is not None:
@@ -1112,7 +1176,7 @@ class CodeBlockGenerator(object):
             astree = cls.bnf.parseString(source_code_str)
             cls.code_block.reduce()
             new_block = CodeBlock(program_name, module_context,
-                                  funcmap, astree)
+                                  funcmap, action_names, astree)
             cls.code_block.copy_to(new_block)
         finally:
             cls.code_block.clear()

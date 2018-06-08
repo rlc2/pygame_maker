@@ -147,8 +147,8 @@ class LanguageEngine(logging_object.LoggingObject):
         'time': {"arglist": [],
                  'block': ["time.time", "_return"]
                 },
-        'debug': {"arglist":
-                  [{"type": "string", "name": "debug_str"}],
+        'print': {"arglist":
+                  [{"type": "string", "name": "print_str"}],
                   'block': []
                  }
     }
@@ -203,7 +203,7 @@ class LanguageEngine(logging_object.LoggingObject):
                                           format(block_name, self.error))
         module_context = imp.new_module('{}_module'.format(block_name))
         code_block_runnable = CodeBlockGenerator.wrap_code_block(
-            block_name, module_context, code_string, self.functionmap)
+            block_name, module_context, code_string, self.functionmap, self.action_methods)
         code_block_runnable.load(['operator', 'math'])
         self.code_blocks[block_name] = code_block_runnable
 

@@ -118,12 +118,12 @@ def userfunc_time(_symbols, count=0):
     """
     return int(time.time())
 
-def userfunc_debug(_symbols, debug_str, count=0):
+def userfunc_print(_symbols, print_str, count=0):
     """
-    Make a ``debug`` function that displays a string to stderr.
+    Make a ``print`` function that displays a string to stderr.
 
     :param _symbols: The symbols dict
     :type _symbols: dict
     """
-    sys.stderr.write("{}\n".format(debug_str))
-    return debug_str
+    sys.stderr.write("{}\n".format(print_str))
+    return print_str

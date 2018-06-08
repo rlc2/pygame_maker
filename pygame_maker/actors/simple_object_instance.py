@@ -220,47 +220,50 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             handled_change = True
         return handled_change
 
-    def execute_code(self, action, keep_code_block=True):
+    def execute_code(self, an_action, an_event, keep_code_block=True):
         """
         Handle the execute_code action.
 
         Puts local variables into the symbols attribute, which is a symbol
         table.  Applies any built-in local variable changes for the instance.
 
-        :param action: The Action instance that triggered this method
-        :type action: :py:class:`~pygame_maker.actions.action.Action`
+        :param an_action: The Action instance that triggered this method
+        :type an_action: :py:class:`~pygame_maker.actions.action.Action`
+        :param an_event: The Event instance that triggered this method
+        :type an_event: :py:class:`~pygame_maker.events.event.Event`
         :param keep_code_block: Specify whether the code block will be re-used,
             and so shouldn't be deleted after execution
         :type keep_code_block: bool
         """
-        self.debug("execute_code(action={}, keep_code_block={}):".format(action,
-                                                                         keep_code_block))
-        if action.action_data['code']:
+        self.debug("execute_code(an_action={}, an_event={}, keep_code_block={}):".format(
+            an_action, an_event, keep_code_block))
+        if an_action.action_data['code']:
             instance_handle_name = "obj_{}_block{}".format(self.kind.name, self.code_block_id)
-            if 'language_engine_handle' not in action.runtime_data:
-                action['language_engine_handle'] = instance_handle_name
-                # print("action {} runtime: '{}'".format(action, action.runtime_data))
+            if 'language_engine_handle' not in an_action.runtime_data:
+                an_action['language_engine_handle'] = instance_handle_name
+                # print("an_action {} runtime: '{}'".format(an_action, an_action.runtime_data))
                 self.game_engine.language_engine.register_code_block(
-                    instance_handle_name, action.action_data['code']
+                    instance_handle_name, an_action.action_data['code']
                 )
             local_symbols = SymbolTable(self.symbols,
                                         lambda s, v: self._symbol_change_callback(s, v))
-            # future: allow references to this instance in user code (E.G. set
-            #  as parent, add as child instance).
+            # Allow references to this instance and event in user-callable
+            #  action helper methods, so that they can call forward_action().
             local_symbols.set_constant("self", self)
+            local_symbols.set_constant('in_event', an_event)
             self.debug("{} inst {} syms before code block: {}".format(self.kind.name,
                                                                       self.inst_id,
                                                                       local_symbols.vars))
             self.game_engine.language_engine.execute_code_block(
-                action['language_engine_handle'], local_symbols
+                an_action['language_engine_handle'], local_symbols
             )
             self.debug("  syms after code block: {}".format(local_symbols.vars))
             if not keep_code_block:
                 # support one-shot actions
                 self.game_engine.language_engine.unregister_code_block(
-                    action['language_engine_handle']
+                    an_action['language_engine_handle']
                 )
-                del action.runtime_data['language_engine_handle']
+                del an_action.runtime_data['language_engine_handle']
 
     def print_debug(self, action):
         """
@@ -499,11 +502,15 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             action_params[param] = action.get_parameter_expression_result(
                 param, self.symbols, self.game_engine.language_engine)
         if action.name in list(self.action_name_to_method_map.keys()):
-            self.action_name_to_method_map[action.name](action)
+            if action.name == "execute_code":
+                # Make it possible for user code to execute actions that need
+                #  event information (E.G., for collision handling).
+                self.action_name_to_method_map[action.name](action, an_event)
+            else:
+                self.action_name_to_method_map[action.name](action)
             handled_action = True
-            self.debug("  {} inst {} execute_action {} handled".format(self.kind.name,
-                                                                       self.inst_id,
-                                                                       action.name))
+            self.debug("  {} inst {} execute_action {} handled".format(
+                self.kind.name, self.inst_id, action.name))
         return (action_params, handled_action)
 
     def get_applied_instance_list(self, an_action, in_event):
@@ -541,22 +548,45 @@ class SimpleObjectInstance(logging_object.LoggingObject):
                         self.game_engine.resources['objects'][an_action["apply_to"]].group)
         return apply_to_instances
 
+    def forward_action(self, an_action, in_event):
+        """
+        Called from execute_action_sequence() (and user code action helper
+        methods) to forward an action to the appropriate target(s).
+
+        :param an_action: The action to be forwarded
+        :type an_action: :py:class:`~pygame_maker.actions.action.Action`
+        :param in_event: The event to be handled
+        :type in_event: :py:class:`~pygame_maker.events.event.Event`
+        """
+        self.debug("forward_action(an_action={}, in_event={}):".format(an_action, in_event))
+        # forward instance actions to instance(s)
+        action_targets = self.get_applied_instance_list(an_action, in_event)
+        self.debug("apply {} to targets {}".format(an_action.name, action_targets))
+        for target in action_targets:
+            if target in target.kind.instance_delete_list:
+                self.info("Skipping about-to-be-destroyed instance {}".
+                          format(target.inst_id))
+                continue
+            if an_action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
+                target.execute_action(an_action, in_event)
+            else:
+                # the game engine additionally receives the target
+                #  instance as a parameter
+                self.game_engine.execute_action(an_action, in_event, target)
+
     def execute_action_sequence(self, in_event):
         """
         Walk through an event action sequence when the event handler matches a
         known event.
 
-        The sausage factory method.  There are many types of actions; the
-        object instance actions make the most sense to handle here, but the
-        game engine that inspired this one uses a model in which a hidden
-        manager object type triggers actions that affect other parts of the
-        game engine, so those actions need to be routed properly as well.
+        There are many types of actions; the object instance actions make the
+        most sense to handle here, but the game engine that inspired this one
+        uses a model in which a hidden manager object type triggers actions
+        that affect other parts of the game engine, so those actions need to be
+        routed properly as well.
 
         :param in_event: The event to be handled
         :type in_event: :py:class:`~pygame_maker.events.event.Event`
-        :param targets: The event handler may pass in a list of target
-            instances for the action sequence to operate on
-        :type targets: array-like | None
         """
         self.debug("execute_action_sequence(in_event={}):".format(in_event))
         if in_event.name in self.kind.event_action_sequences:
@@ -564,21 +594,7 @@ class SimpleObjectInstance(logging_object.LoggingObject):
             with logging_object.Indented(self):
                 self.debug("  Event args: {}".format(in_event.event_params))
                 for an_action in self.kind.event_action_sequences[in_event.name].get_next_action():
-                    self.debug("  Execute action {}".format(an_action))
-                    # forward instance actions to instance(s)
-                    action_targets = self.get_applied_instance_list(an_action, in_event)
-                    self.debug("apply {} to targets {}".format(an_action.name, action_targets))
-                    for target in action_targets:
-                        if target in self.kind.instance_delete_list:
-                            self.info("Skipping about-to-be-destroyed instance {}".
-                                      format(target.inst_id))
-                            continue
-                        if an_action.name not in self.game_engine.GAME_ENGINE_ACTIONS:
-                            target.execute_action(an_action, in_event)
-                        else:
-                            # the game engine additionally receives the target
-                            #  instance as a parameter
-                            self.game_engine.execute_action(an_action, in_event, target)
+                    self.forward_action(an_action, in_event)
 
     def __repr__(self):
         return "<{} {:03d}>".format(type(self).__name__, self.inst_id)
