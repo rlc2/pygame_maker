@@ -23,6 +23,12 @@ def register_action_type(subclass):
     Action.register_new_action_type(subclass)
     return subclass
 
+def parse_action_yaml(subclass):
+    """Parse YAML information for an Action subclass automatically."""
+    if hasattr(subclass, 'ACTION_DATA_YAML'):
+        subclass.collect_parameter_yaml_info(subclass.ACTION_DATA_YAML)
+    return subclass
+
 def dict_list_to_ordered_dict(dict_list):
     """
     Combine a list of single-entry dicts into a single OrderedDict.
@@ -340,11 +346,6 @@ common_parameters:
                 # print("Adding new user func '{}' with arg list '{}'".format(action, param_info))
                 # This only tells the language engine that this function
                 #  exists.
-                # TODO: Make an actual function that accepts the args, tacks on
-                #  the event that triggered the user code (so "other" can be
-                #  used in "apply_to" in a collision event), and validates
-                #  arguments before calling execute_action() in the proper
-                #  context (game engine or object instance).
                 LanguageEngine.add_new_function_call(action, param_info)
         # print("Got action_map:\n{}".format(action_map))
         # print("Got action_constraints:\n{}".format(action_constraints))
@@ -521,6 +522,7 @@ common_parameters:
 
 
 @register_action_type
+@parse_action_yaml
 class MotionAction(Action):
     """
     Wrap motion-related actions.
@@ -563,7 +565,7 @@ class MotionAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = MOVE_ACTIONS + JUMP_ACTIONS + PATH_ACTIONS + STEP_ACTIONS
-    MOTION_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     set_velocity_compass:
       - apply_to: common_apply_to
@@ -705,8 +707,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.MOTION_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -718,6 +718,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class ObjectAction(Action):
     """
     Wrap object-related actions.
@@ -743,7 +744,7 @@ class ObjectAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = OBJECT_ACTIONS + SPRITE_ACTIONS
-    OBJECT_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     create_object:
       - object: common_object
@@ -832,8 +833,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.OBJECT_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -843,6 +842,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class SoundAction(Action):
     """
     Wrap sound-related actions.
@@ -861,7 +861,7 @@ class SoundAction(Action):
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = SOUND_ACTIONS
 
-    SOUND_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     play_sound:
       - sound:
@@ -891,8 +891,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.SOUND_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -902,6 +900,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class RoomAction(Action):
     """
     Wrap room-related actions.
@@ -923,7 +922,7 @@ class RoomAction(Action):
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = ROOM_ACTIONS
     DEFAULT_ROOM = 0
-    ROOM_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     goto_previous_room:
       - transition: common_transition
@@ -952,8 +951,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.ROOM_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -963,6 +960,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class TimingAction(Action):
     """
     Wrap timing-related actions.
@@ -989,7 +987,7 @@ class TimingAction(Action):
     DEFAULT_SLEEP = 0.1
     DEFAULT_TIMELINE = 0
     DEFAULT_TIMELINE_STEP = 0
-    TIMING_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     set_alarm:
       - apply_to: common_apply_to
@@ -1049,8 +1047,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.TIMING_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1060,6 +1056,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class InfoAction(Action):
     """
     Wrap information display actions.
@@ -1078,7 +1075,7 @@ class InfoAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = INFO_ACTIONS
-    INFO_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     debug:
       - message:
@@ -1111,8 +1108,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.INFO_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1122,6 +1117,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class GameAction(Action):
     """
     Wrap game control actions.
@@ -1140,7 +1136,7 @@ class GameAction(Action):
     ]
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = GAME_ACTIONS
-    GAME_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     restart_game: {}
     end_game: {}
@@ -1164,8 +1160,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.GAME_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1175,6 +1169,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class ResourceAction(Action):
     """
     Wrap resource actions.
@@ -1212,6 +1207,7 @@ class ResourceAction(Action):
 
 
 @register_action_type
+@parse_action_yaml
 class QuestionAction(Action):
     """
     Wrap query actions.
@@ -1255,6 +1251,7 @@ class QuestionAction(Action):
 
 
 @register_action_type
+@parse_action_yaml
 class OtherAction(Action):
     """
     Wrap action sequence control actions.
@@ -1282,7 +1279,7 @@ class OtherAction(Action):
         "end_of_block": {},
         "repeat_next_action": {}
     }
-    OTHER_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     start_of_block: {}
     else: {}
@@ -1301,8 +1298,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.OTHER_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1317,6 +1312,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class CodeAction(Action):
     """
     Wrap code and script execution actions.
@@ -1335,7 +1331,7 @@ class CodeAction(Action):
     HANDLED_ACTIONS = CODE_ACTIONS
     FUNCTION_CALL_BLACKLIST = CODE_ACTIONS
 
-    CODE_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     execute_code:
       - apply_to: common_apply_to
@@ -1362,8 +1358,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.CODE_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1373,6 +1367,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class VariableAction(Action):
     """
     Wrap variable set, test, and display actions.
@@ -1394,7 +1389,7 @@ class VariableAction(Action):
         "set_variable_value",
         "if_variable_value"
     ]
-    VARIABLE_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     set_variable_value:
       - apply_to: common_apply_to
@@ -1438,8 +1433,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.VARIABLE_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1449,6 +1442,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class AccountingAction(Action):
     """
     Wrap game accounting actions.
@@ -1488,7 +1482,7 @@ class AccountingAction(Action):
         "is_greater_than_or_equal",
     ]
 
-    ACCOUNTING_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     set_score_value:
       - score:
@@ -1615,8 +1609,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.ACCOUNTING_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
@@ -1626,6 +1618,7 @@ actions:
 
 
 @register_action_type
+@parse_action_yaml
 class ParticleAction(Action):
     """
     Wrap particle field actions.
@@ -1673,6 +1666,7 @@ class ParticleAction(Action):
 
 
 @register_action_type
+@parse_action_yaml
 class DrawAction(Action):
     """
     Wrap drawing actions.
@@ -1709,7 +1703,7 @@ class DrawAction(Action):
     #: The full list of actions wrapped in this class
     HANDLED_ACTIONS = DRAW_ACTIONS + DRAW_SETTINGS_ACTIONS + OTHER_DRAW_ACTIONS
 
-    DRAW_ACTION_DATA_YAML = """
+    ACTION_DATA_YAML = """
 actions:
     draw_sprite_at_location:
       - apply_to: common_apply_to
@@ -1900,8 +1894,6 @@ actions:
         :type settings_dict: dict
         :param kwargs: Set parameter values using named arguments
         """
-        if self.ACTION_DEFAULTS is None:
-            self.collect_parameter_yaml_info(self.DRAW_ACTION_DATA_YAML)
         settings = {}
         if settings_dict is not None:
             settings = settings_dict
