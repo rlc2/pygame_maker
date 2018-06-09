@@ -346,7 +346,7 @@ common_parameters:
                 # print("Adding new user func '{}' with arg list '{}'".format(action, param_info))
                 # This only tells the language engine that this function
                 #  exists.
-                LanguageEngine.add_new_function_call(action, param_info)
+                LanguageEngine.add_new_function_call(action, param_info, param_dict.keys())
         # print("Got action_map:\n{}".format(action_map))
         # print("Got action_constraints:\n{}".format(action_constraints))
         cls.ACTION_DEFAULTS = action_map

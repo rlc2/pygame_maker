@@ -1049,13 +1049,18 @@ def userfunc_{action_name}(_symbols, {action_params}, count=0):
         """
         method_code_list = []
         for meth_name in self.external_functions:
-            params = [p_info["name"] for p_info in \
-                     self.functionmap[meth_name]['arglist']]
-            s_entries = ['"{}": {}'.format(val, val) for val in params]
+            fcn_params = [p_info["name"] for p_info in \
+                          self.functionmap[meth_name]['arglist']]
+            if 'param_names' in self.functionmap[meth_name]:
+                acn_params = list(self.functionmap[meth_name]['param_names'])
+            else:
+                acn_params = list(fcn_params)
+            s_entries = ['"{}": {}'.format(acn_name, fcn_name) for \
+                         acn_name, fcn_name in zip(acn_params, fcn_params)]
             param_settings = "{{{}}}".format(", ".join(s_entries))
             action_func_def = self.ACTION_CODE_BOILERPLATE.format(
                 action_name=meth_name,
-                action_params=", ".join(params),
+                action_params=", ".join(fcn_params),
                 action_settings=param_settings)
             method_code_list.append(action_func_def)
         return "\n".join(method_code_list)

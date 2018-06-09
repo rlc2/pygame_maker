@@ -156,7 +156,7 @@ class LanguageEngine(logging_object.LoggingObject):
     action_methods = []
 
     @classmethod
-    def add_new_function_call(cls, function_name, arg_list):
+    def add_new_function_call(cls, function_name, arg_list, param_names):
         """
         Add new function_name that can be called by user code.  Used mainly
         by Action for registering actions as function calls.
@@ -166,9 +166,13 @@ class LanguageEngine(logging_object.LoggingObject):
         :param arg_list: A list of dicts containing type and argument name
             info, E.G. [{"type": "string", "name": "apply_to"}, ...]
         :type arg_list: list
+        :param param_names: A list of the original action parameter names
+            (those passed in arg_list will have '.' transformed to '_').
+        :type param_names: list
         """
         if function_name not in cls.functionmap.keys():
-            cls.functionmap[function_name] = {"arglist": arg_list, "block": []}
+            cls.functionmap[function_name] = {"arglist": arg_list, "param_names": param_names,
+                                              "block": []}
             cls.action_methods.append(function_name)
 
     def __init__(self):
